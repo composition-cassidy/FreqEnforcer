@@ -1,0 +1,43 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.dll
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Build/packaging
+build/
+dist/
+installer/
+
+# Logs
+*.log
+
+# Local debug notes
+spartan_tuner/debug_notes.txt
+
+# Audio artifacts (keep source small; commit a few demo assets explicitly if desired)
+*.wav
+*.mp3
+*.flac
+*.ogg
+
+# Keep curated examples
+!spartan_tuner/test/*.wav
+
+# But keep your app images
+!spartan_tuner/ICON.png
+!spartan_tuner/LOGO.png
+
+# Keep fonts
+!spartan_tuner/fonts/**
