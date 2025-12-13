@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 
-import librosa
 from scipy.ndimage import gaussian_filter1d
 
 
@@ -51,6 +50,8 @@ def apply_cleanliness(
     duration_s = float(audio_arr.shape[0]) / float(sr)
     if duration_s < 0.2:
         return audio_arr
+
+    import librosa
 
     cleanliness_percent = min(100.0, max(0.0, float(cleanliness_percent)))
 
@@ -167,6 +168,8 @@ def preview_cleanliness_mask(
         Tuple of (mask, frequencies, times) for plotting
     """
     audio_arr = np.asarray(audio)
+
+    import librosa
 
     n_fft = 2048
     hop_length = 512

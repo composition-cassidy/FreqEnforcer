@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import librosa
+import pyworld as pw
 
 try:
     from spartan_tuner.utils.note_utils import (
@@ -39,18 +39,19 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100) -> dict:
             "voiced_ratio": 0.0,
         }
 
-    f0, voiced_flag, voiced_probs = librosa.pyin(
-        audio_arr,
-        fmin=50.0,
-        fmax=500.0,
-        sr=sr,
-        frame_length=2048,
-    )
+    audio_f64 = audio_arr.astype(np.float64, copy=False)
 
-    times = librosa.times_like(f0, sr=sr)
+    f0, time_axis = pw.dio(
+        audio_f64,
+        int(sr),
+        f0_floor=50.0,
+        f0_ceil=500.0,
+    )
+    f0 = pw.stonemask(audio_f64, f0, time_axis, int(sr))
 
     f0_arr = np.asarray(f0, dtype=np.float32)
-    times_arr = np.asarray(times, dtype=np.float32)
+    f0_arr = np.where(f0_arr > 0.0, f0_arr, np.nan).astype(np.float32, copy=False)
+    times_arr = np.asarray(time_axis, dtype=np.float32)
 
     voiced_mask = np.isfinite(f0_arr)
 

@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+import time
 import numpy as np
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
@@ -31,17 +32,20 @@ class ProcessingThread(QThread):
     error = pyqtSignal(str)
     progress = pyqtSignal(str)
 
-    def __init__(self, audio, sr, settings):
+    def __init__(self, audio, sr, settings, debug: bool = False):
         super().__init__()
         self.audio = audio
         self.sr = sr
         self.settings = settings
+        self.debug = bool(debug)
 
     def run(self):
         try:
-            result = self.audio.copy()
+            t_start = time.perf_counter()
+            result = self.audio
 
             self.progress.emit("Autotuning...")
+            t0 = time.perf_counter()
             if self.settings["preserve_formants"]:
                 result = autotune_to_note(result, self.sr, self.settings["target_note"], preserve_formants=True)
             else:
@@ -50,23 +54,37 @@ class ProcessingThread(QThread):
                     self.settings["target_note"],
                     self.settings["formant_shift_cents"]
                 )
+            if self.debug:
+                self.progress.emit(f"Autotuning... ({(time.perf_counter() - t0) * 1000.0:.0f} ms)")
 
             stretch_factor = float(self.settings.get("stretch_factor", 1.0))
             stretch_method = str(self.settings.get("stretch_method", "audiotsm_wsola"))
             if abs(stretch_factor - 1.0) > 1e-6:
                 self.progress.emit(f"Stretching... ({stretch_method}, x{stretch_factor:.2f})")
+                t0 = time.perf_counter()
                 fn = STRETCHERS.get(stretch_method)
                 if fn is None:
                     raise ValueError(f"Unknown stretching method: {stretch_method}")
                 result = fn(result, int(self.sr), float(stretch_factor))
+                if self.debug:
+                    self.progress.emit(f"Stretching... ({(time.perf_counter() - t0) * 1000.0:.0f} ms)")
 
             if self.settings["cleanliness_percent"] > 0:
                 self.progress.emit(f"Applying {self.settings['cleanliness_percent']}% cleanliness...")
+                t0 = time.perf_counter()
                 result = apply_cleanliness(result, self.sr, self.settings["cleanliness_percent"])
+                if self.debug:
+                    self.progress.emit(f"Cleanliness... ({(time.perf_counter() - t0) * 1000.0:.0f} ms)")
 
             if self.settings["normalize"]:
                 self.progress.emit("Normalizing...")
+                t0 = time.perf_counter()
                 result = normalize_audio(result, target_db=-0.1)
+                if self.debug:
+                    self.progress.emit(f"Normalizing... ({(time.perf_counter() - t0) * 1000.0:.0f} ms)")
+
+            if self.debug:
+                self.progress.emit(f"Total... ({(time.perf_counter() - t_start) * 1000.0:.0f} ms)")
 
             self.finished.emit(result)
 
@@ -515,7 +533,7 @@ class MainWindow(QMainWindow):
         token = self._processing_token
         self._current_processing_token = token
 
-        self.processing_thread = ProcessingThread(self.original_audio, self.sample_rate, settings)
+        self.processing_thread = ProcessingThread(self.original_audio, self.sample_rate, settings, debug=self._debug_enabled)
         self.processing_thread.finished.connect(lambda result, _t=token: self._on_processing_finished(result, _t))
         self.processing_thread.error.connect(lambda msg, _t=token: self._on_processing_error(msg, _t))
         self.processing_thread.progress.connect(lambda msg, _t=token: self._on_processing_progress(msg, _t))

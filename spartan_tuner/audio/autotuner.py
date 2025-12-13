@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+import threading
+
 import numpy as np
 import pyworld as pw
 
@@ -7,6 +10,72 @@ try:
     from spartan_tuner.utils.note_utils import note_name_to_freq
 except ImportError:
     from utils.note_utils import note_name_to_freq
+
+
+_WORLD_ANALYSIS_CACHE_MAX = 4
+_WORLD_ANALYSIS_CACHE: "OrderedDict[tuple[int, int, str, int], tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]" = OrderedDict()
+_WORLD_ANALYSIS_CACHE_LOCK = threading.Lock()
+
+
+def _get_world_analysis(
+    audio: np.ndarray,
+    sr: int,
+    voicing_mode: str,
+    dilation_frames: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    audio_arr = np.asarray(audio)
+    key = (id(audio_arr), int(sr), str(voicing_mode), int(dilation_frames))
+
+    with _WORLD_ANALYSIS_CACHE_LOCK:
+        cached = _WORLD_ANALYSIS_CACHE.get(key)
+        if cached is not None:
+            _WORLD_ANALYSIS_CACHE.move_to_end(key)
+            return cached
+
+    audio_f64 = audio_arr.astype(np.float64, copy=False)
+
+    f0, time_axis = pw.dio(audio_f64, int(sr), f0_floor=50.0, f0_ceil=500.0)
+    f0 = pw.stonemask(audio_f64, f0, time_axis, int(sr))
+
+    voiced_mask = f0 > 0
+    if voicing_mode == "strict":
+        new_voiced_mask = voiced_mask
+    elif voicing_mode == "force":
+        new_voiced_mask = np.ones_like(voiced_mask, dtype=bool)
+    elif voicing_mode == "dilate":
+        new_voiced_mask = _dilate_voiced_mask(voiced_mask, int(dilation_frames))
+    else:
+        raise ValueError("voicing_mode must be one of: strict, force, dilate")
+
+    analysis_f0 = f0
+    if voicing_mode in ("force", "dilate"):
+        if np.any(voiced_mask):
+            idx = np.arange(len(f0), dtype=np.float64)
+            voiced_idx = idx[voiced_mask]
+            voiced_f0 = f0[voiced_mask]
+            filled = np.interp(idx, voiced_idx, voiced_f0)
+            analysis_f0 = filled.astype(np.float64, copy=False)
+        else:
+            analysis_f0 = np.full_like(f0, 1.0, dtype=np.float64)
+
+    sp = pw.cheaptrick(audio_f64, analysis_f0, time_axis, int(sr))
+    ap = pw.d4c(audio_f64, analysis_f0, time_axis, int(sr))
+
+    result = (
+        np.asarray(f0, dtype=np.float64),
+        np.asarray(time_axis, dtype=np.float64),
+        np.asarray(sp, dtype=np.float64),
+        np.asarray(ap, dtype=np.float64),
+        np.asarray(new_voiced_mask, dtype=bool),
+    )
+
+    with _WORLD_ANALYSIS_CACHE_LOCK:
+        _WORLD_ANALYSIS_CACHE[key] = result
+        _WORLD_ANALYSIS_CACHE.move_to_end(key)
+        while len(_WORLD_ANALYSIS_CACHE) > int(_WORLD_ANALYSIS_CACHE_MAX):
+            _WORLD_ANALYSIS_CACHE.popitem(last=False)
+
+    return result
 
 
 def autotune_to_note(
@@ -40,40 +109,8 @@ def autotune_to_note(
     if duration_s < 0.1:
         raise ValueError("Audio is too short for pyworld processing (min 0.1s)")
 
-    # pyworld requires float64
-    audio_arr = audio_arr.astype(np.float64, copy=False)
-
-    # Get target frequency
     target_freq = float(note_name_to_freq(target_note))
-
-    # Extract f0, spectral envelope, and aperiodicity
-    # dio is the pitch extractor, stonemask refines it
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)  # refine f0
-
-    voiced_mask = f0 > 0
-    if voicing_mode == "strict":
-        new_voiced_mask = voiced_mask
-    elif voicing_mode == "force":
-        new_voiced_mask = np.ones_like(voiced_mask, dtype=bool)
-    elif voicing_mode == "dilate":
-        new_voiced_mask = _dilate_voiced_mask(voiced_mask, int(dilation_frames))
-    else:
-        raise ValueError("voicing_mode must be one of: strict, force, dilate")
-
-    analysis_f0 = f0
-    if voicing_mode in ("force", "dilate"):
-        if np.any(voiced_mask):
-            idx = np.arange(len(f0), dtype=np.float64)
-            voiced_idx = idx[voiced_mask]
-            voiced_f0 = f0[voiced_mask]
-            filled = np.interp(idx, voiced_idx, voiced_f0)
-            analysis_f0 = filled.astype(np.float64, copy=False)
-        else:
-            analysis_f0 = np.full_like(f0, target_freq, dtype=np.float64)
-
-    sp = pw.cheaptrick(audio_arr, analysis_f0, time_axis, sr)  # spectral envelope
-    ap = pw.d4c(audio_arr, analysis_f0, time_axis, sr)  # aperiodicity
+    f0, time_axis, sp, ap, new_voiced_mask = _get_world_analysis(audio_arr, int(sr), str(voicing_mode), int(dilation_frames))
 
     # Create new f0 contour - flat line at target frequency
     # But only for voiced frames (where original f0 > 0)
@@ -95,7 +132,7 @@ def autotune_to_note(
                 new_sp[i] = _shift_spectral_envelope(sp[i], float(ratio))
 
     # Resynthesize audio with new f0
-    output = pw.synthesize(new_f0, new_sp, ap, sr)
+    output = pw.synthesize(new_f0, new_sp, ap, int(sr))
 
     return output
 
@@ -180,36 +217,10 @@ def autotune_with_formant_shift(
     if duration_s < 0.1:
         raise ValueError("Audio is too short for pyworld processing (min 0.1s)")
 
-    audio_arr = audio_arr.astype(np.float64, copy=False)
     target_freq = float(note_name_to_freq(target_note))
 
     # Extract components
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
-
-    voiced_mask = f0 > 0
-    if voicing_mode == "strict":
-        new_voiced_mask = voiced_mask
-    elif voicing_mode == "force":
-        new_voiced_mask = np.ones_like(voiced_mask, dtype=bool)
-    elif voicing_mode == "dilate":
-        new_voiced_mask = _dilate_voiced_mask(voiced_mask, int(dilation_frames))
-    else:
-        raise ValueError("voicing_mode must be one of: strict, force, dilate")
-
-    analysis_f0 = f0
-    if voicing_mode in ("force", "dilate"):
-        if np.any(voiced_mask):
-            idx = np.arange(len(f0), dtype=np.float64)
-            voiced_idx = idx[voiced_mask]
-            voiced_f0 = f0[voiced_mask]
-            filled = np.interp(idx, voiced_idx, voiced_f0)
-            analysis_f0 = filled.astype(np.float64, copy=False)
-        else:
-            analysis_f0 = np.full_like(f0, target_freq, dtype=np.float64)
-
-    sp = pw.cheaptrick(audio_arr, analysis_f0, time_axis, sr)
-    ap = pw.d4c(audio_arr, analysis_f0, time_axis, sr)
+    _f0, _time_axis, sp, ap, new_voiced_mask = _get_world_analysis(audio_arr, int(sr), str(voicing_mode), int(dilation_frames))
 
     # Flatten f0 to target
     new_f0 = np.where(new_voiced_mask, target_freq, 0.0)
@@ -222,6 +233,6 @@ def autotune_with_formant_shift(
         new_sp = sp
 
     # Resynthesize
-    output = pw.synthesize(new_f0, new_sp, ap, sr)
+    output = pw.synthesize(new_f0, new_sp, ap, int(sr))
 
     return output
