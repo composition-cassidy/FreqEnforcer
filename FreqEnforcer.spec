@@ -18,6 +18,7 @@ _datas = [
     ("spartan_tuner/ICON.ico", "."),
     ("spartan_tuner/fonts", "fonts"),
     ("spartan_tuner/themes", "themes"),
+    ("spartan_tuner/i18n", "i18n"),
 ]
 
 _hiddenimports = []

@@ -23,7 +23,7 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QAbstractAnimation,
 )
-from PyQt6.QtGui import QKeySequence, QShortcut, QPixmap, QAction, QColor, QIcon
+from PyQt6.QtGui import QKeySequence, QShortcut, QPixmap, QAction, QActionGroup, QColor, QIcon
 from PyQt6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 
 from ui.waveform_widget import WaveformWidget
@@ -31,6 +31,7 @@ from ui.piano_roll_widget import PianoRollWidget
 from ui.settings_panel import SettingsPanel
 from ui.theme_editor import ThemeEditorWindow
 from utils.note_utils import note_name_to_midi
+from utils.i18n import i18n, tr
 
 
 class ProcessingThread(QThread):
@@ -61,7 +62,7 @@ class ProcessingThread(QThread):
             result = self.audio.copy()
 
             pitch_mode = str(self.settings.get("pitch_mode", "world_hard"))
-            self.progress.emit("Autotuning...")
+            self.progress.emit(tr("progress.autotuning", "Autotuning..."))
             if pitch_mode == "world_soft":
                 result = autotune_soft_to_note(
                     result,
@@ -96,7 +97,12 @@ class ProcessingThread(QThread):
             stretch_factor = float(self.settings.get("stretch_factor", 1.0))
             stretch_method = str(self.settings.get("stretch_method", "audiotsm_wsola"))
             if abs(stretch_factor - 1.0) > 1e-6:
-                self.progress.emit(f"Stretching... ({stretch_method}, x{stretch_factor:.2f})")
+                self.progress.emit(
+                    tr("progress.stretching_fmt", "Stretching... ({method}, x{factor:.2f})").format(
+                        method=stretch_method,
+                        factor=stretch_factor,
+                    )
+                )
                 fn = STRETCHERS.get(stretch_method)
                 if fn is None:
                     raise ValueError(f"Unknown stretching method: {stretch_method}")
@@ -104,22 +110,31 @@ class ProcessingThread(QThread):
 
             low_cut_hz = float(self.settings.get("clean_lowcut_hz", 0.0))
             if np.isfinite(low_cut_hz) and low_cut_hz > 0.0:
-                self.progress.emit(f"Removing sub (low cut {low_cut_hz:.0f} Hz)...")
+                self.progress.emit(
+                    tr("progress.lowcut_fmt", "Removing sub (low cut {hz:.0f} Hz)...").format(hz=low_cut_hz)
+                )
                 result = apply_low_cut(result, int(self.sr), float(low_cut_hz))
 
             cleanliness = float(self.settings.get("cleanliness_percent", 0.0))
             if np.isfinite(cleanliness) and cleanliness > 0.0:
-                self.progress.emit(f"Applying {cleanliness:.0f}% cleanliness...")
+                self.progress.emit(
+                    tr("progress.cleanliness_fmt", "Applying {pct:.0f}% cleanliness...").format(pct=cleanliness)
+                )
                 result = apply_cleanliness(result, int(self.sr), float(cleanliness))
 
             hs_db = float(self.settings.get("clean_high_shelf_db", 0.0))
             hs_hz = float(self.settings.get("clean_high_shelf_hz", 10000.0))
             if np.isfinite(hs_db) and np.isfinite(hs_hz) and abs(hs_db) > 1e-9:
-                self.progress.emit(f"Cleaning highs (shelf {hs_db:.1f} dB @ {hs_hz:.0f} Hz)...")
+                self.progress.emit(
+                    tr("progress.highshelf_fmt", "Cleaning highs (shelf {db:.1f} dB @ {hz:.0f} Hz)...").format(
+                        db=hs_db,
+                        hz=hs_hz,
+                    )
+                )
                 result = apply_high_shelf(result, int(self.sr), float(hs_hz), float(hs_db))
 
             if self.settings["normalize"]:
-                self.progress.emit("Normalizing...")
+                self.progress.emit(tr("progress.normalizing", "Normalizing..."))
                 result = normalize_audio(result, target_db=-0.1)
 
             self.finished.emit(result)
@@ -137,7 +152,7 @@ class WarmupThread(QThread):
         try:
             from audio.pitch_detector import get_predominant_pitch
 
-            self.progress.emit("Preparing audio engine...")
+            self.progress.emit(tr("progress.preparing_audio_engine", "Preparing audio engine..."))
 
             sr = 44100
             t = np.linspace(0.0, 0.25, int(sr * 0.25), endpoint=False, dtype=np.float32)
@@ -146,7 +161,7 @@ class WarmupThread(QThread):
             if self.isInterruptionRequested():
                 return
 
-            self.progress.emit("Preparing fast pitch detector...")
+            self.progress.emit(tr("progress.preparing_pitch_detector", "Preparing fast pitch detector..."))
             get_predominant_pitch(x, sr, fast=True)
 
             self.finished.emit()
@@ -170,17 +185,17 @@ class LoadAudioThread(QThread):
             from audio.loader import load_audio
             from audio.pitch_detector import get_predominant_pitch
 
-            self.progress.emit("Reading file...")
+            self.progress.emit(tr("progress.reading_file", "Reading file..."))
             audio, sr, original_sr = load_audio(self.file_path)
             if self.isInterruptionRequested():
                 return
 
-            self.progress.emit("Detecting pitch...")
+            self.progress.emit(tr("progress.detecting_pitch", "Detecting pitch..."))
             freq, note, cents = get_predominant_pitch(audio, int(sr), fast=bool(self.fast_pitch))
             if self.isInterruptionRequested():
                 return
 
-            self.progress.emit("Finalizing...")
+            self.progress.emit(tr("progress.finalizing", "Finalizing..."))
             self.finished.emit(audio, int(sr), int(original_sr), freq, note, cents)
 
         except Exception as e:
@@ -193,7 +208,7 @@ class MainWindow(QMainWindow):
     def __init__(self, debug: bool = False, debug_notes_path: str | None = None):
         super().__init__()
 
-        self.setWindowTitle("FreqEnforcer")
+        self.setWindowTitle(tr("app.title", "FreqEnforcer"))
         self.setMinimumSize(1200, 600)
         self.resize(1920, 1080)
 
@@ -246,6 +261,16 @@ class MainWindow(QMainWindow):
         self._drop_highlight_active = False
 
         self._qsettings = QSettings("FreqEnforcer", "FreqEnforcer")
+
+        self._language_code = "en"
+        try:
+            self._language_code = str(self._qsettings.value("ui/language", "en", type=str) or "en")
+        except Exception:
+            self._language_code = "en"
+        try:
+            i18n.set_language(self._language_code)
+        except Exception:
+            pass
 
         self._theme = self._read_theme()
         self._theme_editor = None
@@ -347,6 +372,11 @@ class MainWindow(QMainWindow):
         except Exception:
             self._theme_library = {}
 
+        try:
+            self.retranslate_ui()
+        except Exception:
+            pass
+
     def _schedule_save_settings(self):
         try:
             self._save_settings_timer.start()
@@ -387,6 +417,7 @@ class MainWindow(QMainWindow):
             self._qsettings.setValue("options/performance_mode", bool(self._performance_mode))
             self._qsettings.setValue("options/show_loading_dialog", bool(self._show_loading_dialog))
             self._qsettings.setValue("options/warmup_enabled", bool(self._warmup_enabled))
+            self._qsettings.setValue("ui/language", str(self._language_code))
         except Exception:
             pass
 
@@ -451,16 +482,16 @@ class MainWindow(QMainWindow):
         logo_label.setFixedSize(72, 72)
         file_bar.addWidget(logo_label)
 
-        file_label = QLabel("INPUT FILE:")
-        file_label.setStyleSheet("font-weight: bold;")
-        file_bar.addWidget(file_label)
+        self.file_label = QLabel(tr("main.input_file", "INPUT FILE:"))
+        self.file_label.setStyleSheet("font-weight: bold;")
+        file_bar.addWidget(self.file_label)
 
         self.file_path_edit = QLineEdit()
-        self.file_path_edit.setPlaceholderText("/path/to/audio/file.wav")
+        self.file_path_edit.setPlaceholderText(tr("main.input_placeholder", "/path/to/audio/file.wav"))
         self.file_path_edit.setReadOnly(True)
         file_bar.addWidget(self.file_path_edit, stretch=1)
 
-        self.browse_btn = QPushButton("Browse")
+        self.browse_btn = QPushButton(tr("main.button.browse", "Browse"))
         self.browse_btn.clicked.connect(self._on_browse)
         file_bar.addWidget(self.browse_btn)
 
@@ -495,7 +526,7 @@ class MainWindow(QMainWindow):
         waveform_container.setContentsMargins(0, 0, 0, 0)
 
         waveform_header = QHBoxLayout()
-        self.waveform_label = QLabel("Original")
+        self.waveform_label = QLabel(tr("main.waveform.original", "Original"))
         self.waveform_label.setStyleSheet("color: rgba(51, 206, 214, 170);")
         waveform_header.addWidget(self.waveform_label)
         waveform_header.addStretch(1)
@@ -505,7 +536,7 @@ class MainWindow(QMainWindow):
         self.processing_label.setVisible(False)
         waveform_header.addWidget(self.processing_label)
 
-        self.waveform_toggle_btn = QPushButton("Show Processed")
+        self.waveform_toggle_btn = QPushButton(tr("main.button.show_processed", "Show Processed"))
         self.waveform_toggle_btn.setEnabled(False)
         self.waveform_toggle_btn.clicked.connect(self._toggle_waveform_view)
         waveform_header.addWidget(self.waveform_toggle_btn)
@@ -522,7 +553,7 @@ class MainWindow(QMainWindow):
         waveform_container.addWidget(self.waveform_widget, stretch=1)
 
         playback_row = QHBoxLayout()
-        self.play_btn = QPushButton("Play")
+        self.play_btn = QPushButton(tr("main.button.play", "Play"))
         self.play_btn.setEnabled(False)
         self.play_btn.clicked.connect(self._toggle_playback)
         playback_row.addWidget(self.play_btn)
@@ -934,39 +965,157 @@ class MainWindow(QMainWindow):
         self._processing_fade_mode = None
 
     def _setup_menu(self):
-        file_menu = self.menuBar().addMenu("File")
+        self._file_menu = self.menuBar().addMenu(tr("ui.menu.file", "File"))
 
-        action_new_sample = QAction("New Sample", self)
-        action_new_sample.triggered.connect(self._on_file_new_sample)
-        file_menu.addAction(action_new_sample)
+        self._action_new_sample = QAction(tr("ui.menu.file.new_sample", "New Sample"), self)
+        self._action_new_sample.triggered.connect(self._on_file_new_sample)
+        self._file_menu.addAction(self._action_new_sample)
 
-        action_refresh = QAction("Refresh Sample", self)
-        action_refresh.triggered.connect(self._on_file_refresh_sample)
-        file_menu.addAction(action_refresh)
+        self._action_refresh = QAction(tr("ui.menu.file.refresh_sample", "Refresh Sample"), self)
+        self._action_refresh.triggered.connect(self._on_file_refresh_sample)
+        self._file_menu.addAction(self._action_refresh)
 
-        action_quit = QAction("Quit", self)
-        action_quit.triggered.connect(self.close)
-        file_menu.addAction(action_quit)
+        self._action_quit = QAction(tr("ui.menu.file.quit", "Quit"), self)
+        self._action_quit.triggered.connect(self.close)
+        self._file_menu.addAction(self._action_quit)
 
-        options_menu = self.menuBar().addMenu("Options")
+        self._options_menu = self.menuBar().addMenu(tr("ui.menu.options", "Options"))
 
-        self._action_show_loading = QAction("Show Loading Dialog", self)
+        self._action_show_loading = QAction(tr("ui.menu.options.show_loading_dialog", "Show Loading Dialog"), self)
         self._action_show_loading.setCheckable(True)
         self._action_show_loading.setChecked(bool(self._show_loading_dialog))
         self._action_show_loading.toggled.connect(self._set_show_loading_dialog)
-        options_menu.addAction(self._action_show_loading)
+        self._options_menu.addAction(self._action_show_loading)
 
-        self._action_performance_mode = QAction("Performance Mode", self)
+        self._action_performance_mode = QAction(tr("ui.menu.options.performance_mode", "Performance Mode"), self)
         self._action_performance_mode.setCheckable(True)
         self._action_performance_mode.setChecked(bool(self._performance_mode))
         self._action_performance_mode.toggled.connect(self._set_performance_mode)
-        options_menu.addAction(self._action_performance_mode)
+        self._options_menu.addAction(self._action_performance_mode)
 
-        self._action_warmup = QAction("Warm Up Audio Engine on Startup", self)
+        self._action_warmup = QAction(tr("ui.menu.options.warmup_enabled", "Warm Up Audio Engine on Startup"), self)
         self._action_warmup.setCheckable(True)
         self._action_warmup.setChecked(bool(self._warmup_enabled))
         self._action_warmup.toggled.connect(self._set_warmup_enabled)
-        options_menu.addAction(self._action_warmup)
+        self._options_menu.addAction(self._action_warmup)
+
+        self._language_menu = self._options_menu.addMenu(tr("ui.menu.language", "Language"))
+        self._language_action_group = QActionGroup(self)
+        self._language_action_group.setExclusive(True)
+
+        self._lang_actions = {}
+        for code, key in (
+            ("en", "ui.language.en"),
+            ("es", "ui.language.es"),
+            ("pt_BR", "ui.language.pt_BR"),
+            ("ja", "ui.language.ja"),
+            ("ru", "ui.language.ru"),
+        ):
+            act = QAction(tr(key, code), self)
+            act.setCheckable(True)
+            act.setChecked(str(self._language_code) == str(code))
+            act.triggered.connect(lambda _c=False, c=code: self._set_language(c))
+            self._language_action_group.addAction(act)
+            self._language_menu.addAction(act)
+            self._lang_actions[str(code)] = act
+
+    def retranslate_ui(self):
+        self.setWindowTitle(tr("app.title", "FreqEnforcer"))
+
+        try:
+            if hasattr(self, "file_label") and self.file_label is not None:
+                self.file_label.setText(tr("main.input_file", "INPUT FILE:"))
+        except Exception:
+            pass
+
+        try:
+            self.file_path_edit.setPlaceholderText(tr("main.input_placeholder", "/path/to/audio/file.wav"))
+        except Exception:
+            pass
+
+        try:
+            self.browse_btn.setText(tr("main.button.browse", "Browse"))
+        except Exception:
+            pass
+
+        try:
+            self._update_waveform_display()
+        except Exception:
+            pass
+
+        try:
+            if self._is_preview_playing():
+                self.play_btn.setText(tr("main.button.stop", "Stop"))
+            else:
+                self.play_btn.setText(tr("main.button.play", "Play"))
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "_file_menu") and self._file_menu is not None:
+                self._file_menu.setTitle(tr("ui.menu.file", "File"))
+            if hasattr(self, "_options_menu") and self._options_menu is not None:
+                self._options_menu.setTitle(tr("ui.menu.options", "Options"))
+            if hasattr(self, "_language_menu") and self._language_menu is not None:
+                self._language_menu.setTitle(tr("ui.menu.language", "Language"))
+        except Exception:
+            pass
+
+        try:
+            self._action_new_sample.setText(tr("ui.menu.file.new_sample", "New Sample"))
+            self._action_refresh.setText(tr("ui.menu.file.refresh_sample", "Refresh Sample"))
+            self._action_quit.setText(tr("ui.menu.file.quit", "Quit"))
+            self._action_show_loading.setText(tr("ui.menu.options.show_loading_dialog", "Show Loading Dialog"))
+            self._action_performance_mode.setText(tr("ui.menu.options.performance_mode", "Performance Mode"))
+            self._action_warmup.setText(tr("ui.menu.options.warmup_enabled", "Warm Up Audio Engine on Startup"))
+        except Exception:
+            pass
+
+        try:
+            for code, key in (
+                ("en", "ui.language.en"),
+                ("es", "ui.language.es"),
+                ("pt_BR", "ui.language.pt_BR"),
+                ("ja", "ui.language.ja"),
+                ("ru", "ui.language.ru"),
+            ):
+                act = self._lang_actions.get(str(code))
+                if act is not None:
+                    act.setText(tr(key, code))
+                    act.setChecked(str(self._language_code) == str(code))
+        except Exception:
+            pass
+
+        try:
+            self.settings_panel.retranslate_ui()
+        except Exception:
+            pass
+
+        try:
+            self.waveform_widget.retranslate_ui()
+        except Exception:
+            pass
+
+        try:
+            if self._theme_editor is not None:
+                self._theme_editor.retranslate_ui()
+        except Exception:
+            pass
+
+    def _set_language(self, code: str):
+        c = str(code or "en")
+        if c not in ("en", "es", "pt_BR", "ja", "ru"):
+            c = "en"
+        self._language_code = c
+        try:
+            i18n.set_language(c)
+        except Exception:
+            pass
+        self._schedule_save_settings()
+        try:
+            self.retranslate_ui()
+        except Exception:
+            pass
 
     def _set_show_loading_dialog(self, enabled: bool):
         self._show_loading_dialog = bool(enabled)
@@ -1615,17 +1764,17 @@ class MainWindow(QMainWindow):
             pass
 
     def _setup_debug_dock(self):
-        dock = QDockWidget("Debug", self)
+        dock = QDockWidget(tr("ui.title.debug", "Debug"), self)
         dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
 
         container = QWidget()
         layout = QVBoxLayout(container)
 
         self._debug_text = QTextEdit()
-        self._debug_text.setPlaceholderText("Type feedback/approval notes here. Click Save to write to disk.")
+        self._debug_text.setPlaceholderText(tr("ui.placeholder.debug_notes", "Type feedback/approval notes here. Click Save to write to disk."))
         layout.addWidget(self._debug_text)
 
-        save_btn = QPushButton("Save")
+        save_btn = QPushButton(tr("ui.button.save", "Save"))
         save_btn.clicked.connect(self._save_debug_notes)
         layout.addWidget(save_btn)
 
@@ -1657,9 +1806,9 @@ class MainWindow(QMainWindow):
         """Open file dialog to select audio file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Audio File",
+            tr("ui.title.select_audio_file", "Select Audio File"),
             "",
-            "Audio Files (*.wav *.mp3 *.flac *.ogg);;All Files (*)"
+            tr("ui.filter.audio_files", "Audio Files (*.wav *.mp3 *.flac *.ogg);;All Files (*)")
         )
 
         if file_path:
@@ -1740,8 +1889,8 @@ class MainWindow(QMainWindow):
             self._load_dialog = None
 
             if self._show_loading_dialog:
-                dlg = QProgressDialog("Loading audio...", None, 0, 4, self)
-                dlg.setWindowTitle("Loading")
+                dlg = QProgressDialog(tr("main.dialog.loading_label", "Loading audio..."), None, 0, 4, self)
+                dlg.setWindowTitle(tr("main.dialog.loading_title", "Loading"))
                 dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
                 dlg.setMinimumDuration(0)
                 dlg.setCancelButton(None)
@@ -1799,7 +1948,7 @@ class MainWindow(QMainWindow):
     def _on_load_finished(self, audio, sr: int, original_sr: int, freq, note, cents):
         if self._load_dialog is not None:
             try:
-                self._load_dialog.setLabelText("Rendering waveform...")
+                self._load_dialog.setLabelText(tr("main.dialog.rendering_waveform", "Rendering waveform..."))
                 self._load_dialog.setValue(4)
             except Exception:
                 pass
@@ -1846,7 +1995,11 @@ class MainWindow(QMainWindow):
             self.browse_btn.setEnabled(True)
         except Exception:
             pass
-        QMessageBox.critical(self, "Error", f"Failed to load audio file:\n{str(error_msg)}")
+        QMessageBox.critical(
+            self,
+            tr("main.dialog.error", "Error"),
+            tr("main.dialog.load_failed_fmt", "Failed to load audio file:\n{error}").format(error=str(error_msg)),
+        )
 
     def _schedule_processing(self, immediate: bool = False):
         if self.original_audio is None:
@@ -1878,7 +2031,7 @@ class MainWindow(QMainWindow):
 
         self._stop_preview_playback()
 
-        self._show_processing_label("Processing...")
+        self._show_processing_label(tr("progress.processing", "Processing..."))
 
         self._processing_token += 1
         token = self._processing_token
@@ -2119,16 +2272,16 @@ class MainWindow(QMainWindow):
 
     def _update_waveform_display(self):
         if self._waveform_view == "processed" and self.processed_audio is not None:
-            self.waveform_label.setText("Processed")
+            self.waveform_label.setText(tr("main.waveform.processed", "Processed"))
             self.waveform_widget.set_audio(self.processed_audio, self.sample_rate)
-            self.waveform_toggle_btn.setText("Show Original")
+            self.waveform_toggle_btn.setText(tr("main.button.show_original", "Show Original"))
         else:
-            self.waveform_label.setText("Original")
+            self.waveform_label.setText(tr("main.waveform.original", "Original"))
             if self.original_audio is not None:
                 self.waveform_widget.set_audio(self.original_audio, self.sample_rate)
             else:
                 self.waveform_widget.clear()
-            self.waveform_toggle_btn.setText("Show Processed")
+            self.waveform_toggle_btn.setText(tr("main.button.show_processed", "Show Processed"))
             self.waveform_toggle_btn.setEnabled(self.processed_audio is not None)
 
     def _current_preview_audio(self):
@@ -2157,7 +2310,7 @@ class MainWindow(QMainWindow):
 
         if self._audio_sink is None:
             try:
-                self.play_btn.setText("Play")
+                self.play_btn.setText(tr("main.button.play", "Play"))
             except Exception:
                 pass
             return

@@ -8,6 +8,8 @@ from PyQt6.QtGui import QColor, QFont, QFontMetrics, QStandardItem, QStandardIte
 
 import importlib
 
+from utils.i18n import tr
+
 
 class StretchMethodDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -142,11 +144,12 @@ class SettingsPanel(QWidget):
         layout = QVBoxLayout(controls_page)
         layout.setSpacing(15)
 
-        note_group = QGroupBox("Target Note")
-        note_layout = QVBoxLayout(note_group)
+        self.note_group = QGroupBox(tr("settings.group.target_note", "Target Note"))
+        note_layout = QVBoxLayout(self.note_group)
 
         note_row = QHBoxLayout()
-        note_row.addWidget(QLabel("Note:"))
+        self.note_label = QLabel(tr("settings.label.note", "Note:"))
+        note_row.addWidget(self.note_label)
         self.note_combo = QComboBox()
         self.note_combo.addItems(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])
         self.note_combo.setCurrentText("C")
@@ -154,24 +157,26 @@ class SettingsPanel(QWidget):
         note_layout.addLayout(note_row)
 
         octave_row = QHBoxLayout()
-        octave_row.addWidget(QLabel("Octave:"))
+        self.octave_label = QLabel(tr("settings.label.octave", "Octave:"))
+        octave_row.addWidget(self.octave_label)
         self.octave_spin = QSpinBox()
         self.octave_spin.setRange(2, 7)
         self.octave_spin.setValue(4)
         octave_row.addWidget(self.octave_spin)
         note_layout.addLayout(octave_row)
 
-        self.target_label = QLabel("Target: C4 (261.63 Hz)")
+        self.target_label = QLabel(tr("settings.target_fmt", "Target: {note}{octave} ({freq:.2f} Hz)").format(note="C", octave=4, freq=261.63))
         self.target_label.setStyleSheet("color: #33CED6; font-weight: bold;")
         note_layout.addWidget(self.target_label)
 
-        layout.addWidget(note_group)
+        layout.addWidget(self.note_group)
 
-        process_group = QGroupBox("Processing")
-        process_layout = QVBoxLayout(process_group)
+        self.process_group = QGroupBox(tr("settings.group.processing", "Processing"))
+        process_layout = QVBoxLayout(self.process_group)
 
         pitch_mode_row = QHBoxLayout()
-        pitch_mode_row.addWidget(QLabel("Pitch Mode:"), 0)
+        self.pitch_mode_label = QLabel(tr("settings.label.pitch_mode", "Pitch Mode:"))
+        pitch_mode_row.addWidget(self.pitch_mode_label, 0)
         self.pitch_mode_combo = QComboBox()
         self.pitch_mode_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.pitch_mode_combo.setItemDelegate(PitchModeDelegate(self.pitch_mode_combo))
@@ -180,12 +185,12 @@ class SettingsPanel(QWidget):
         pitch_mode_row.addWidget(self.pitch_mode_combo, 1)
         process_layout.addLayout(pitch_mode_row)
 
-        self.normalize_check = QCheckBox("Normalize to 0dB")
+        self.normalize_check = QCheckBox(tr("settings.checkbox.normalize", "Normalize to 0dB"))
         self.normalize_check.setChecked(False)
         self.normalize_check.stateChanged.connect(lambda _s: self.settings_changed.emit())
         process_layout.addWidget(self.normalize_check)
 
-        self.preserve_formants_check = QCheckBox("Preserve Formants")
+        self.preserve_formants_check = QCheckBox(tr("settings.checkbox.preserve_formants", "Preserve Formants"))
         self.preserve_formants_check.setChecked(True)
         self.preserve_formants_check.stateChanged.connect(self._on_formant_toggle)
         process_layout.addWidget(self.preserve_formants_check)
@@ -195,7 +200,8 @@ class SettingsPanel(QWidget):
         soft_layout.setContentsMargins(0, 0, 0, 0)
 
         amount_row = QHBoxLayout()
-        amount_row.addWidget(QLabel("Correction Amount:"))
+        self.correction_amount_label = QLabel(tr("settings.label.correction_amount", "Correction Amount:"))
+        amount_row.addWidget(self.correction_amount_label)
         self.pitch_amount_value_label = QLabel("100%")
         amount_row.addWidget(self.pitch_amount_value_label)
         soft_layout.addLayout(amount_row)
@@ -208,7 +214,8 @@ class SettingsPanel(QWidget):
         soft_layout.addWidget(self.pitch_amount_slider)
 
         retune_row = QHBoxLayout()
-        retune_row.addWidget(QLabel("Retune Speed:"))
+        self.retune_speed_label = QLabel(tr("settings.label.retune_speed", "Retune Speed:"))
+        retune_row.addWidget(self.retune_speed_label)
         self.retune_speed_value_label = QLabel("40 ms")
         retune_row.addWidget(self.retune_speed_value_label)
         soft_layout.addLayout(retune_row)
@@ -221,7 +228,8 @@ class SettingsPanel(QWidget):
         soft_layout.addWidget(self.retune_speed_slider)
 
         vib_row = QHBoxLayout()
-        vib_row.addWidget(QLabel("Preserve Vibrato:"))
+        self.preserve_vibrato_label = QLabel(tr("settings.label.preserve_vibrato", "Preserve Vibrato:"))
+        vib_row.addWidget(self.preserve_vibrato_label)
         self.preserve_vibrato_value_label = QLabel("100%")
         vib_row.addWidget(self.preserve_vibrato_value_label)
         soft_layout.addLayout(vib_row)
@@ -241,7 +249,8 @@ class SettingsPanel(QWidget):
         formant_layout.setContentsMargins(0, 0, 0, 0)
 
         formant_label_row = QHBoxLayout()
-        formant_label_row.addWidget(QLabel("Formant Shift:"))
+        self.formant_shift_label = QLabel(tr("settings.label.formant_shift", "Formant Shift:"))
+        formant_label_row.addWidget(self.formant_shift_label)
         self.formant_value_label = QLabel("0 ct")
         formant_label_row.addWidget(self.formant_value_label)
         formant_layout.addLayout(formant_label_row)
@@ -261,7 +270,8 @@ class SettingsPanel(QWidget):
         self._stretch_over2_confirmed = False
 
         stretch_method_row = QHBoxLayout()
-        stretch_method_row.addWidget(QLabel("Stretching Method:"), 0)
+        self.stretching_method_label = QLabel(tr("settings.label.stretching_method", "Stretching Method:"))
+        stretch_method_row.addWidget(self.stretching_method_label, 0)
         self.stretch_method_combo = QComboBox()
         self.stretch_method_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.stretch_method_combo.setItemDelegate(StretchMethodDelegate(self.stretch_method_combo))
@@ -271,7 +281,8 @@ class SettingsPanel(QWidget):
         process_layout.addLayout(stretch_method_row)
 
         stretch_factor_label_row = QHBoxLayout()
-        stretch_factor_label_row.addWidget(QLabel("Stretch Factor:"))
+        self.stretch_factor_label = QLabel(tr("settings.label.stretch_factor", "Stretch Factor:"))
+        stretch_factor_label_row.addWidget(self.stretch_factor_label)
         self.stretch_value_label = QLabel("1.00x")
         stretch_factor_label_row.addWidget(self.stretch_value_label)
         process_layout.addLayout(stretch_factor_label_row)
@@ -286,7 +297,8 @@ class SettingsPanel(QWidget):
         process_layout.addWidget(self.stretch_slider)
 
         stretch_manual_row = QHBoxLayout()
-        stretch_manual_row.addWidget(QLabel("Manual:"))
+        self.stretch_manual_label = QLabel(tr("settings.label.manual", "Manual:"))
+        stretch_manual_row.addWidget(self.stretch_manual_label)
         self.stretch_spin = QDoubleSpinBox()
         self.stretch_spin.setRange(0.01, 9999.0)
         self.stretch_spin.setDecimals(2)
@@ -298,13 +310,14 @@ class SettingsPanel(QWidget):
         stretch_manual_row.addWidget(self.stretch_spin)
         process_layout.addLayout(stretch_manual_row)
 
-        layout.addWidget(process_group)
+        layout.addWidget(self.process_group)
 
-        clean_group = QGroupBox("Cleanliness")
-        clean_layout = QVBoxLayout(clean_group)
+        self.clean_group = QGroupBox(tr("settings.group.cleanliness", "Cleanliness"))
+        clean_layout = QVBoxLayout(self.clean_group)
 
         clean_label_row = QHBoxLayout()
-        clean_label_row.addWidget(QLabel("Amount:"))
+        self.clean_amount_label = QLabel(tr("settings.label.amount", "Amount:"))
+        clean_label_row.addWidget(self.clean_amount_label)
         self.clean_value_label = QLabel("0%")
         clean_label_row.addWidget(self.clean_value_label)
         clean_layout.addLayout(clean_label_row)
@@ -316,12 +329,12 @@ class SettingsPanel(QWidget):
         self.cleanliness_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
         clean_layout.addWidget(self.cleanliness_slider)
 
-        self.clean_advanced_check = QCheckBox("Advanced Mode")
+        self.clean_advanced_check = QCheckBox(tr("settings.checkbox.advanced_mode", "Advanced Mode"))
         self.clean_advanced_check.setChecked(False)
         self.clean_advanced_check.stateChanged.connect(self._on_clean_advanced_toggled)
         clean_layout.addWidget(self.clean_advanced_check)
 
-        self.clean_warning_label = QLabel("High values = robotic sound")
+        self.clean_warning_label = QLabel(tr("settings.warning.robotic", "High values = robotic sound"))
         self.clean_warning_label.setStyleSheet("color: rgba(51, 206, 214, 170); font-size: 10px;")
         clean_layout.addWidget(self.clean_warning_label)
 
@@ -330,7 +343,8 @@ class SettingsPanel(QWidget):
         clean_adv_layout.setContentsMargins(0, 0, 0, 0)
 
         lowcut_label_row = QHBoxLayout()
-        lowcut_label_row.addWidget(QLabel("Low Cut:"))
+        self.clean_lowcut_label = QLabel(tr("settings.label.low_cut", "Low Cut:"))
+        lowcut_label_row.addWidget(self.clean_lowcut_label)
         self.clean_lowcut_value_label = QLabel("50 Hz")
         lowcut_label_row.addWidget(self.clean_lowcut_value_label)
         clean_adv_layout.addLayout(lowcut_label_row)
@@ -343,7 +357,8 @@ class SettingsPanel(QWidget):
         clean_adv_layout.addWidget(self.clean_lowcut_slider)
 
         hs_gain_row = QHBoxLayout()
-        hs_gain_row.addWidget(QLabel("High Shelf:"))
+        self.clean_high_shelf_label = QLabel(tr("settings.label.high_shelf", "High Shelf:"))
+        hs_gain_row.addWidget(self.clean_high_shelf_label)
         self.clean_high_shelf_gain_label = QLabel("0 dB")
         hs_gain_row.addWidget(self.clean_high_shelf_gain_label)
         clean_adv_layout.addLayout(hs_gain_row)
@@ -356,7 +371,8 @@ class SettingsPanel(QWidget):
         clean_adv_layout.addWidget(self.clean_high_shelf_gain_slider)
 
         hs_freq_row = QHBoxLayout()
-        hs_freq_row.addWidget(QLabel("Shelf Freq:"))
+        self.clean_shelf_freq_label = QLabel(tr("settings.label.shelf_freq", "Shelf Freq:"))
+        hs_freq_row.addWidget(self.clean_shelf_freq_label)
         self.clean_high_shelf_freq_spin = QSpinBox()
         self.clean_high_shelf_freq_spin.setRange(2000, 48000)
         self.clean_high_shelf_freq_spin.setSingleStep(250)
@@ -368,24 +384,24 @@ class SettingsPanel(QWidget):
 
         clean_layout.addWidget(self.clean_advanced_widget)
 
-        layout.addWidget(clean_group)
+        layout.addWidget(self.clean_group)
 
-        info_group = QGroupBox("Detected Pitch")
-        info_layout = QVBoxLayout(info_group)
+        self.info_group = QGroupBox(tr("settings.group.detected_pitch", "Detected Pitch"))
+        info_layout = QVBoxLayout(self.info_group)
 
-        self.detected_label = QLabel("No audio loaded")
+        self.detected_label = QLabel(tr("settings.detected.no_audio_loaded", "No audio loaded"))
         self.detected_label.setStyleSheet("color: rgba(51, 206, 214, 170);")
         info_layout.addWidget(self.detected_label)
 
-        layout.addWidget(info_group)
+        layout.addWidget(self.info_group)
 
         button_layout = QVBoxLayout()
 
-        self.export_btn = QPushButton("Export WAV")
+        self.export_btn = QPushButton(tr("settings.button.export_wav", "Export WAV"))
         self.export_btn.clicked.connect(lambda: self.export_clicked.emit())
         button_layout.addWidget(self.export_btn)
 
-        self.quick_export_btn = QPushButton("Quick Export")
+        self.quick_export_btn = QPushButton(tr("settings.button.quick_export", "Quick Export"))
         self.quick_export_btn.clicked.connect(lambda: self.quick_export_clicked.emit())
         button_layout.addWidget(self.quick_export_btn)
 
@@ -396,14 +412,15 @@ class SettingsPanel(QWidget):
         themes_page = QWidget()
         themes_layout = QVBoxLayout(themes_page)
         themes_layout.setSpacing(12)
-        themes_layout.addWidget(QLabel("Customize the app colors."))
-        self.open_theme_editor_btn = QPushButton("Open Theme Editor")
+        self.themes_description_label = QLabel(tr("settings.themes.description", "Customize the app colors."))
+        themes_layout.addWidget(self.themes_description_label)
+        self.open_theme_editor_btn = QPushButton(tr("settings.themes.open_editor", "Open Theme Editor"))
         self.open_theme_editor_btn.clicked.connect(lambda: self.themes_requested.emit())
         themes_layout.addWidget(self.open_theme_editor_btn)
         themes_layout.addStretch()
 
-        self.tabs.addTab(controls_page, "Settings")
-        self.tabs.addTab(themes_page, "Themes")
+        self.tabs.addTab(controls_page, tr("settings.tabs.settings", "Settings"))
+        self.tabs.addTab(themes_page, tr("settings.tabs.themes", "Themes"))
         self.tabs.currentChanged.connect(self._on_tab_changed)
         root_layout.addWidget(self.tabs)
 
@@ -415,13 +432,163 @@ class SettingsPanel(QWidget):
         self._on_clean_lowcut_slider(int(self.clean_lowcut_slider.value()))
         self._on_clean_high_shelf_gain_slider(int(self.clean_high_shelf_gain_slider.value()))
         self._apply_cleanliness_mode_ui()
+        try:
+            self.retranslate_ui()
+        except Exception:
+            pass
 
     def _on_tab_changed(self, index: int):
         try:
-            if self.tabs.tabText(int(index)) == "Themes":
+            if int(index) == 1:
                 self.themes_requested.emit()
         except Exception:
             pass
+
+    def retranslate_ui(self):
+        try:
+            self.note_group.setTitle(tr("settings.group.target_note", "Target Note"))
+            self.note_label.setText(tr("settings.label.note", "Note:"))
+            self.octave_label.setText(tr("settings.label.octave", "Octave:"))
+        except Exception:
+            pass
+
+        try:
+            self.process_group.setTitle(tr("settings.group.processing", "Processing"))
+            self.pitch_mode_label.setText(tr("settings.label.pitch_mode", "Pitch Mode:"))
+            self.normalize_check.setText(tr("settings.checkbox.normalize", "Normalize to 0dB"))
+            self.preserve_formants_check.setText(tr("settings.checkbox.preserve_formants", "Preserve Formants"))
+            self.correction_amount_label.setText(tr("settings.label.correction_amount", "Correction Amount:"))
+            self.retune_speed_label.setText(tr("settings.label.retune_speed", "Retune Speed:"))
+            self.preserve_vibrato_label.setText(tr("settings.label.preserve_vibrato", "Preserve Vibrato:"))
+            self.formant_shift_label.setText(tr("settings.label.formant_shift", "Formant Shift:"))
+            self.stretching_method_label.setText(tr("settings.label.stretching_method", "Stretching Method:"))
+            self.stretch_factor_label.setText(tr("settings.label.stretch_factor", "Stretch Factor:"))
+            self.stretch_manual_label.setText(tr("settings.label.manual", "Manual:"))
+        except Exception:
+            pass
+
+        try:
+            self.clean_group.setTitle(tr("settings.group.cleanliness", "Cleanliness"))
+            self.clean_amount_label.setText(tr("settings.label.amount", "Amount:"))
+            self.clean_advanced_check.setText(tr("settings.checkbox.advanced_mode", "Advanced Mode"))
+            self.clean_warning_label.setText(tr("settings.warning.robotic", "High values = robotic sound"))
+            self.clean_lowcut_label.setText(tr("settings.label.low_cut", "Low Cut:"))
+            self.clean_high_shelf_label.setText(tr("settings.label.high_shelf", "High Shelf:"))
+            self.clean_shelf_freq_label.setText(tr("settings.label.shelf_freq", "Shelf Freq:"))
+        except Exception:
+            pass
+
+        try:
+            self.info_group.setTitle(tr("settings.group.detected_pitch", "Detected Pitch"))
+        except Exception:
+            pass
+
+        try:
+            self.export_btn.setText(tr("settings.button.export_wav", "Export WAV"))
+            self.quick_export_btn.setText(tr("settings.button.quick_export", "Quick Export"))
+        except Exception:
+            pass
+
+        try:
+            self.themes_description_label.setText(tr("settings.themes.description", "Customize the app colors."))
+            self.open_theme_editor_btn.setText(tr("settings.themes.open_editor", "Open Theme Editor"))
+        except Exception:
+            pass
+
+        try:
+            self.tabs.setTabText(0, tr("settings.tabs.settings", "Settings"))
+            self.tabs.setTabText(1, tr("settings.tabs.themes", "Themes"))
+        except Exception:
+            pass
+
+        try:
+            self._update_target_label()
+        except Exception:
+            pass
+
+        try:
+            self._retranslate_pitch_modes()
+        except Exception:
+            pass
+
+        try:
+            self._retranslate_stretch_methods()
+        except Exception:
+            pass
+
+    def _retranslate_stretch_methods(self):
+        role_info = int(Qt.ItemDataRole.UserRole)
+        role_key = int(Qt.ItemDataRole.UserRole) + 1
+
+        current = None
+        try:
+            current = self.stretch_method_combo.currentData(role_key)
+        except Exception:
+            current = None
+
+        model = self.stretch_method_combo.model()
+        if model is None:
+            return
+
+        for i in range(int(self.stretch_method_combo.count())):
+            key = self.stretch_method_combo.itemData(i, role_key)
+            if not key:
+                continue
+            label = tr(f"settings.stretch_method.{key}.label", str(self.stretch_method_combo.itemText(i) or key))
+            info = tr(f"settings.stretch_method.{key}.info", str(model.data(model.index(i, 0), role_info) or ""))
+
+            try:
+                it = model.item(i)
+            except Exception:
+                it = None
+            if it is not None:
+                it.setText(str(label))
+                it.setData(str(info), role_info)
+            else:
+                self.stretch_method_combo.setItemText(i, str(label))
+
+        if current:
+            for i in range(int(self.stretch_method_combo.count())):
+                if self.stretch_method_combo.itemData(i, role_key) == current:
+                    self.stretch_method_combo.setCurrentIndex(int(i))
+                    break
+
+    def _retranslate_pitch_modes(self):
+        role_key = int(Qt.ItemDataRole.UserRole)
+        role_info = int(Qt.ItemDataRole.UserRole) + 1
+
+        current = None
+        try:
+            current = self.pitch_mode_combo.currentData()
+        except Exception:
+            current = None
+
+        model = self.pitch_mode_combo.model()
+        if model is None:
+            return
+
+        for i in range(int(self.pitch_mode_combo.count())):
+            key = self.pitch_mode_combo.itemData(i, role_key)
+            if not key:
+                continue
+            label = tr(f"settings.pitch_mode.{key}.label", str(self.pitch_mode_combo.itemText(i) or key))
+            info = tr(f"settings.pitch_mode.{key}.info", str(model.data(model.index(i, 0), role_info) or ""))
+
+            try:
+                it = model.item(i)
+            except Exception:
+                it = None
+            if it is not None:
+                it.setText(str(label))
+                it.setData(str(info), role_info)
+            else:
+                self.pitch_mode_combo.setItemText(i, str(label))
+
+        if current:
+            for i in range(int(self.pitch_mode_combo.count())):
+                if self.pitch_mode_combo.itemData(i, role_key) == current:
+                    self.pitch_mode_combo.setCurrentIndex(int(i))
+                    break
 
     def apply_theme(self, theme: dict):
         self._theme = dict(theme) if isinstance(theme, dict) else None
@@ -663,7 +830,13 @@ class SettingsPanel(QWidget):
         midi = 12 * (octave + 1) + semitone
         freq = 440.0 * (2 ** ((midi - 69) / 12))
 
-        self.target_label.setText(f"Target: {note}{octave} ({freq:.2f} Hz)")
+        self.target_label.setText(
+            tr("settings.target_fmt", "Target: {note}{octave} ({freq:.2f} Hz)").format(
+                note=str(note),
+                octave=int(octave),
+                freq=float(freq),
+            )
+        )
         try:
             self._apply_cleanliness_automation(int(self.cleanliness_slider.value()))
         except Exception:
@@ -690,7 +863,7 @@ class SettingsPanel(QWidget):
     def _on_clean_lowcut_slider(self, value: int):
         v = int(value)
         if v <= 0:
-            self.clean_lowcut_value_label.setText("Off")
+            self.clean_lowcut_value_label.setText(tr("settings.lowcut.off", "Off"))
         else:
             self.clean_lowcut_value_label.setText(f"{v} Hz")
 
@@ -802,28 +975,34 @@ class SettingsPanel(QWidget):
 
         items = [
             (
-                "WSOLA Speech",
-                "Crisp in quality and the best for general speech audio. Can sound robotic if over-done.",
+                tr("settings.stretch_method.audiotsm_wsola.label", "WSOLA Speech"),
+                tr(
+                    "settings.stretch_method.audiotsm_wsola.info",
+                    "Crisp in quality and the best for general speech audio. Can sound robotic if over-done.",
+                ),
                 "audiotsm_wsola",
             ),
             (
-                "Phasevocoder",
-                "Smoother and more ideal under x2 stretching",
+                tr("settings.stretch_method.audiotsm_phasevocoder.label", "Phasevocoder"),
+                tr("settings.stretch_method.audiotsm_phasevocoder.info", "Smoother and more ideal under x2 stretching"),
                 "audiotsm_phasevocoder",
             ),
             (
-                "Rubberband Default",
-                "Baseline of any stretching method.",
+                tr("settings.stretch_method.rubberband_default_engine_finer.label", "Rubberband Default"),
+                tr("settings.stretch_method.rubberband_default_engine_finer.info", "Baseline of any stretching method."),
                 "rubberband_default_engine_finer",
             ),
             (
-                "Rubberband Percussive",
-                "Deals with transients and artifact removal a lot better than Rubberband Default.",
+                tr("settings.stretch_method.rubberband_percussive_engine_finer.label", "Rubberband Percussive"),
+                tr(
+                    "settings.stretch_method.rubberband_percussive_engine_finer.info",
+                    "Deals with transients and artifact removal a lot better than Rubberband Default.",
+                ),
                 "rubberband_percussive_engine_finer",
             ),
             (
-                "TD-PSOLA",
-                "Fallback stretcher that works without audiotsm/rubberband (can be slower).",
+                tr("settings.stretch_method.tdpsola.label", "TD-PSOLA"),
+                tr("settings.stretch_method.tdpsola.info", "Fallback stretcher that works without audiotsm/rubberband (can be slower)."),
                 "tdpsola",
             ),
         ]
@@ -879,20 +1058,26 @@ class SettingsPanel(QWidget):
 
         items = [
             (
-                "PSOLA (Praat) Soft",
-                "Natural + smooth retune using Praat overlap-add. Requires praat-parselmouth.",
+                tr("settings.pitch_mode.praat_soft.label", "PSOLA (Praat) Soft"),
+                tr(
+                    "settings.pitch_mode.praat_soft.info",
+                    "Natural + smooth retune using Praat overlap-add. Requires praat-parselmouth.",
+                ),
                 "praat_soft",
                 bool(praat_available),
             ),
             (
-                "WORLD Soft (Retune)",
-                "Smooth retune with amount/speed/vibrato controls (WORLD vocoder).",
+                tr("settings.pitch_mode.world_soft.label", "WORLD Soft (Retune)"),
+                tr("settings.pitch_mode.world_soft.info", "Smooth retune with amount/speed/vibrato controls (WORLD vocoder)."),
                 "world_soft",
                 True,
             ),
             (
-                "WORLD Hard (Flatten)",
-                "Hard snap to the target note for the most robotic/locked sound (WORLD vocoder).",
+                tr("settings.pitch_mode.world_hard.label", "WORLD Hard (Flatten)"),
+                tr(
+                    "settings.pitch_mode.world_hard.info",
+                    "Hard snap to the target note for the most robotic/locked sound (WORLD vocoder).",
+                ),
                 "world_hard",
                 True,
             ),
@@ -936,11 +1121,11 @@ class SettingsPanel(QWidget):
 
     def _confirm_over_2x(self, requested: float) -> bool:
         msg = QMessageBox(self)
-        msg.setWindowTitle("Warning")
-        msg.setText("Going over x2 can cause a lot of artifacts and could make your sample sound fake.")
-        msg.setInformativeText(f"Requested: {float(requested):.2f}x")
-        yes_btn = msg.addButton("hell yeah!", QMessageBox.ButtonRole.AcceptRole)
-        no_btn = msg.addButton("hell no!!", QMessageBox.ButtonRole.RejectRole)
+        msg.setWindowTitle(tr("settings.stretch.confirm.title", "Warning"))
+        msg.setText(tr("settings.stretch.confirm.text", "Going over x2 can cause a lot of artifacts and could make your sample sound fake."))
+        msg.setInformativeText(tr("settings.stretch.confirm.info_fmt", "Requested: {factor:.2f}x").format(factor=float(requested)))
+        yes_btn = msg.addButton(tr("settings.stretch.confirm.yes", "hell yeah!"), QMessageBox.ButtonRole.AcceptRole)
+        no_btn = msg.addButton(tr("settings.stretch.confirm.no", "hell no!!"), QMessageBox.ButtonRole.RejectRole)
         msg.setDefaultButton(no_btn)
         msg.exec()
         return msg.clickedButton() == yes_btn
@@ -1067,11 +1252,17 @@ class SettingsPanel(QWidget):
         success = str(t.get("success", "#4EDE83"))
 
         if note_name is None:
-            self.detected_label.setText("No pitch detected")
+            self.detected_label.setText(tr("settings.detected.no_pitch", "No pitch detected"))
             self.detected_label.setStyleSheet(f"color: {primary};")
         else:
             cents_str = f"+{cents}" if cents >= 0 else str(cents)
-            self.detected_label.setText(f"{note_name} ({freq:.1f} Hz, {cents_str} ct)")
+            self.detected_label.setText(
+                tr("settings.detected.pitch_fmt", "{note} ({freq:.1f} Hz, {cents} ct)").format(
+                    note=str(note_name),
+                    freq=float(freq),
+                    cents=str(cents_str),
+                )
+            )
             self.detected_label.setStyleSheet(f"color: {success};")
 
     def set_buttons_enabled(self, process: bool, export: bool):

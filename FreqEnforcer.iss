@@ -2,7 +2,7 @@
 #define MyAppExeName "FreqEnforcer.exe"
 #define MyAppPublisher "FreqEnforcer"
 #define MyAppURL ""
-#define MyAppVersion "0.1.0-beta1"
+#define MyAppVersion "1.0.0"
 
 ; IMPORTANT:
 ; Keep AppId stable across releases so future installers upgrade/replace previous installs.
@@ -13,6 +13,7 @@
 AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 SetupIconFile=spartan_tuner\ICON.ico
 DefaultDirName={autopf}\{#MyAppName}
@@ -24,7 +25,7 @@ Compression=lzma
 SolidCompression=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\ICON.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -34,10 +35,11 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "A
 
 [Files]
 Source: "dist\FreqEnforcer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "spartan_tuner\ICON.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ICON.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\ICON.ico"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

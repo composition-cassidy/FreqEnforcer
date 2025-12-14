@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
+from utils.i18n import tr
+
 
 
 class _BlobViewBox(pg.ViewBox):
@@ -102,8 +104,8 @@ class WaveformWidget(QWidget):
         self.plot_widget = pg.PlotWidget(viewBox=_BlobViewBox(self))
         self.plot_widget.setBackground(self._theme.get("bg", "#2E2E2E"))
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setLabel('bottom', 'Time', units='s')
-        self.plot_widget.setLabel('left', 'MIDI Note')
+        self.plot_widget.setLabel('bottom', tr("waveform.axis.time", "Time"), units='s')
+        self.plot_widget.setLabel('left', tr("waveform.axis.midi_note", "MIDI Note"))
         self.plot_widget.setYRange(self._blob_note_min, self._blob_note_max)
 
         self._view_box = self.plot_widget.getPlotItem().getViewBox()
@@ -123,6 +125,17 @@ class WaveformWidget(QWidget):
         layout.addWidget(self.plot_widget)
 
         self._update_y_view(center_midi=float(self._blob_midi_note), force=True)
+
+    def retranslate_ui(self):
+        try:
+            self.plot_widget.setLabel('bottom', tr("waveform.axis.time", "Time"), units='s')
+        except Exception:
+            pass
+
+        try:
+            self.plot_widget.setLabel('left', tr("waveform.axis.midi_note", "MIDI Note"))
+        except Exception:
+            pass
 
     def apply_theme(self, theme: dict):
         if isinstance(theme, dict):
