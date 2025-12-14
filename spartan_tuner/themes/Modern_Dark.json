@@ -1,0 +1,12 @@
+{
+  "name": "Modern Dark",
+  "colors": {
+    "bg": "#0f1115",
+    "panel": "#171a21",
+    "primary": "#2b6fff",
+    "accent": "#31d0aa",
+    "highlight": "#3c465c",
+    "success": "#3ee887",
+    "text": "#e7eaf0"
+  }
+}

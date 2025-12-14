@@ -6,5 +6,7 @@ pyworld>=0.3.4
 PyQt6>=6.4.0
 pyqtgraph>=0.13.0
 
+praat-parselmouth>=0.4.0
+
 audiotsm>=0.1.1
 pylibrb>=0.1.2

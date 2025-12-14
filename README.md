@@ -8,6 +8,10 @@ FreqEnforcer is a small desktop tool for pitch-correcting monophonic samples to 
 - Detect predominant pitch
 - Pitch-correct to a selected target note
 - Optional time-stretch and normalization
+- Cleanliness (harmonic isolation)
+  - Amount slider removes non-harmonic content between harmonic lines
+  - Advanced Mode exposes manual cleanup controls (Low Cut + High Shelf)
+  - When Advanced Mode is off, Low Cut / High Shelf are auto-driven by Amount
 - Export processed audio to WAV
   - Exported WAVs are tagged with sampler metadata (`smpl` + `inst` RIFF chunks) so many DAWs/samplers can auto-detect the **root note**
 
@@ -28,16 +32,23 @@ python -m venv .venv
 .\.venv\Scripts\python.exe spartan_tuner\main.py
 ```
 
-## Examples / A-B comparisons
+## Build (Windows)
 
-Compared to its competition under this field, Melodyne, it is far superior when battling background noise, rough speech, and general efficiency.
+### Generate ICON.ico (if needed)
 
-- `5_ORIGINALSAMPLE.wav`
-  - Untouched source audio
-- `6_FREQENFORCER.wav`
-  - The same sample processed with FreqEnforcer
-- `6_MELODYNE.wav`
-  - The same sample processed with Melodyne (for comparison)
+From the repo root:
+
+```powershell
+py -3 tools\make_ico.py
+```
+
+### Build the standalone app (PyInstaller)
+
+```powershell
+py -3.14 -m PyInstaller --clean -y FreqEnforcer.spec
+```
+
+The output EXE is under `dist\FreqEnforcer\FreqEnforcer.exe`.
 
 ### How to try them
 

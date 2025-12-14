@@ -1,0 +1,12 @@
+{
+  "name": "Pink and Pretty",
+  "colors": {
+    "bg": "#6c3d43",
+    "panel": "#c5657a",
+    "primary": "#410415",
+    "accent": "#d69ba9",
+    "highlight": "#f4b9c8",
+    "success": "#de296e",
+    "text": "#ffcedb"
+  }
+}

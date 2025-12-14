@@ -1,0 +1,12 @@
+{
+  "name": "Default",
+  "colors": {
+    "bg": "#2E2E2E",
+    "panel": "#404040",
+    "primary": "#1D5AAA",
+    "accent": "#33CED6",
+    "highlight": "#6B999F",
+    "success": "#4EDE83",
+    "text": "#ffffff"
+  }
+}

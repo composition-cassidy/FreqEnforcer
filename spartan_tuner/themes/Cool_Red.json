@@ -1,0 +1,12 @@
+{
+  "name": "Cool Red",
+  "colors": {
+    "bg": "#1b0404",
+    "panel": "#4b2322",
+    "primary": "#d93a3a",
+    "accent": "#d6807d",
+    "highlight": "#f40e0e",
+    "success": "#deba36",
+    "text": "#ffc9c9"
+  }
+}

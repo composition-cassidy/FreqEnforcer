@@ -20,6 +20,9 @@ build/
 dist/
 installer/
 
+# Local helper command / spec copies
+*.spec.txt
+
 # Logs
 *.log
 
@@ -31,6 +34,7 @@ spartan_tuner/debug_notes.txt
 *.mp3
 *.flac
 *.ogg
+*.sfk
 
 # Keep curated examples
 !spartan_tuner/test/*.wav

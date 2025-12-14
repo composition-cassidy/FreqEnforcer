@@ -2,6 +2,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 
 
 
@@ -63,6 +64,11 @@ class WaveformWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self._theme = {
+            "bg": "#2E2E2E",
+            "accent": "#33CED6",
+        }
+
         self.audio_data = None
         self.sample_rate = 44100
         self._duration_s = 0.0
@@ -84,12 +90,17 @@ class WaveformWidget(QWidget):
 
         self._display_time_axis = np.array([], dtype=np.float64)
         self._display_audio = np.array([], dtype=np.float64)
+        self._display_delta = np.array([], dtype=np.float64)
+        self._blob_needs_data_rebuild = True
+
+        self._performance_mode = False
+        self._max_points = 100000
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.plot_widget = pg.PlotWidget(viewBox=_BlobViewBox(self))
-        self.plot_widget.setBackground('#2E2E2E')
+        self.plot_widget.setBackground(self._theme.get("bg", "#2E2E2E"))
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setLabel('bottom', 'Time', units='s')
         self.plot_widget.setLabel('left', 'MIDI Note')
@@ -99,8 +110,9 @@ class WaveformWidget(QWidget):
         self._view_box.sigRangeChanged.connect(self._on_range_changed)
         self._view_box.setLimits(yMin=float(self._blob_note_min), yMax=float(self._blob_note_max))
 
-        self._blob_top_curve = self.plot_widget.plot(pen=pg.mkPen(color='#33CED6', width=1))
-        self._blob_bottom_curve = self.plot_widget.plot(pen=pg.mkPen(color='#33CED6', width=1))
+        accent = str(self._theme.get("accent", "#33CED6"))
+        self._blob_top_curve = self.plot_widget.plot(pen=pg.mkPen(color=accent, width=1))
+        self._blob_bottom_curve = self.plot_widget.plot(pen=pg.mkPen(color=accent, width=1))
         self._blob_fill = pg.FillBetweenItem(
             self._blob_top_curve,
             self._blob_bottom_curve,
@@ -111,6 +123,45 @@ class WaveformWidget(QWidget):
         layout.addWidget(self.plot_widget)
 
         self._update_y_view(center_midi=float(self._blob_midi_note), force=True)
+
+    def apply_theme(self, theme: dict):
+        if isinstance(theme, dict):
+            self._theme.update({k: str(v) for k, v in theme.items() if v is not None})
+
+        bg = str(self._theme.get("bg", "#2E2E2E"))
+        accent = str(self._theme.get("accent", "#33CED6"))
+
+        try:
+            self.plot_widget.setBackground(bg)
+        except Exception:
+            pass
+
+        try:
+            pen = pg.mkPen(color=accent, width=1)
+            self._blob_top_curve.setPen(pen)
+            self._blob_bottom_curve.setPen(pen)
+        except Exception:
+            pass
+
+        try:
+            c = QColor(accent)
+            if c.isValid():
+                self._blob_fill.setBrush(pg.mkBrush(c.red(), c.green(), c.blue(), 110))
+        except Exception:
+            pass
+
+    def set_performance_mode(self, enabled: bool):
+        self._performance_mode = bool(enabled)
+        self._max_points = 30000 if self._performance_mode else 100000
+        try:
+            if self._performance_mode:
+                self.plot_widget.showGrid(x=False, y=False)
+            else:
+                self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        except Exception:
+            pass
+
+        self._update_plot()
 
     def set_audio(self, audio: np.ndarray, sample_rate: int):
         """
@@ -134,21 +185,28 @@ class WaveformWidget(QWidget):
         if self.audio_data is None:
             self._display_time_axis = np.array([], dtype=np.float64)
             self._display_audio = np.array([], dtype=np.float64)
+            self._display_delta = np.array([], dtype=np.float64)
+            self._blob_needs_data_rebuild = True
             self._blob_top_curve.setData([], [])
             self._blob_bottom_curve.setData([], [])
             return
 
-        max_points = 100000
+        max_points = int(self._max_points)
         if len(self.audio_data) > max_points:
-            step = max(1, len(self.audio_data) // max_points)
+            step = max(1, (len(self.audio_data) + max_points - 1) // max_points)
             display_audio = self.audio_data[::step]
         else:
+            step = 1
             display_audio = self.audio_data
 
-        time_axis = np.linspace(0, len(self.audio_data) / self.sample_rate, len(display_audio), dtype=np.float64)
+        time_axis = (np.arange(len(display_audio), dtype=np.float64) * (float(step) / float(self.sample_rate)))
 
         self._display_time_axis = np.asarray(time_axis, dtype=np.float64)
         self._display_audio = np.asarray(display_audio, dtype=np.float64)
+
+        amp = np.abs(np.clip(self._display_audio, -1.0, 1.0))
+        self._display_delta = (amp * float(self._blob_scale_semitones)) + float(self._blob_min_thickness_semitones)
+        self._blob_needs_data_rebuild = True
         self._rebuild_blob()
 
         self._set_x_bounds(0.0, max(0.0, float(len(self.audio_data)) / float(self.sample_rate)))
@@ -160,6 +218,8 @@ class WaveformWidget(QWidget):
         self._x_bounds = (0.0, 0.0)
         self._display_time_axis = np.array([], dtype=np.float64)
         self._display_audio = np.array([], dtype=np.float64)
+        self._display_delta = np.array([], dtype=np.float64)
+        self._blob_needs_data_rebuild = True
         self._blob_top_curve.setData([], [])
         self._blob_bottom_curve.setData([], [])
 
@@ -273,20 +333,27 @@ class WaveformWidget(QWidget):
         self._emit_midi_view_range_if_changed((new_ymin, new_ymax))
 
     def _rebuild_blob(self):
-        if self._display_time_axis.size == 0 or self._display_audio.size == 0:
+        if self._display_time_axis.size == 0 or self._display_delta.size == 0:
             self._blob_top_curve.setData([], [])
             self._blob_bottom_curve.setData([], [])
             return
 
         center = float(self._blob_midi_note)
-        amp = np.abs(np.clip(self._display_audio, -1.0, 1.0))
-        delta = (amp * float(self._blob_scale_semitones)) + float(self._blob_min_thickness_semitones)
+        delta = self._display_delta
 
-        y_top = center + delta
-        y_bottom = center - delta
+        if self._blob_needs_data_rebuild:
+            self._blob_top_curve.setData(self._display_time_axis, delta)
+            self._blob_bottom_curve.setData(self._display_time_axis, -delta)
+            self._blob_needs_data_rebuild = False
 
-        self._blob_top_curve.setData(self._display_time_axis, y_top)
-        self._blob_bottom_curve.setData(self._display_time_axis, y_bottom)
+        try:
+            self._blob_top_curve.setPos(0.0, center)
+            self._blob_bottom_curve.setPos(0.0, center)
+        except Exception:
+            y_top = center + delta
+            y_bottom = center - delta
+            self._blob_top_curve.setData(self._display_time_axis, y_top)
+            self._blob_bottom_curve.setData(self._display_time_axis, y_bottom)
 
     def _hit_test_blob(self, x: float, y: float) -> bool:
         if self._display_time_axis.size == 0:

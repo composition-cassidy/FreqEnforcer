@@ -1,0 +1,12 @@
+{
+  "name": "High Contrast",
+  "colors": {
+    "bg": "#000000",
+    "panel": "#191919",
+    "primary": "#0338aa",
+    "accent": "#0ebbd6",
+    "highlight": "#dff0f4",
+    "success": "#24de2a",
+    "text": "#ffffff"
+  }
+}

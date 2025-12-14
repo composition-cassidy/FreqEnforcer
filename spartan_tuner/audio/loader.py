@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import struct
-import math
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import resample_poly
 
 _INTERNAL_SR = 44100
 _SUPPORTED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
@@ -40,10 +38,8 @@ def load_audio(filepath: str) -> tuple[np.ndarray, int, int]:
 
     if original_sr != _INTERNAL_SR:
         try:
-            g = math.gcd(int(original_sr), int(_INTERNAL_SR))
-            up = int(_INTERNAL_SR) // g
-            down = int(original_sr) // g
-            audio = resample_poly(audio, up=up, down=down)
+            import librosa
+            audio = librosa.resample(y=audio, orig_sr=original_sr, target_sr=_INTERNAL_SR)
         except Exception as e:
             raise ValueError(f"Failed to resample audio: {path}") from e
 

@@ -34,6 +34,12 @@ def _audiotsm_stretch(audio: np.ndarray, sr: int, stretch_factor: float, procedu
         from audiotsm.io.array import ArrayReader, ArrayWriter
         import audiotsm
     except (ModuleNotFoundError, ImportError) as e:  # pragma: no cover
+        if bool(getattr(sys, "frozen", False)):
+            raise MissingDependencyError(
+                "audiotsm is missing from this build. "
+                "Reinstall a full release or rebuild the app with audiotsm included."
+            ) from e
+
         py = sys.executable or "python"
         raise MissingDependencyError(
             "audiotsm is not installed for the Python running this app. "
@@ -80,6 +86,12 @@ def _pylibrb_import():
 
         return Option, RubberBandStretcher, create_audio_array
     except (ModuleNotFoundError, ImportError) as e:  # pragma: no cover
+        if bool(getattr(sys, "frozen", False)):
+            raise MissingDependencyError(
+                "pylibrb is missing from this build. "
+                "Reinstall a full release or rebuild the app with pylibrb included."
+            ) from e
+
         py = sys.executable or "python"
         raise MissingDependencyError(
             "pylibrb is not installed for the Python running this app. "

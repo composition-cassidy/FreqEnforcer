@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 
-import pyworld as pw
-
 try:
     from spartan_tuner.utils.note_utils import (
         freq_to_midi,
@@ -20,7 +18,9 @@ except ImportError:
     )
 
 
-def detect_pitch(audio: np.ndarray, sr: int = 44100) -> dict:
+def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict:
+    import librosa
+
     audio_arr = np.asarray(audio, dtype=np.float32)
 
     if sr <= 0:
@@ -39,19 +39,49 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100) -> dict:
             "voiced_ratio": 0.0,
         }
 
-    audio_f64 = audio_arr.astype(np.float64, copy=False)
+    if bool(fast):
+        f0 = librosa.yin(
+            audio_arr,
+            fmin=50.0,
+            fmax=500.0,
+            sr=sr,
+            frame_length=2048,
+        )
+        times = librosa.times_like(f0, sr=sr)
 
-    f0, time_axis = pw.dio(
-        audio_f64,
-        int(sr),
-        f0_floor=50.0,
-        f0_ceil=500.0,
+        f0_arr = np.asarray(f0, dtype=np.float32)
+        times_arr = np.asarray(times, dtype=np.float32)
+
+        voiced_mask = np.isfinite(f0_arr)
+        voiced_ratio = float(np.sum(voiced_mask)) / float(f0_arr.size) if f0_arr.size else 0.0
+
+        if np.any(voiced_mask):
+            median_f0 = float(np.nanmedian(f0_arr))
+            mean_f0 = float(np.nanmean(f0_arr))
+        else:
+            median_f0 = None
+            mean_f0 = None
+
+        return {
+            "f0_array": f0_arr,
+            "times": times_arr,
+            "median_f0": median_f0,
+            "mean_f0": mean_f0,
+            "voiced_ratio": voiced_ratio,
+        }
+
+    f0, voiced_flag, voiced_probs = librosa.pyin(
+        audio_arr,
+        fmin=50.0,
+        fmax=500.0,
+        sr=sr,
+        frame_length=2048,
     )
-    f0 = pw.stonemask(audio_f64, f0, time_axis, int(sr))
+
+    times = librosa.times_like(f0, sr=sr)
 
     f0_arr = np.asarray(f0, dtype=np.float32)
-    f0_arr = np.where(f0_arr > 0.0, f0_arr, np.nan).astype(np.float32, copy=False)
-    times_arr = np.asarray(time_axis, dtype=np.float32)
+    times_arr = np.asarray(times, dtype=np.float32)
 
     voiced_mask = np.isfinite(f0_arr)
 
@@ -76,8 +106,10 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100) -> dict:
     }
 
 
-def get_predominant_pitch(audio: np.ndarray, sr: int = 44100) -> tuple[float | None, str | None, int | None]:
-    result = detect_pitch(audio, sr=sr)
+def get_predominant_pitch(
+    audio: np.ndarray, sr: int = 44100, fast: bool = False
+) -> tuple[float | None, str | None, int | None]:
+    result = detect_pitch(audio, sr=sr, fast=bool(fast))
 
     freq_hz = result.get("median_f0")
     if freq_hz is None:

@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QStandardPaths
-from PyQt6.QtGui import QFont, QFontDatabase
+from PyQt6.QtGui import QFont, QFontDatabase, QIcon
 
 from ui.main_window import MainWindow
 
@@ -18,6 +18,14 @@ def main():
     app.setApplicationName("FreqEnforcer")
 
     base_dir = Path(getattr(sys, "_MEIPASS", str(Path(__file__).resolve().parent)))
+
+    icon_path = base_dir / "ICON.ico"
+    if icon_path.exists():
+        try:
+            app.setWindowIcon(QIcon(str(icon_path)))
+        except Exception:
+            pass
+
     fonts_dir = base_dir / "fonts"
     if fonts_dir.exists():
         for font_path in sorted(fonts_dir.glob("*.ttf")):

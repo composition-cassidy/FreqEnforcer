@@ -29,8 +29,21 @@ class PianoRollWidget(QWidget):
         self.white_key_width = 40
         self.black_key_width = 25
 
+        self._theme = {
+            "bg": "#2E2E2E",
+            "panel": "#404040",
+            "primary": "#1D5AAA",
+            "accent": "#33CED6",
+            "text": "#ffffff",
+        }
+
         self.setMinimumWidth(50)
         self.setMinimumHeight(200)
+
+    def apply_theme(self, theme: dict):
+        if isinstance(theme, dict):
+            self._theme.update({k: str(v) for k, v in theme.items() if v is not None})
+        self.update()
 
     def set_selected_note(self, note_name: str):
         """Set the currently selected/highlighted note. E.g., 'C4', 'F#3'."""
@@ -92,20 +105,31 @@ class PianoRollWidget(QWidget):
             is_black = note_name in self.black_notes
             is_selected = (self._selected_midi is not None) and (int(self._selected_midi) == int(midi))
 
+            t = self._theme
+            bg = str(t.get("bg", "#2E2E2E"))
+            panel = str(t.get("panel", "#404040"))
+            primary = str(t.get("primary", "#1D5AAA"))
+            accent = str(t.get("accent", "#33CED6"))
+            text = str(t.get("text", "#ffffff"))
+
             if is_selected:
-                color = QColor("#1D5AAA") if is_black else QColor("#33CED6")
+                color = QColor(primary) if is_black else QColor(accent)
             else:
-                color = QColor("#2E2E2E") if is_black else QColor("#404040")
+                color = QColor(bg) if is_black else QColor(panel)
 
             key_width = self.black_key_width if is_black else self.white_key_width
             x = 0 if not is_black else 0
             painter.fillRect(x, y, key_width, row_h - 1, color)
 
-            painter.setPen(QPen(QColor("#1D5AAA"), 1))
+            painter.setPen(QPen(QColor(primary), 1))
             painter.drawRect(x, y, key_width, row_h - 1)
 
             if row_h >= 10:
-                painter.setPen(QColor("#ffffff") if is_selected else QColor(51, 206, 214, 220))
+                if is_selected:
+                    painter.setPen(QColor(text))
+                else:
+                    c = QColor(accent)
+                    painter.setPen(QColor(c.red(), c.green(), c.blue(), 220))
                 font = QFont("Arial", 8)
                 painter.setFont(font)
                 painter.drawText(x + 4, y + row_h - 3, note_name)
