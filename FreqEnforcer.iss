@@ -2,7 +2,7 @@
 #define MyAppExeName "FreqEnforcer.exe"
 #define MyAppPublisher "FreqEnforcer"
 #define MyAppURL ""
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 
 ; IMPORTANT:
 ; Keep AppId stable across releases so future installers upgrade/replace previous installs.

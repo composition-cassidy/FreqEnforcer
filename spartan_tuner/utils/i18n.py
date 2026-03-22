@@ -34,7 +34,38 @@ class I18n:
             return
 
         line_re = re.compile(r"^([^=]+)=(.*)$")
-        block_re = re.compile(r"\(([^:]+):([^)]*)\)")
+        next_block_re = re.compile(r"\)\s*\(([A-Za-z_\-]+):")
+
+        def iter_blocks(s: str):
+            i = 0
+            n = len(s)
+            while i < n:
+                while i < n and s[i].isspace():
+                    i += 1
+                if i >= n or s[i] != "(":
+                    return
+
+                colon = s.find(":", i + 1)
+                if colon < 0:
+                    return
+
+                lang_raw = s[i + 1:colon]
+                value_start = colon + 1
+
+                m_next = next_block_re.search(s, value_start)
+                if m_next is not None:
+                    value_end = m_next.start(0)
+                    value = s[value_start:value_end]
+                    yield lang_raw, value
+                    i = m_next.start(0) + 1
+                    continue
+
+                last = s.rfind(")")
+                if last < 0 or last < value_start:
+                    return
+                value = s[value_start:last]
+                yield lang_raw, value
+                return
 
         alias = {
             "en": "en",
@@ -70,7 +101,7 @@ class I18n:
             if not key:
                 continue
 
-            for lang_raw, val in block_re.findall(rest):
+            for lang_raw, val in iter_blocks(rest):
                 tag = str(lang_raw).strip().lower()
                 lang = alias.get(tag)
                 if not lang:

@@ -11,7 +11,13 @@ except Exception:  # pragma: no cover
     collect_all = None
 
 
+import os, sys as _sys
 _binaries = []
+_py_dir = os.path.dirname(_sys.executable)
+for _dll in ["vcruntime140.dll", "vcruntime140_1.dll"]:
+    _dll_path = os.path.join(_py_dir, _dll)
+    if os.path.exists(_dll_path):
+        _binaries.append((_dll_path, "."))
 _datas = [
     ("spartan_tuner/LOGO.png", "."),
     ("spartan_tuner/ICON.png", "."),
@@ -22,6 +28,14 @@ _datas = [
 ]
 
 _hiddenimports = []
+
+# Bundle the spartan_tuner internal packages
+_spec_dir = SPECPATH
+for _pkg in ["ui", "audio", "utils"]:
+    try:
+        _hiddenimports += collect_submodules(_pkg)
+    except Exception:
+        pass
 
 try:
     _hiddenimports += collect_submodules("audiotsm")
@@ -54,7 +68,7 @@ if collect_all is not None:
 
 a = Analysis(
     ["spartan_tuner/main.py"],
-    pathex=["spartan_tuner"],
+    pathex=[os.path.join(_spec_dir, "spartan_tuner")],
     binaries=_binaries,
     datas=_datas,
     hiddenimports=_hiddenimports,

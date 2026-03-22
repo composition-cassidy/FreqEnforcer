@@ -20,10 +20,11 @@ class PianoRollWidget(QWidget):
 
         self._selected_midi = None
         self._midi_range = (48, 72)
+        self._note_notation = "sharps"
 
-        self.note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-        self.white_notes = ["C", "D", "E", "F", "G", "A", "B"]
-        self.black_notes = ["C#", "D#", "F#", "G#", "A#"]
+        self._note_names_sharps = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        self._note_names_flats = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+        self._black_pcs = {1, 3, 6, 8, 10}
 
         self.key_height = 20
         self.white_key_width = 40
@@ -82,6 +83,17 @@ class PianoRollWidget(QWidget):
         self.display_octave = max(2, min(7, int(octave)))
         self.update()
 
+    def set_note_notation(self, mode: str):
+        mode_str = str(mode or "").strip().lower()
+        self._note_notation = "flats" if mode_str == "flats" else "sharps"
+        self.update()
+
+    def _name_for_pc(self, pc: int) -> str:
+        idx = int(pc) % 12
+        if self._note_notation == "flats":
+            return str(self._note_names_flats[idx])
+        return str(self._note_names_sharps[idx])
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -101,8 +113,9 @@ class PianoRollWidget(QWidget):
 
         y = y0
         for midi in range(midi_top, midi_bottom - 1, -1):
-            note_name = self.note_names[midi % 12]
-            is_black = note_name in self.black_notes
+            pc = int(midi) % 12
+            note_name = self._name_for_pc(pc)
+            is_black = int(pc) in self._black_pcs
             is_selected = (self._selected_midi is not None) and (int(self._selected_midi) == int(midi))
 
             t = self._theme

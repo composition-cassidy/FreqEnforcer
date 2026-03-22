@@ -29,6 +29,14 @@ installer/
 # Local debug notes
 spartan_tuner/debug_notes.txt
 
+# Diagnostic & debug artifacts
+spartan_tuner/diag_*
+spartan_tuner/debug_*.py
+spartan_tuner/debug_*.png
+spartan_tuner/test/hnm_refinement/
+spartan_tuner/test/hnm_texture_tests/
+spartan_tuner/test/spectrogram_*.png
+
 # Audio artifacts (keep source small; commit a few demo assets explicitly if desired)
 *.wav
 *.mp3
@@ -38,6 +46,10 @@ spartan_tuner/debug_notes.txt
 
 # Keep curated examples
 !spartan_tuner/test/*.wav
+
+# Re-ignore specific test outputs
+spartan_tuner/test/3_D4_*.wav
+spartan_tuner/test/3_VOVIOUS.wav
 
 # But keep your app images
 !spartan_tuner/ICON.png

@@ -1,13 +1,17 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QCheckBox, QSlider, QGroupBox, QPushButton, QSpinBox, QDoubleSpinBox,
-    QMessageBox, QStyledItemDelegate, QStyle, QSizePolicy, QTabWidget
+    QMessageBox, QStyledItemDelegate, QStyle, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QEvent
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QStandardItem, QStandardItemModel
 
 import importlib
 
+from ui.knob_widget import KnobWidget
+from ui.mini_piano_widget import MiniPianoWidget
+from ui.slider_widget import SliderWidget
+from utils.note_utils import note_name_to_midi
 from utils.i18n import tr
 
 
@@ -122,7 +126,55 @@ class SettingsPanel(QWidget):
     process_clicked = pyqtSignal()
     export_clicked = pyqtSignal()
     quick_export_clicked = pyqtSignal()
-    themes_requested = pyqtSignal()
+
+    _NOTE_NAMES_SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    _NOTE_NAMES_FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+    _NAME_TO_PC = {
+        "C": 0,
+        "B#": 0,
+        "C#": 1,
+        "DB": 1,
+        "D": 2,
+        "D#": 3,
+        "EB": 3,
+        "E": 4,
+        "FB": 4,
+        "E#": 5,
+        "F": 5,
+        "F#": 6,
+        "GB": 6,
+        "G": 7,
+        "G#": 8,
+        "AB": 8,
+        "A": 9,
+        "A#": 10,
+        "BB": 10,
+        "B": 11,
+        "CB": 11,
+    }
+
+    def eventFilter(self, watched, event):
+        if event is not None and event.type() == QEvent.Type.MouseButtonDblClick:
+            try:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    if watched is self.pitch_amount_slider:
+                        self.pitch_amount_slider.setValue(100)
+                        self.settings_changed.emit()
+                        event.accept()
+                        return True
+                    if watched is self.stretch_slider:
+                        self._stretch_over2_confirmed = False
+                        self._apply_stretch_effective(1.0, emit=True)
+                        event.accept()
+                        return True
+                    if watched is self.cleanliness_slider:
+                        self.cleanliness_slider.setValue(0)
+                        self.settings_changed.emit()
+                        event.accept()
+                        return True
+            except Exception:
+                pass
+        return super().eventFilter(watched, event)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -132,38 +184,38 @@ class SettingsPanel(QWidget):
 
         self._theme = None
         self._sample_rate = 44100
+        self._note_notation = "sharps"
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.tabs = QTabWidget()
-        self.tabs.setDocumentMode(True)
-        self.tabs.setMovable(False)
-
-        controls_page = QWidget()
-        layout = QVBoxLayout(controls_page)
+        root_layout.setSpacing(15)
+        layout = root_layout
         layout.setSpacing(15)
 
         self.note_group = QGroupBox(tr("settings.group.target_note", "Target Note"))
         note_layout = QVBoxLayout(self.note_group)
+        note_layout.setSpacing(8)
 
-        note_row = QHBoxLayout()
+        self.mini_piano = MiniPianoWidget(self.note_group)
+        self.mini_piano.setNotationMode(self._note_notation)
+        note_layout.addWidget(self.mini_piano)
+
+        # Single row for Note and Octave
+        note_octave_row = QHBoxLayout()
         self.note_label = QLabel(tr("settings.label.note", "Note:"))
-        note_row.addWidget(self.note_label)
+        note_octave_row.addWidget(self.note_label)
         self.note_combo = QComboBox()
-        self.note_combo.addItems(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"])
+        self.note_combo.addItems(list(self._NOTE_NAMES_SHARPS))
         self.note_combo.setCurrentText("C")
-        note_row.addWidget(self.note_combo)
-        note_layout.addLayout(note_row)
-
-        octave_row = QHBoxLayout()
+        note_octave_row.addWidget(self.note_combo)
+        
         self.octave_label = QLabel(tr("settings.label.octave", "Octave:"))
-        octave_row.addWidget(self.octave_label)
+        note_octave_row.addWidget(self.octave_label)
         self.octave_spin = QSpinBox()
         self.octave_spin.setRange(2, 7)
         self.octave_spin.setValue(4)
-        octave_row.addWidget(self.octave_spin)
-        note_layout.addLayout(octave_row)
+        note_octave_row.addWidget(self.octave_spin)
+        note_layout.addLayout(note_octave_row)
 
         self.target_label = QLabel(tr("settings.target_fmt", "Target: {note}{octave} ({freq:.2f} Hz)").format(note="C", octave=4, freq=261.63))
         self.target_label.setStyleSheet("color: #33CED6; font-weight: bold;")
@@ -173,6 +225,7 @@ class SettingsPanel(QWidget):
 
         self.process_group = QGroupBox(tr("settings.group.processing", "Processing"))
         process_layout = QVBoxLayout(self.process_group)
+        process_layout.setSpacing(8)
 
         pitch_mode_row = QHBoxLayout()
         self.pitch_mode_label = QLabel(tr("settings.label.pitch_mode", "Pitch Mode:"))
@@ -185,61 +238,65 @@ class SettingsPanel(QWidget):
         pitch_mode_row.addWidget(self.pitch_mode_combo, 1)
         process_layout.addLayout(pitch_mode_row)
 
+        checkbox_row = QHBoxLayout()
         self.normalize_check = QCheckBox(tr("settings.checkbox.normalize", "Normalize to 0dB"))
         self.normalize_check.setChecked(False)
         self.normalize_check.stateChanged.connect(lambda _s: self.settings_changed.emit())
-        process_layout.addWidget(self.normalize_check)
-
-        self.preserve_formants_check = QCheckBox(tr("settings.checkbox.preserve_formants", "Preserve Formants"))
-        self.preserve_formants_check.setChecked(True)
-        self.preserve_formants_check.stateChanged.connect(self._on_formant_toggle)
-        process_layout.addWidget(self.preserve_formants_check)
+        checkbox_row.addWidget(self.normalize_check)
+        process_layout.addLayout(checkbox_row)
 
         self.soft_widget = QWidget()
         soft_layout = QVBoxLayout(self.soft_widget)
         soft_layout.setContentsMargins(0, 0, 0, 0)
+        soft_layout.setSpacing(8)
 
-        amount_row = QHBoxLayout()
-        self.correction_amount_label = QLabel(tr("settings.label.correction_amount", "Correction Amount:"))
-        amount_row.addWidget(self.correction_amount_label)
-        self.pitch_amount_value_label = QLabel("100%")
-        amount_row.addWidget(self.pitch_amount_value_label)
-        soft_layout.addLayout(amount_row)
-
-        self.pitch_amount_slider = QSlider(Qt.Orientation.Horizontal)
-        self.pitch_amount_slider.setRange(0, 100)
-        self.pitch_amount_slider.setValue(100)
-        self.pitch_amount_slider.valueChanged.connect(self._on_pitch_amount_slider)
-        self.pitch_amount_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
+        # Correction Amount (Horizontal SliderWidget)
+        self.pitch_amount_slider = SliderWidget(
+            label=tr("settings.label.correction_amount", "Correction Amount"),
+            minimum=0,
+            maximum=100,
+            default_value=100,
+            step=1,
+            suffix="%",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal
+        )
+        self.pitch_amount_slider.valueChanged.connect(lambda _v: self.settings_changed.emit())
         soft_layout.addWidget(self.pitch_amount_slider)
 
-        retune_row = QHBoxLayout()
-        self.retune_speed_label = QLabel(tr("settings.label.retune_speed", "Retune Speed:"))
-        retune_row.addWidget(self.retune_speed_label)
-        self.retune_speed_value_label = QLabel("40 ms")
-        retune_row.addWidget(self.retune_speed_value_label)
-        soft_layout.addLayout(retune_row)
+        # Knobs Row (Retune Speed and Preserve Vibrato)
+        knobs_row = QHBoxLayout()
+        knobs_row.setSpacing(16)
 
-        self.retune_speed_slider = QSlider(Qt.Orientation.Horizontal)
-        self.retune_speed_slider.setRange(0, 200)
-        self.retune_speed_slider.setValue(40)
-        self.retune_speed_slider.valueChanged.connect(self._on_retune_speed_slider)
-        self.retune_speed_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
-        soft_layout.addWidget(self.retune_speed_slider)
+        self.retune_speed_knob = KnobWidget(
+            label=tr("settings.label.retune_speed", "Retune Speed"),
+            minimum=0,
+            maximum=500,
+            default_value=40,
+            step=1,
+            suffix="ms",
+            decimals=0,
+        )
+        self.retune_speed_knob.setMinimumWidth(130)
+        self.retune_speed_knob.setValue(40, emit_signal=False)
+        self.retune_speed_knob.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        knobs_row.addWidget(self.retune_speed_knob, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        vib_row = QHBoxLayout()
-        self.preserve_vibrato_label = QLabel(tr("settings.label.preserve_vibrato", "Preserve Vibrato:"))
-        vib_row.addWidget(self.preserve_vibrato_label)
-        self.preserve_vibrato_value_label = QLabel("100%")
-        vib_row.addWidget(self.preserve_vibrato_value_label)
-        soft_layout.addLayout(vib_row)
+        self.preserve_vibrato_knob = KnobWidget(
+            label=tr("settings.label.preserve_vibrato", "Preserve Vibrato"),
+            minimum=0,
+            maximum=100,
+            default_value=100,
+            step=1,
+            suffix="%",
+            decimals=0,
+        )
+        self.preserve_vibrato_knob.setMinimumWidth(130)
+        self.preserve_vibrato_knob.setValue(100, emit_signal=False)
+        self.preserve_vibrato_knob.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        knobs_row.addWidget(self.preserve_vibrato_knob, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        self.preserve_vibrato_slider = QSlider(Qt.Orientation.Horizontal)
-        self.preserve_vibrato_slider.setRange(0, 100)
-        self.preserve_vibrato_slider.setValue(100)
-        self.preserve_vibrato_slider.valueChanged.connect(self._on_preserve_vibrato_slider)
-        self.preserve_vibrato_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
-        soft_layout.addWidget(self.preserve_vibrato_slider)
+        soft_layout.addLayout(knobs_row)
 
         self.soft_widget.setVisible(False)
         process_layout.addWidget(self.soft_widget)
@@ -247,23 +304,43 @@ class SettingsPanel(QWidget):
         self.formant_widget = QWidget()
         formant_layout = QVBoxLayout(self.formant_widget)
         formant_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.formant_knob = SliderWidget(
+            label=tr("settings.label.formant_shift", "Formant Shift"),
+            minimum=-250,
+            maximum=250,
+            default_value=0,
+            step=1,
+            suffix="ct",
+            decimals=0,
+            snap_points=[0],
+            snap_dead_zone=2.5,
+            orientation=Qt.Orientation.Horizontal
+        )
+        self.formant_knob.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        formant_layout.addWidget(self.formant_knob)
 
-        formant_label_row = QHBoxLayout()
-        self.formant_shift_label = QLabel(tr("settings.label.formant_shift", "Formant Shift:"))
-        formant_label_row.addWidget(self.formant_shift_label)
-        self.formant_value_label = QLabel("0 ct")
-        formant_label_row.addWidget(self.formant_value_label)
-        formant_layout.addLayout(formant_label_row)
-
-        self.formant_slider = QSlider(Qt.Orientation.Horizontal)
-        self.formant_slider.setRange(-500, 500)
-        self.formant_slider.setValue(0)
-        self.formant_slider.valueChanged.connect(self._on_formant_slider)
-        self.formant_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
-        formant_layout.addWidget(self.formant_slider)
-
-        self.formant_widget.setVisible(False)
         process_layout.addWidget(self.formant_widget)
+
+        self.formant_adapt_widget = QWidget()
+        formant_adapt_layout = QVBoxLayout(self.formant_adapt_widget)
+        formant_adapt_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.formant_adapt_slider = SliderWidget(
+            label=tr("settings.label.formant_adapt", "Vocal Tract Model"),
+            minimum=0,
+            maximum=100,
+            default_value=10,
+            step=1,
+            suffix="",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal
+        )
+        self.formant_adapt_slider.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        formant_adapt_layout.addWidget(self.formant_adapt_slider)
+
+        self.formant_adapt_widget.setVisible(False)
+        process_layout.addWidget(self.formant_adapt_widget)
 
         self._stretch_factor_effective = 1.0
         self._stretch_factor_pending = 1.0
@@ -280,20 +357,17 @@ class SettingsPanel(QWidget):
         stretch_method_row.addWidget(self.stretch_method_combo, 1)
         process_layout.addLayout(stretch_method_row)
 
-        stretch_factor_label_row = QHBoxLayout()
-        self.stretch_factor_label = QLabel(tr("settings.label.stretch_factor", "Stretch Factor:"))
-        stretch_factor_label_row.addWidget(self.stretch_factor_label)
-        self.stretch_value_label = QLabel("1.00x")
-        stretch_factor_label_row.addWidget(self.stretch_value_label)
-        process_layout.addLayout(stretch_factor_label_row)
-
-        self.stretch_slider = QSlider(Qt.Orientation.Horizontal)
-        self.stretch_slider.setRange(100, 500)
-        self.stretch_slider.setSingleStep(1)
-        self.stretch_slider.setPageStep(10)
-        self.stretch_slider.setValue(100)
+        self.stretch_slider = SliderWidget(
+            label=tr("settings.label.stretch_factor", "Stretch Factor"),
+            minimum=1.00,
+            maximum=5.00,
+            default_value=1.00,
+            step=0.01,
+            suffix="x",
+            decimals=2,
+            orientation=Qt.Orientation.Horizontal
+        )
         self.stretch_slider.valueChanged.connect(self._on_stretch_slider_value_changed)
-        self.stretch_slider.sliderReleased.connect(self._on_stretch_slider_released)
         process_layout.addWidget(self.stretch_slider)
 
         stretch_manual_row = QHBoxLayout()
@@ -314,60 +388,61 @@ class SettingsPanel(QWidget):
 
         self.clean_group = QGroupBox(tr("settings.group.cleanliness", "Cleanliness"))
         clean_layout = QVBoxLayout(self.clean_group)
+        clean_layout.setSpacing(8)
 
-        clean_label_row = QHBoxLayout()
-        self.clean_amount_label = QLabel(tr("settings.label.amount", "Amount:"))
-        clean_label_row.addWidget(self.clean_amount_label)
-        self.clean_value_label = QLabel("0%")
-        clean_label_row.addWidget(self.clean_value_label)
-        clean_layout.addLayout(clean_label_row)
-
-        self.cleanliness_slider = QSlider(Qt.Orientation.Horizontal)
-        self.cleanliness_slider.setRange(0, 100)
-        self.cleanliness_slider.setValue(0)
+        self.cleanliness_slider = SliderWidget(
+            label=tr("settings.label.amount", "Cleanliness Amount"),
+            minimum=0,
+            maximum=100,
+            default_value=0,
+            step=1,
+            suffix="%",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal
+        )
         self.cleanliness_slider.valueChanged.connect(self._on_cleanliness_slider)
-        self.cleanliness_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
         clean_layout.addWidget(self.cleanliness_slider)
 
+        clean_chk_row = QHBoxLayout()
         self.clean_advanced_check = QCheckBox(tr("settings.checkbox.advanced_mode", "Advanced Mode"))
         self.clean_advanced_check.setChecked(False)
         self.clean_advanced_check.stateChanged.connect(self._on_clean_advanced_toggled)
-        clean_layout.addWidget(self.clean_advanced_check)
+        clean_chk_row.addWidget(self.clean_advanced_check)
 
         self.clean_warning_label = QLabel(tr("settings.warning.robotic", "High values = robotic sound"))
         self.clean_warning_label.setStyleSheet("color: rgba(51, 206, 214, 170); font-size: 10px;")
-        clean_layout.addWidget(self.clean_warning_label)
+        clean_chk_row.addWidget(self.clean_warning_label)
+        clean_layout.addLayout(clean_chk_row)
 
         self.clean_advanced_widget = QWidget()
         clean_adv_layout = QVBoxLayout(self.clean_advanced_widget)
         clean_adv_layout.setContentsMargins(0, 0, 0, 0)
+        clean_adv_layout.setSpacing(8)
 
-        lowcut_label_row = QHBoxLayout()
-        self.clean_lowcut_label = QLabel(tr("settings.label.low_cut", "Low Cut:"))
-        lowcut_label_row.addWidget(self.clean_lowcut_label)
-        self.clean_lowcut_value_label = QLabel("50 Hz")
-        lowcut_label_row.addWidget(self.clean_lowcut_value_label)
-        clean_adv_layout.addLayout(lowcut_label_row)
-
-        self.clean_lowcut_slider = QSlider(Qt.Orientation.Horizontal)
-        self.clean_lowcut_slider.setRange(0, 200)
-        self.clean_lowcut_slider.setValue(50)
-        self.clean_lowcut_slider.valueChanged.connect(self._on_clean_lowcut_slider)
-        self.clean_lowcut_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
+        self.clean_lowcut_slider = SliderWidget(
+            label=tr("settings.label.low_cut", "Low Cut"),
+            minimum=0,
+            maximum=200,
+            default_value=50,
+            step=1,
+            suffix=" Hz",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal
+        )
+        self.clean_lowcut_slider.valueChanged.connect(lambda v: self.settings_changed.emit())
         clean_adv_layout.addWidget(self.clean_lowcut_slider)
 
-        hs_gain_row = QHBoxLayout()
-        self.clean_high_shelf_label = QLabel(tr("settings.label.high_shelf", "High Shelf:"))
-        hs_gain_row.addWidget(self.clean_high_shelf_label)
-        self.clean_high_shelf_gain_label = QLabel("0 dB")
-        hs_gain_row.addWidget(self.clean_high_shelf_gain_label)
-        clean_adv_layout.addLayout(hs_gain_row)
-
-        self.clean_high_shelf_gain_slider = QSlider(Qt.Orientation.Horizontal)
-        self.clean_high_shelf_gain_slider.setRange(-24, 0)
-        self.clean_high_shelf_gain_slider.setValue(0)
-        self.clean_high_shelf_gain_slider.valueChanged.connect(self._on_clean_high_shelf_gain_slider)
-        self.clean_high_shelf_gain_slider.sliderReleased.connect(lambda: self.settings_changed.emit())
+        self.clean_high_shelf_gain_slider = SliderWidget(
+            label=tr("settings.label.high_shelf", "High Shelf"),
+            minimum=-24,
+            maximum=0,
+            default_value=0,
+            step=1,
+            suffix=" dB",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal
+        )
+        self.clean_high_shelf_gain_slider.valueChanged.connect(lambda v: self.settings_changed.emit())
         clean_adv_layout.addWidget(self.clean_high_shelf_gain_slider)
 
         hs_freq_row = QHBoxLayout()
@@ -409,23 +484,11 @@ class SettingsPanel(QWidget):
 
         layout.addStretch()
 
-        themes_page = QWidget()
-        themes_layout = QVBoxLayout(themes_page)
-        themes_layout.setSpacing(12)
-        self.themes_description_label = QLabel(tr("settings.themes.description", "Customize the app colors."))
-        themes_layout.addWidget(self.themes_description_label)
-        self.open_theme_editor_btn = QPushButton(tr("settings.themes.open_editor", "Open Theme Editor"))
-        self.open_theme_editor_btn.clicked.connect(lambda: self.themes_requested.emit())
-        themes_layout.addWidget(self.open_theme_editor_btn)
-        themes_layout.addStretch()
-
-        self.tabs.addTab(controls_page, tr("settings.tabs.settings", "Settings"))
-        self.tabs.addTab(themes_page, tr("settings.tabs.themes", "Themes"))
-        self.tabs.currentChanged.connect(self._on_tab_changed)
-        root_layout.addWidget(self.tabs)
-
-        self.note_combo.currentTextChanged.connect(self._update_target_label)
+        self.note_combo.currentTextChanged.connect(self._on_note_combo_changed)
         self.octave_spin.valueChanged.connect(self._update_target_label)
+        self.mini_piano.noteChanged.connect(self._on_mini_piano_note_changed)
+        self._rebuild_note_combo_items(None)
+        self.mini_piano.setNote(self.note_combo.currentText())
         self._update_target_label()
 
         self._on_pitch_mode_changed(0)
@@ -434,13 +497,6 @@ class SettingsPanel(QWidget):
         self._apply_cleanliness_mode_ui()
         try:
             self.retranslate_ui()
-        except Exception:
-            pass
-
-    def _on_tab_changed(self, index: int):
-        try:
-            if int(index) == 1:
-                self.themes_requested.emit()
         except Exception:
             pass
 
@@ -456,24 +512,15 @@ class SettingsPanel(QWidget):
             self.process_group.setTitle(tr("settings.group.processing", "Processing"))
             self.pitch_mode_label.setText(tr("settings.label.pitch_mode", "Pitch Mode:"))
             self.normalize_check.setText(tr("settings.checkbox.normalize", "Normalize to 0dB"))
-            self.preserve_formants_check.setText(tr("settings.checkbox.preserve_formants", "Preserve Formants"))
-            self.correction_amount_label.setText(tr("settings.label.correction_amount", "Correction Amount:"))
-            self.retune_speed_label.setText(tr("settings.label.retune_speed", "Retune Speed:"))
-            self.preserve_vibrato_label.setText(tr("settings.label.preserve_vibrato", "Preserve Vibrato:"))
-            self.formant_shift_label.setText(tr("settings.label.formant_shift", "Formant Shift:"))
             self.stretching_method_label.setText(tr("settings.label.stretching_method", "Stretching Method:"))
-            self.stretch_factor_label.setText(tr("settings.label.stretch_factor", "Stretch Factor:"))
             self.stretch_manual_label.setText(tr("settings.label.manual", "Manual:"))
         except Exception:
             pass
 
         try:
             self.clean_group.setTitle(tr("settings.group.cleanliness", "Cleanliness"))
-            self.clean_amount_label.setText(tr("settings.label.amount", "Amount:"))
             self.clean_advanced_check.setText(tr("settings.checkbox.advanced_mode", "Advanced Mode"))
             self.clean_warning_label.setText(tr("settings.warning.robotic", "High values = robotic sound"))
-            self.clean_lowcut_label.setText(tr("settings.label.low_cut", "Low Cut:"))
-            self.clean_high_shelf_label.setText(tr("settings.label.high_shelf", "High Shelf:"))
             self.clean_shelf_freq_label.setText(tr("settings.label.shelf_freq", "Shelf Freq:"))
         except Exception:
             pass
@@ -486,18 +533,6 @@ class SettingsPanel(QWidget):
         try:
             self.export_btn.setText(tr("settings.button.export_wav", "Export WAV"))
             self.quick_export_btn.setText(tr("settings.button.quick_export", "Quick Export"))
-        except Exception:
-            pass
-
-        try:
-            self.themes_description_label.setText(tr("settings.themes.description", "Customize the app colors."))
-            self.open_theme_editor_btn.setText(tr("settings.themes.open_editor", "Open Theme Editor"))
-        except Exception:
-            pass
-
-        try:
-            self.tabs.setTabText(0, tr("settings.tabs.settings", "Settings"))
-            self.tabs.setTabText(1, tr("settings.tabs.themes", "Themes"))
         except Exception:
             pass
 
@@ -631,6 +666,23 @@ class SettingsPanel(QWidget):
         except Exception:
             pass
 
+        try:
+            self.retune_speed_knob.apply_theme(t)
+            self.preserve_vibrato_knob.apply_theme(t)
+
+            self.mini_piano.apply_theme(t)
+
+            self.pitch_amount_slider.apply_theme(t)
+            self.formant_knob.apply_theme(t)
+            self.formant_adapt_slider.apply_theme(t)
+            self.stretch_slider.apply_theme(t)
+
+            self.cleanliness_slider.apply_theme(t)
+            self.clean_lowcut_slider.apply_theme(t)
+            self.clean_high_shelf_gain_slider.apply_theme(t)
+        except Exception:
+            pass
+
     def reset_to_defaults(self):
         role_key = int(Qt.ItemDataRole.UserRole) + 1
         default_stretch_method = None
@@ -674,16 +726,18 @@ class SettingsPanel(QWidget):
 
     def get_ui_state(self) -> dict:
         role_key = int(Qt.ItemDataRole.UserRole) + 1
+        formant_shift_cents = int(self.formant_knob.value())
         return {
             "note": str(self.note_combo.currentText()),
             "octave": int(self.octave_spin.value()),
             "pitch_mode": str(self.pitch_mode_combo.currentData()),
             "pitch_amount": int(self.pitch_amount_slider.value()),
-            "retune_speed_ms": int(self.retune_speed_slider.value()),
-            "preserve_vibrato": int(self.preserve_vibrato_slider.value()),
+            "retune_speed_ms": int(self.retune_speed_knob.value()),
+            "preserve_vibrato": int(self.preserve_vibrato_knob.value()),
             "normalize": bool(self.normalize_check.isChecked()),
-            "preserve_formants": bool(self.preserve_formants_check.isChecked()),
-            "formant_shift_cents": int(self.formant_slider.value()),
+            "preserve_formants": bool(formant_shift_cents == 0),
+            "formant_shift_cents": int(formant_shift_cents),
+            "formant_shift_beta": int(self.formant_adapt_slider.value()),
             "stretch_method": self.stretch_method_combo.currentData(role_key),
             "stretch_factor": float(self._stretch_factor_effective),
             "cleanliness_percent": int(self.cleanliness_slider.value()),
@@ -705,6 +759,7 @@ class SettingsPanel(QWidget):
         normalize = state.get("normalize")
         preserve_formants = state.get("preserve_formants")
         formant_shift_cents = state.get("formant_shift_cents")
+        formant_shift_beta = state.get("formant_shift_beta")
         stretch_method = state.get("stretch_method")
         stretch_factor = state.get("stretch_factor")
         cleanliness_percent = state.get("cleanliness_percent")
@@ -716,7 +771,7 @@ class SettingsPanel(QWidget):
         self.blockSignals(True)
         try:
             if note is not None:
-                self.note_combo.setCurrentText(str(note))
+                self._set_note_combo_from_note_name(str(note))
             if octave is not None:
                 self.octave_spin.setValue(int(octave))
             if pitch_mode is not None:
@@ -751,15 +806,18 @@ class SettingsPanel(QWidget):
             if pitch_amount is not None:
                 self.pitch_amount_slider.setValue(int(pitch_amount))
             if retune_speed_ms is not None:
-                self.retune_speed_slider.setValue(int(retune_speed_ms))
+                self.retune_speed_knob.setValue(int(retune_speed_ms), emit_signal=False)
+                self._on_retune_speed_slider(int(retune_speed_ms))
             if preserve_vibrato is not None:
-                self.preserve_vibrato_slider.setValue(int(preserve_vibrato))
+                self.preserve_vibrato_knob.setValue(int(preserve_vibrato), emit_signal=False)
+                self._on_preserve_vibrato_slider(int(preserve_vibrato))
             if normalize is not None:
                 self.normalize_check.setChecked(bool(normalize))
-            if preserve_formants is not None:
-                self.preserve_formants_check.setChecked(bool(preserve_formants))
             if formant_shift_cents is not None:
-                self.formant_slider.setValue(int(formant_shift_cents))
+                self.formant_knob.setValue(int(formant_shift_cents), emit_signal=False)
+                self._on_formant_slider(int(formant_shift_cents))
+            if formant_shift_beta is not None:
+                self.formant_adapt_slider.setValue(int(formant_shift_beta))
             if cleanliness_percent is not None:
                 self.cleanliness_slider.setValue(int(cleanliness_percent))
 
@@ -791,6 +849,11 @@ class SettingsPanel(QWidget):
                 except Exception:
                     pass
 
+            try:
+                self.mini_piano.setNote(str(self.note_combo.currentText()))
+            except Exception:
+                pass
+
             self._update_target_label()
 
         finally:
@@ -805,30 +868,98 @@ class SettingsPanel(QWidget):
             pass
         self.settings_changed.emit()
 
+    def _on_mini_piano_note_changed(self, note: str):
+        pc = self._note_to_pc(note)
+        if pc is None:
+            return
+        next_note = self._pc_to_note_for_mode(pc)
+        try:
+            if str(self.note_combo.currentText()) == str(next_note):
+                return
+            self.note_combo.setCurrentIndex(int(pc) % 12)
+        except Exception:
+            pass
+
+    def _on_note_combo_changed(self, note: str):
+        try:
+            self.mini_piano.setNote(str(note))
+        except Exception:
+            pass
+        self._update_target_label()
+
     def _on_pitch_mode_changed(self, _index: int):
         mode = str(self.pitch_mode_combo.currentData())
-        is_soft = mode in ("world_soft", "praat_soft")
+        is_soft = mode in ("world_soft", "world_vt", "world_hnm", "praat_soft", "sine_spectral", "stft_pitchshift")
         self.soft_widget.setVisible(bool(is_soft))
+        self.formant_adapt_widget.setVisible(mode == "world_vt")
         self.settings_changed.emit()
 
     def _on_pitch_amount_slider(self, value: int):
-        self.pitch_amount_value_label.setText(f"{int(value)}%")
+        pass
 
     def _on_retune_speed_slider(self, value: int):
-        self.retune_speed_value_label.setText(f"{int(value)} ms")
+        pass
 
     def _on_preserve_vibrato_slider(self, value: int):
-        self.preserve_vibrato_value_label.setText(f"{int(value)}%")
+        pass
 
-    def _update_target_label(self):
+    def _note_names_for_mode(self) -> list[str]:
+        if str(self._note_notation) == "flats":
+            return list(self._NOTE_NAMES_FLATS)
+        return list(self._NOTE_NAMES_SHARPS)
+
+    def _note_to_pc(self, note: str) -> int | None:
+        if note is None:
+            return None
+        s = str(note).strip()
+        if not s:
+            return None
+        mapped = self._NAME_TO_PC.get(s.upper())
+        if mapped is None:
+            return None
+        return int(mapped)
+
+    def _pc_to_note_for_mode(self, pc: int) -> str:
+        names = self._note_names_for_mode()
+        return str(names[int(pc) % 12])
+
+    def _rebuild_note_combo_items(self, preserve_note: str | None):
+        preserve_pc = self._note_to_pc(preserve_note)
+        if preserve_pc is None:
+            preserve_pc = self._note_to_pc(str(self.note_combo.currentText()))
+        if preserve_pc is None:
+            preserve_pc = 0
+
+        self.note_combo.blockSignals(True)
+        try:
+            self.note_combo.clear()
+            self.note_combo.addItems(self._note_names_for_mode())
+            self.note_combo.setCurrentIndex(int(preserve_pc) % 12)
+        finally:
+            self.note_combo.blockSignals(False)
+
+    def _set_note_combo_from_note_name(self, note: str):
+        pc = self._note_to_pc(note)
+        if pc is None:
+            return
+        self.note_combo.setCurrentIndex(int(pc) % 12)
+
+    def get_display_note_name(self, note: str) -> str:
+        pc = self._note_to_pc(note)
+        if pc is None:
+            return str(note)
+        return self._pc_to_note_for_mode(int(pc))
+
+    def _update_target_label(self, emit_signal: bool = True):
         """Update the target note display label."""
         note = self.note_combo.currentText()
         octave = self.octave_spin.value()
 
-        note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-        semitone = note_names.index(note)
-        midi = 12 * (octave + 1) + semitone
-        freq = 440.0 * (2 ** ((midi - 69) / 12))
+        try:
+            midi = int(note_name_to_midi(f"{note}{int(octave)}"))
+            freq = 440.0 * (2 ** ((float(midi) - 69.0) / 12.0))
+        except Exception:
+            freq = 440.0 * (2 ** ((60.0 - 69.0) / 12.0))
 
         self.target_label.setText(
             tr("settings.target_fmt", "Target: {note}{octave} ({freq:.2f} Hz)").format(
@@ -848,27 +979,23 @@ class SettingsPanel(QWidget):
         self.formant_widget.setVisible(state == 0)
         self.settings_changed.emit()
 
+    def _on_formant_adapt_slider(self, value: int):
+        pass
+
     def _on_formant_slider(self, value):
-        """Update formant slider label."""
-        self.formant_value_label.setText(f"{value} ct")
+        pass
 
     def _on_cleanliness_slider(self, value):
-        """Update cleanliness slider label."""
-        self.clean_value_label.setText(f"{value}%")
         try:
             self._apply_cleanliness_automation(int(value))
         except Exception:
             pass
 
     def _on_clean_lowcut_slider(self, value: int):
-        v = int(value)
-        if v <= 0:
-            self.clean_lowcut_value_label.setText(tr("settings.lowcut.off", "Off"))
-        else:
-            self.clean_lowcut_value_label.setText(f"{v} Hz")
+        pass
 
     def _on_clean_high_shelf_gain_slider(self, value: int):
-        self.clean_high_shelf_gain_label.setText(f"{int(value)} dB")
+        pass
 
     def _on_clean_advanced_toggled(self, _state: int):
         try:
@@ -893,13 +1020,23 @@ class SettingsPanel(QWidget):
         note = str(self.note_combo.currentText())
         octave = int(self.octave_spin.value())
 
-        note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
         try:
-            semitone = int(note_names.index(note))
+            midi = int(note_name_to_midi(f"{note}{int(octave)}"))
         except Exception:
-            semitone = 0
-        midi = 12 * (octave + 1) + semitone
+            midi = 12 * (int(octave) + 1)
         return float(440.0 * (2 ** ((midi - 69) / 12)))
+
+    def set_note_notation(self, mode: str):
+        mode_str = str(mode or "").strip().lower()
+        current_note = str(self.note_combo.currentText())
+        self._note_notation = "flats" if mode_str == "flats" else "sharps"
+        try:
+            self._rebuild_note_combo_items(current_note)
+            self.mini_piano.setNotationMode(self._note_notation)
+            self.mini_piano.setNote(str(self.note_combo.currentText()))
+            self._update_target_label(emit_signal=False)
+        except Exception:
+            pass
 
     def _get_nyquist_hz(self) -> float:
         try:
@@ -1056,6 +1193,18 @@ class SettingsPanel(QWidget):
 
         praat_available = _module_available("parselmouth")
 
+        sine_available = True
+        try:
+            import audio.sinusoidal  # noqa: F401
+        except Exception:
+            sine_available = False
+
+        stft_ps_available = True
+        try:
+            import stftpitchshift  # noqa: F401
+        except Exception:
+            stft_ps_available = False
+
         items = [
             (
                 tr("settings.pitch_mode.praat_soft.label", "PSOLA (Praat) Soft"),
@@ -1073,6 +1222,15 @@ class SettingsPanel(QWidget):
                 True,
             ),
             (
+                tr("settings.pitch_mode.world_vt.label", "WORLD VT (Vocal Tract)"),
+                tr(
+                    "settings.pitch_mode.world_vt.info",
+                    "WORLD vocoder with pitch-adaptive vocal tract modeling. Adjusts formant structure based on pitch change for natural-sounding correction.",
+                ),
+                "world_vt",
+                True,
+            ),
+            (
                 tr("settings.pitch_mode.world_hard.label", "WORLD Hard (Flatten)"),
                 tr(
                     "settings.pitch_mode.world_hard.info",
@@ -1080,6 +1238,33 @@ class SettingsPanel(QWidget):
                 ),
                 "world_hard",
                 True,
+            ),
+            (
+                tr("settings.pitch_mode.world_hnm.label", "WORLD HNM (Harmonic)"),
+                tr(
+                    "settings.pitch_mode.world_hnm.info",
+                    "Harmonic resynthesis with vocal tract modeling. Cleanest harmonics, best for large pitch shifts.",
+                ),
+                "world_hnm",
+                True,
+            ),
+            (
+                tr("settings.pitch_mode.sine_spectral.label", "Sinusoidal (Spectral)"),
+                tr(
+                    "settings.pitch_mode.sine_spectral.info",
+                    "Tracks and shifts individual harmonics with spectral envelope preservation. Best for clean tonal sources.",
+                ),
+                "sine_spectral",
+                bool(sine_available),
+            ),
+            (
+                tr("settings.pitch_mode.stft_pitchshift.label", "STFT Spectral (Phase Vocoder)"),
+                tr(
+                    "settings.pitch_mode.stft_pitchshift.info",
+                    "STFT phase vocoder with cepstral formant preservation. Clean, natural-sounding pitch shift.",
+                ),
+                "stft_pitchshift",
+                bool(stft_ps_available),
             ),
         ]
 
@@ -1136,19 +1321,17 @@ class SettingsPanel(QWidget):
         if f <= 2.0:
             self._stretch_over2_confirmed = False
 
-        self.stretch_value_label.setText(f"{f:.2f}x")
-
         self.stretch_spin.blockSignals(True)
         self.stretch_spin.setValue(f)
         self.stretch_spin.blockSignals(False)
 
         if f <= 5.0:
             self.stretch_slider.blockSignals(True)
-            self.stretch_slider.setValue(int(round(f * 100.0)))
+            self.stretch_slider.setValue(f)
             self.stretch_slider.blockSignals(False)
         else:
             self.stretch_slider.blockSignals(True)
-            self.stretch_slider.setValue(500)
+            self.stretch_slider.setValue(5.0)
             self.stretch_slider.blockSignals(False)
 
         if emit:
@@ -1157,7 +1340,6 @@ class SettingsPanel(QWidget):
     def _apply_stretch_pending_ui(self, factor: float):
         f = float(factor)
         self._stretch_factor_pending = f
-        self.stretch_value_label.setText(f"{f:.2f}x")
 
         self.stretch_spin.blockSignals(True)
         self.stretch_spin.setValue(f)
@@ -1165,15 +1347,15 @@ class SettingsPanel(QWidget):
 
         if f <= 5.0:
             self.stretch_slider.blockSignals(True)
-            self.stretch_slider.setValue(int(round(f * 100.0)))
+            self.stretch_slider.setValue(f)
             self.stretch_slider.blockSignals(False)
         else:
             self.stretch_slider.blockSignals(True)
-            self.stretch_slider.setValue(500)
+            self.stretch_slider.setValue(5.0)
             self.stretch_slider.blockSignals(False)
 
-    def _on_stretch_slider_value_changed(self, value: int):
-        factor = float(value) / 100.0
+    def _on_stretch_slider_value_changed(self, value: float):
+        factor = float(value)
         self._apply_stretch_pending_ui(factor)
 
     def _on_stretch_slider_released(self):
@@ -1212,15 +1394,23 @@ class SettingsPanel(QWidget):
     def get_settings(self) -> dict:
         """Get all current settings as a dictionary."""
         role_key = int(Qt.ItemDataRole.UserRole) + 1
+        
+        # Formant shift check: if it's exactly 0, we can effectively "preserve formants" 
+        # (or just let the backend apply 0 shift). The backend expects preserve_formants boolean
+        # for some modes if the shift is disabled.
+        formant_shift = int(self.formant_knob.value())
+        preserve = (formant_shift == 0)
+
         return {
             "target_note": self.get_target_note(),
             "pitch_mode": str(self.pitch_mode_combo.currentData()),
             "pitch_amount": float(self.pitch_amount_slider.value()) / 100.0,
-            "retune_speed_ms": int(self.retune_speed_slider.value()),
-            "preserve_vibrato": float(self.preserve_vibrato_slider.value()) / 100.0,
+            "retune_speed_ms": int(self.retune_speed_knob.value()),
+            "preserve_vibrato": float(self.preserve_vibrato_knob.value()) / 100.0,
             "normalize": self.normalize_check.isChecked(),
-            "preserve_formants": self.preserve_formants_check.isChecked(),
-            "formant_shift_cents": self.formant_slider.value() if not self.preserve_formants_check.isChecked() else 0,
+            "preserve_formants": preserve,
+            "formant_shift_cents": formant_shift,
+            "formant_shift_beta": float(self.formant_adapt_slider.value()) / 100.0,
             "cleanliness_percent": self.cleanliness_slider.value(),
             "clean_advanced_mode": bool(self.clean_advanced_check.isChecked()),
             "clean_lowcut_hz": float(self.clean_lowcut_slider.value()),

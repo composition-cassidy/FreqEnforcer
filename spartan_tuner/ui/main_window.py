@@ -29,7 +29,7 @@ from PyQt6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 from ui.waveform_widget import WaveformWidget
 from ui.piano_roll_widget import PianoRollWidget
 from ui.settings_panel import SettingsPanel
-from ui.theme_editor import ThemeEditorWindow
+from ui.preferences_dialog import PreferencesDialog
 from utils.note_utils import note_name_to_midi
 from utils.i18n import i18n, tr
 
@@ -53,7 +53,10 @@ class ProcessingThread(QThread):
                 autotune_to_note,
                 autotune_with_formant_shift,
                 autotune_soft_to_note,
+                autotune_world_vt,
                 autotune_praat_soft_to_note,
+                autotune_sine_spectral,
+                autotune_stft_pitchshift,
             )
             from audio.normalizer import normalize_audio
             from audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut
@@ -75,6 +78,31 @@ class ProcessingThread(QThread):
                     preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
                     voicing_mode="strict",
                 )
+            elif pitch_mode == "world_vt":
+                result = autotune_world_vt(
+                    result,
+                    int(self.sr),
+                    str(self.settings["target_note"]),
+                    formant_shift_beta=float(self.settings.get("formant_shift_beta", 0.1)),
+                    crossover_freq=3000.0,
+                    amount=float(self.settings.get("pitch_amount", 1.0)),
+                    retune_speed_ms=float(self.settings.get("retune_speed_ms", 40.0)),
+                    preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
+                    voicing_mode="strict",
+                )
+            elif pitch_mode == "world_hnm":
+                result = autotune_world_vt(
+                    result,
+                    int(self.sr),
+                    str(self.settings["target_note"]),
+                    use_hnm=True,
+                    formant_shift_beta=0.2,
+                    crossover_freq=3000.0,
+                    amount=float(self.settings.get("pitch_amount", 1.0)),
+                    retune_speed_ms=float(self.settings.get("retune_speed_ms", 40.0)),
+                    preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
+                    voicing_mode="strict",
+                )
             elif pitch_mode == "praat_soft":
                 result = autotune_praat_soft_to_note(
                     result,
@@ -83,6 +111,28 @@ class ProcessingThread(QThread):
                     amount=float(self.settings.get("pitch_amount", 1.0)),
                     retune_speed_ms=float(self.settings.get("retune_speed_ms", 40.0)),
                     preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
+                )
+            elif pitch_mode == "sine_spectral":
+                result = autotune_sine_spectral(
+                    result,
+                    int(self.sr),
+                    str(self.settings["target_note"]),
+                    amount=float(self.settings.get("pitch_amount", 1.0)),
+                    retune_speed_ms=float(self.settings.get("retune_speed_ms", 40.0)),
+                    preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
+                    preserve_formants=bool(self.settings.get("preserve_formants", True)),
+                    formant_shift_cents=int(self.settings.get("formant_shift_cents", 0)),
+                )
+            elif pitch_mode == "stft_pitchshift":
+                result = autotune_stft_pitchshift(
+                    result,
+                    int(self.sr),
+                    str(self.settings["target_note"]),
+                    amount=float(self.settings.get("pitch_amount", 1.0)),
+                    retune_speed_ms=float(self.settings.get("retune_speed_ms", 40.0)),
+                    preserve_vibrato=float(self.settings.get("preserve_vibrato", 1.0)),
+                    preserve_formants=bool(self.settings.get("preserve_formants", True)),
+                    formant_shift_cents=int(self.settings.get("formant_shift_cents", 0)),
                 )
             else:
                 if self.settings["preserve_formants"]:
@@ -273,7 +323,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._theme = self._read_theme()
-        self._theme_editor = None
+        self._preferences_dialog = None
         self._theme_library = {}
 
         try:
@@ -294,6 +344,13 @@ class MainWindow(QMainWindow):
             try:
                 self._qsettings.setValue("options/performance_mode", False)
                 self._qsettings.setValue("app/settings_version", 3)
+            except Exception:
+                pass
+
+        if settings_version < 4:
+            try:
+                self._qsettings.setValue("options/note_notation", "sharps")
+                self._qsettings.setValue("app/settings_version", 4)
             except Exception:
                 pass
 
@@ -332,6 +389,7 @@ class MainWindow(QMainWindow):
         self._scale_update_timer.timeout.connect(self._apply_pending_ui_scale)
 
         self._setup_ui()
+        self._apply_note_notation_preference()
 
         self._responsive_vertical = None
         try:
@@ -975,29 +1033,23 @@ class MainWindow(QMainWindow):
         self._action_refresh.triggered.connect(self._on_file_refresh_sample)
         self._file_menu.addAction(self._action_refresh)
 
+        self._file_menu.addSeparator()
+
+        self._action_export_wav = QAction(tr("settings.button.export_wav", "Export WAV"), self)
+        self._action_export_wav.triggered.connect(self._on_export)
+        self._file_menu.addAction(self._action_export_wav)
+
+        self._action_quick_export = QAction(tr("settings.button.quick_export", "Quick Export"), self)
+        self._action_quick_export.triggered.connect(self._on_quick_export)
+        self._file_menu.addAction(self._action_quick_export)
+
+        self._file_menu.addSeparator()
+
         self._action_quit = QAction(tr("ui.menu.file.quit", "Quit"), self)
         self._action_quit.triggered.connect(self.close)
         self._file_menu.addAction(self._action_quit)
 
         self._options_menu = self.menuBar().addMenu(tr("ui.menu.options", "Options"))
-
-        self._action_show_loading = QAction(tr("ui.menu.options.show_loading_dialog", "Show Loading Dialog"), self)
-        self._action_show_loading.setCheckable(True)
-        self._action_show_loading.setChecked(bool(self._show_loading_dialog))
-        self._action_show_loading.toggled.connect(self._set_show_loading_dialog)
-        self._options_menu.addAction(self._action_show_loading)
-
-        self._action_performance_mode = QAction(tr("ui.menu.options.performance_mode", "Performance Mode"), self)
-        self._action_performance_mode.setCheckable(True)
-        self._action_performance_mode.setChecked(bool(self._performance_mode))
-        self._action_performance_mode.toggled.connect(self._set_performance_mode)
-        self._options_menu.addAction(self._action_performance_mode)
-
-        self._action_warmup = QAction(tr("ui.menu.options.warmup_enabled", "Warm Up Audio Engine on Startup"), self)
-        self._action_warmup.setCheckable(True)
-        self._action_warmup.setChecked(bool(self._warmup_enabled))
-        self._action_warmup.toggled.connect(self._set_warmup_enabled)
-        self._options_menu.addAction(self._action_warmup)
 
         self._language_menu = self._options_menu.addMenu(tr("ui.menu.language", "Language"))
         self._language_action_group = QActionGroup(self)
@@ -1018,6 +1070,12 @@ class MainWindow(QMainWindow):
             self._language_action_group.addAction(act)
             self._language_menu.addAction(act)
             self._lang_actions[str(code)] = act
+
+        self._options_menu.addSeparator()
+
+        self._action_preferences = QAction(tr("ui.menu.options.preferences", "Preferences…"), self)
+        self._action_preferences.triggered.connect(self._on_open_preferences)
+        self._options_menu.addAction(self._action_preferences)
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app.title", "FreqEnforcer"))
@@ -1064,10 +1122,10 @@ class MainWindow(QMainWindow):
         try:
             self._action_new_sample.setText(tr("ui.menu.file.new_sample", "New Sample"))
             self._action_refresh.setText(tr("ui.menu.file.refresh_sample", "Refresh Sample"))
+            self._action_export_wav.setText(tr("settings.button.export_wav", "Export WAV"))
+            self._action_quick_export.setText(tr("settings.button.quick_export", "Quick Export"))
             self._action_quit.setText(tr("ui.menu.file.quit", "Quit"))
-            self._action_show_loading.setText(tr("ui.menu.options.show_loading_dialog", "Show Loading Dialog"))
-            self._action_performance_mode.setText(tr("ui.menu.options.performance_mode", "Performance Mode"))
-            self._action_warmup.setText(tr("ui.menu.options.warmup_enabled", "Warm Up Audio Engine on Startup"))
+            self._action_preferences.setText(tr("ui.menu.options.preferences", "Preferences…"))
         except Exception:
             pass
 
@@ -1097,8 +1155,8 @@ class MainWindow(QMainWindow):
             pass
 
         try:
-            if self._theme_editor is not None:
-                self._theme_editor.retranslate_ui()
+            if self._preferences_dialog is not None:
+                self._preferences_dialog.retranslate_ui()
         except Exception:
             pass
 
@@ -1197,7 +1255,6 @@ class MainWindow(QMainWindow):
         self.settings_panel.export_clicked.connect(self._on_export)
         self.settings_panel.quick_export_clicked.connect(self._on_quick_export)
         self.settings_panel.settings_changed.connect(self._on_settings_changed)
-        self.settings_panel.themes_requested.connect(self._open_theme_editor)
         self.settings_panel.octave_spin.valueChanged.connect(self._sync_piano_roll_to_settings)
         self.settings_panel.note_combo.currentTextChanged.connect(lambda _t: self._sync_piano_roll_to_settings())
         self.waveform_widget.blob_note_changed.connect(self._on_waveform_blob_note_changed)
@@ -1229,37 +1286,63 @@ class MainWindow(QMainWindow):
             pass
         return theme
 
+    def _read_note_notation_preference(self) -> str:
+        notation = str(self._qsettings.value("options/note_notation", "sharps", type=str) or "sharps").strip().lower()
+        if notation not in ("sharps", "flats"):
+            return "sharps"
+        return str(notation)
+
+    def _apply_note_notation_preference(self):
+        notation = self._read_note_notation_preference()
+        try:
+            self.settings_panel.set_note_notation(str(notation))
+        except Exception:
+            pass
+        try:
+            self.piano_roll.set_note_notation(str(notation))
+        except Exception:
+            pass
+
     def _open_theme_editor(self):
+        dialog = self._ensure_preferences_dialog()
+        try:
+            dialog.open_theme_editor()
+        except Exception:
+            pass
+        try:
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+        except Exception:
+            pass
+
+    def _ensure_preferences_dialog(self) -> PreferencesDialog:
         try:
             themes = self._load_theme_library()
         except Exception:
             themes = {}
 
-        if self._theme_editor is None:
-            self._theme_editor = ThemeEditorWindow(
+        if self._preferences_dialog is None:
+            self._preferences_dialog = PreferencesDialog(
                 self,
+                qsettings=self._qsettings,
                 theme=dict(self._theme),
                 themes=dict(themes),
                 themes_dir=str(self._get_user_themes_dir()),
             )
-            self._theme_editor.theme_applied.connect(self._on_theme_applied)
+            self._preferences_dialog.preferences_changed.connect(self._on_preferences_changed)
+            self._preferences_dialog.theme_applied.connect(self._on_theme_applied)
         else:
             try:
-                self._theme_editor.set_theme(dict(self._theme))
+                self._preferences_dialog.set_theme_context(
+                    theme=dict(self._theme),
+                    themes=dict(themes),
+                    themes_dir=str(self._get_user_themes_dir()),
+                )
             except Exception:
                 pass
 
-            try:
-                self._theme_editor.set_available_themes(dict(themes))
-            except Exception:
-                pass
-
-        try:
-            self._theme_editor.show()
-            self._theme_editor.raise_()
-            self._theme_editor.activateWindow()
-        except Exception:
-            pass
+        return self._preferences_dialog
 
     def _get_resource_base_dir(self) -> Path:
         return Path(getattr(sys, "_MEIPASS", str(Path(__file__).resolve().parent.parent)))
@@ -1329,6 +1412,12 @@ class MainWindow(QMainWindow):
         self._apply_theme()
 
         try:
+            if self._preferences_dialog is not None:
+                self._preferences_dialog.set_theme_context(theme=dict(self._theme))
+        except Exception:
+            pass
+
+        try:
             self._qsettings.setValue("theme/json", json.dumps(self._theme))
         except Exception:
             pass
@@ -1345,13 +1434,18 @@ class MainWindow(QMainWindow):
 
         self.settings_panel.note_combo.blockSignals(True)
         self.settings_panel.octave_spin.blockSignals(True)
-        self.settings_panel.note_combo.setCurrentText(note)
+        try:
+            self.settings_panel._set_note_combo_from_note_name(note)
+        except Exception:
+            self.settings_panel.note_combo.setCurrentText(note)
         self.settings_panel.octave_spin.setValue(int(octave))
         self.settings_panel.note_combo.blockSignals(False)
         self.settings_panel.octave_spin.blockSignals(False)
 
-        freq = 440.0 * (2 ** ((float(midi) - 69.0) / 12.0))
-        self.settings_panel.target_label.setText(f"Target: {note}{octave} ({freq:.2f} Hz)")
+        try:
+            self.settings_panel._update_target_label()
+        except Exception:
+            pass
 
         self._sync_piano_roll_to_settings()
 
@@ -2195,6 +2289,29 @@ class MainWindow(QMainWindow):
                 pass
 
         self._load_audio_file(self.current_file_path, accurate_pitch=True)
+
+    def _on_open_preferences(self):
+        dialog = self._ensure_preferences_dialog()
+        try:
+            dialog.load_preferences()
+        except Exception:
+            pass
+        try:
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+        except Exception:
+            pass
+
+    def _on_preferences_changed(self):
+        show_loading = bool(self._qsettings.value("options/show_loading_dialog", True, type=bool))
+        performance_mode = bool(self._qsettings.value("options/performance_mode", False, type=bool))
+        warmup_enabled = bool(self._qsettings.value("options/warmup_enabled", True, type=bool))
+
+        self._set_show_loading_dialog(show_loading)
+        self._set_performance_mode(performance_mode)
+        self._set_warmup_enabled(warmup_enabled)
+        self._apply_note_notation_preference()
 
     def _on_settings_changed(self):
         """Handle settings changes - invalidate processed audio."""

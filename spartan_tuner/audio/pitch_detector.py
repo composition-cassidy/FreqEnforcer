@@ -103,6 +103,7 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict
         "median_f0": median_f0,
         "mean_f0": mean_f0,
         "voiced_ratio": voiced_ratio,
+        "voiced_probs": np.asarray(voiced_probs, dtype=np.float32),
     }
 
 
