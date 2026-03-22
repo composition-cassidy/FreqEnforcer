@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 class SliderWidget(QWidget):
     valueChanged = pyqtSignal(float)
+    sliderReleased = pyqtSignal()
 
     def __init__(
         self,
@@ -198,6 +199,7 @@ class SliderWidget(QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._dragging = False
+            self.sliderReleased.emit()
             event.accept()
             return
         super().mouseReleaseEvent(event)

@@ -368,6 +368,7 @@ class SettingsPanel(QWidget):
             orientation=Qt.Orientation.Horizontal
         )
         self.stretch_slider.valueChanged.connect(self._on_stretch_slider_value_changed)
+        self.stretch_slider.sliderReleased.connect(self._on_stretch_slider_released)
         process_layout.addWidget(self.stretch_slider)
 
         stretch_manual_row = QHBoxLayout()
