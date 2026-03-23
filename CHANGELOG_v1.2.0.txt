@@ -1,0 +1,31 @@
+FreqEnforcer v1.2.0
+==================
+
+New features
+------------
+
+Harmonic limiter
+  - Per-harmonic ceiling control with interactive spectral view
+  - Drag nodes in the spectrum to cap individual harmonics, or use the Compression slider for automated limiting
+  - Tame harsh overtones and balance harmonic content before export
+  - Enable in Processing → Harmonic limiter
+
+Breathiness + HF Bias
+  - Breathiness slider: adjust aperiodic/noise content in the output
+    • 0 = cleaner than original
+    • 1 = original (no change)
+    • 2+ = more breathy
+  - HF Bias: bias the breathiness shaping toward high frequencies
+    • 0 = uniform across spectrum
+    • 1 = mainly high-frequency shaping
+
+Download
+--------
+
+- FreqEnforcer-Setup-1.2.0.exe — installer (recommended)
+- FreqEnforcer/ (folder) — portable build; run FreqEnforcer.exe, no install required
+
+Requirements
+------------
+
+Windows 10/11, 64-bit

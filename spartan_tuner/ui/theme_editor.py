@@ -75,6 +75,8 @@ class ThemeEditorWindow(QDialog):
             ("highlight", "Highlight"),
             ("success", "Success"),
             ("text", "Text"),
+            ("harmonic_node_grad_start", "Harmonic Node Gradient Start"),
+            ("harmonic_node_grad_end", "Harmonic Node Gradient End"),
         ):
             container_layout.addLayout(self._make_color_row(key, label))
 

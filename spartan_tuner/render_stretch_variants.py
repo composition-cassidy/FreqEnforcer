@@ -5,10 +5,12 @@ from pathlib import Path
 
 import numpy as np
 
-from audio.autotuner import autotune_to_note
+from audio.autotuner import autotune_to_note, apply_breathiness
 from audio.cleanliness import apply_cleanliness
+from audio.harmonic_limiter import apply_harmonic_limiting, harmonic_f0_from_settings
 from audio.loader import load_audio, save_audio
 from audio.time_stretch import MissingDependencyError, STRETCHERS
+from utils.harmonic_cli import parse_harmonic_ceiling_arg
 
 
 def _format_factor(f: float) -> str:
@@ -30,6 +32,10 @@ def main() -> int:
     )
     parser.add_argument("--note", default="F4")
     parser.add_argument("--cleanliness", type=float, default=40.0)
+    parser.add_argument("--breathiness", type=float, default=1.0)
+    parser.add_argument("--hf-bias", type=float, default=0.0)
+    parser.add_argument("--harmonic-ceiling", type=str, default="")
+    parser.add_argument("--harmonic-amount", type=int, default=50)
     parser.add_argument(
         "--factors",
         nargs="+",
@@ -44,6 +50,7 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+    harmonic_ceilings = parse_harmonic_ceiling_arg(args.harmonic_ceiling)
 
     in_path = Path(args.input)
     out_dir = Path(args.out_dir)
@@ -77,8 +84,29 @@ def main() -> int:
 
                 cleaned = apply_cleanliness(stretched, int(sr), cleanliness)
                 cleaned = np.asarray(cleaned, dtype=np.float32)
+                breathy = apply_breathiness(
+                    cleaned,
+                    int(sr),
+                    amount=float(args.breathiness),
+                    hf_bias=float(args.hf_bias),
+                )
+                breathy = np.asarray(breathy, dtype=np.float32)
+                if harmonic_ceilings:
+                    f0_hz = harmonic_f0_from_settings({"target_note": str(args.note)})
+                    amount = float(args.harmonic_amount)
+                    knee_db = 12.0 - (amount / 100.0) * 12.0
+                    release_ms = 200.0 - (amount / 100.0) * 190.0
+                    breathy = apply_harmonic_limiting(
+                        breathy,
+                        int(sr),
+                        f0_hz=float(f0_hz),
+                        ceilings_db=harmonic_ceilings,
+                        knee_db=float(knee_db),
+                        release_ms=float(release_ms),
+                    )
+                    breathy = np.asarray(breathy, dtype=np.float32)
 
-                save_audio(str(out_path), cleaned, int(sr))
+                save_audio(str(out_path), breathy, int(sr))
                 print(f"WROTE: {out_path}")
 
             except MissingDependencyError as e:

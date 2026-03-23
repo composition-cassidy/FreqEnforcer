@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 from pathlib import Path
 import numpy as np
 from PyQt6.QtWidgets import (
@@ -27,6 +28,7 @@ from PyQt6.QtGui import QKeySequence, QShortcut, QPixmap, QAction, QActionGroup,
 from PyQt6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 
 from ui.waveform_widget import WaveformWidget
+from ui.harmonic_limiter_widget import HarmonicLimiterWidget
 from ui.piano_roll_widget import PianoRollWidget
 from ui.settings_panel import SettingsPanel
 from ui.preferences_dialog import PreferencesDialog
@@ -40,6 +42,7 @@ class ProcessingThread(QThread):
     finished = pyqtSignal(np.ndarray)
     error = pyqtSignal(str)
     progress = pyqtSignal(str)
+    harmonic_analysis_ready = pyqtSignal(dict)
 
     def __init__(self, audio, sr, settings):
         super().__init__()
@@ -57,10 +60,16 @@ class ProcessingThread(QThread):
                 autotune_praat_soft_to_note,
                 autotune_sine_spectral,
                 autotune_stft_pitchshift,
+                apply_breathiness,
             )
             from audio.normalizer import normalize_audio
             from audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut
             from audio.time_stretch import STRETCHERS
+            from audio.harmonic_limiter import (
+                analyze_harmonics,
+                apply_harmonic_limiting,
+                harmonic_f0_from_settings,
+            )
 
             result = self.audio.copy()
 
@@ -183,6 +192,67 @@ class ProcessingThread(QThread):
                 )
                 result = apply_high_shelf(result, int(self.sr), float(hs_hz), float(hs_db))
 
+            breathiness = float(self.settings.get("breathiness", 1.0))
+            hf_bias = float(self.settings.get("hf_bias", 0.0))
+            if np.isfinite(breathiness) and np.isfinite(hf_bias) and float(breathiness) != 1.0:
+                self.progress.emit(tr("progress.breathiness", "Applying breathiness..."))
+                result = apply_breathiness(
+                    result,
+                    int(self.sr),
+                    amount=float(breathiness),
+                    hf_bias=float(hf_bias),
+                )
+
+            f0_hz = float(harmonic_f0_from_settings(self.settings))
+            try:
+                pre_analysis = analyze_harmonics(result, int(self.sr), f0_hz)
+            except Exception:
+                raise
+
+            offsets = self.settings.get("harmonic_ceiling_offsets_db", {})
+            if not isinstance(offsets, dict):
+                offsets = {}
+            ceilings_abs: dict[int, float] = {}
+            for i, h in enumerate(pre_analysis.harmonic_numbers):
+                off = offsets.get(int(h))
+                if off is None:
+                    continue
+                try:
+                    off_f = float(off)
+                except Exception:
+                    continue
+                if not np.isfinite(off_f):
+                    continue
+                ceilings_abs[int(h)] = float(pre_analysis.peak_db[i] + off_f)
+
+            if bool(self.settings.get("harmonic_limiter_enabled", False)) and ceilings_abs:
+                self.progress.emit(tr("progress.harmonic_limiting", "Applying harmonic limiting..."))
+                try:
+                    result = apply_harmonic_limiting(
+                        result,
+                        int(self.sr),
+                        f0_hz=float(f0_hz),
+                        ceilings_db=ceilings_abs,
+                        knee_db=float(self.settings.get("harmonic_knee_db", 6.0)),
+                        release_ms=float(self.settings.get("harmonic_release_ms", 50.0)),
+                        attack_ms=1.0,
+                    )
+                except Exception:
+                    raise
+
+            try:
+                post_analysis = analyze_harmonics(result, int(self.sr), f0_hz)
+            except Exception:
+                raise
+            self.harmonic_analysis_ready.emit(
+                {
+                    "pre": pre_analysis.to_dict(),
+                    "post": post_analysis.to_dict(),
+                    "ceilings_abs_db": {str(k): float(v) for k, v in ceilings_abs.items()},
+                    "offsets_db": {str(k): float(v) for k, v in offsets.items()},
+                }
+            )
+
             if self.settings["normalize"]:
                 self.progress.emit(tr("progress.normalizing", "Normalizing..."))
                 result = normalize_audio(result, target_db=-0.1)
@@ -255,7 +325,12 @@ class LoadAudioThread(QThread):
 class MainWindow(QMainWindow):
     """Main application window for FreqEnforcer."""
 
-    def __init__(self, debug: bool = False, debug_notes_path: str | None = None):
+    def __init__(
+        self,
+        debug: bool = False,
+        debug_notes_path: str | None = None,
+        startup_processing_overrides: dict | None = None,
+    ):
         super().__init__()
 
         self.setWindowTitle(tr("app.title", "FreqEnforcer"))
@@ -325,6 +400,8 @@ class MainWindow(QMainWindow):
         self._theme = self._read_theme()
         self._preferences_dialog = None
         self._theme_library = {}
+        self._harmonic_analysis = {}
+        self._harmonic_offsets_db: dict[int, float] = {}
 
         try:
             settings_version = int(self._qsettings.value("app/settings_version", 0))
@@ -374,6 +451,11 @@ class MainWindow(QMainWindow):
         self._debug_enabled = bool(debug)
         self._debug_notes_path = debug_notes_path
         self._debug_text = None
+        self._startup_processing_overrides = (
+            dict(startup_processing_overrides)
+            if isinstance(startup_processing_overrides, dict)
+            else None
+        )
 
         self._ui_scale = 1.0
         self._base_app_font = None
@@ -408,6 +490,7 @@ class MainWindow(QMainWindow):
             pass
 
         self._restore_settings_panel_state()
+        self._apply_startup_processing_overrides()
         self._connect_signals()
 
         self._setup_menu()
@@ -456,8 +539,55 @@ class MainWindow(QMainWindow):
         try:
             if isinstance(self._saved_settings_panel_state, dict) and self._saved_settings_panel_state:
                 self.settings_panel.apply_ui_state(self._saved_settings_panel_state)
+                self._harmonic_offsets_db = dict(self.settings_panel.get_harmonic_ceiling_offsets())
         except Exception:
             pass
+
+    def _apply_startup_processing_overrides(self):
+        overrides = self._startup_processing_overrides
+        if not isinstance(overrides, dict) or not overrides:
+            return
+
+        state = {}
+        if "breathiness" in overrides:
+            try:
+                b = float(overrides.get("breathiness", 1.0))
+                if np.isfinite(b):
+                    state["breathiness"] = float(max(0.0, min(5.0, b)))
+            except Exception:
+                pass
+        if "hf_bias" in overrides:
+            try:
+                h = float(overrides.get("hf_bias", 0.0))
+                if np.isfinite(h):
+                    state["hf_bias"] = float(max(0.0, min(1.0, h)))
+            except Exception:
+                pass
+        if "harmonic_amount" in overrides:
+            try:
+                a = int(overrides.get("harmonic_amount", 50))
+                state["harmonic_amount"] = int(max(0, min(100, a)))
+            except Exception:
+                pass
+        if "harmonic_limiter_enabled" in overrides:
+            try:
+                state["harmonic_limiter_enabled"] = bool(overrides.get("harmonic_limiter_enabled"))
+            except Exception:
+                pass
+        if "harmonic_ceiling_offsets_db" in overrides and isinstance(overrides.get("harmonic_ceiling_offsets_db"), dict):
+            try:
+                state["harmonic_ceiling_offsets_db"] = dict(overrides.get("harmonic_ceiling_offsets_db"))
+            except Exception:
+                pass
+
+        if state:
+            try:
+                self.settings_panel.apply_ui_state(state)
+                self._harmonic_offsets_db = dict(self.settings_panel.get_harmonic_ceiling_offsets())
+            except Exception:
+                pass
+
+        self._startup_processing_overrides = None
 
     def _restore_window_geometry_or_default(self):
         try:
@@ -608,7 +738,18 @@ class MainWindow(QMainWindow):
             self.waveform_widget.setMinimumWidth(520)
         except Exception:
             pass
-        waveform_container.addWidget(self.waveform_widget, stretch=1)
+        self._waveform_harmonic_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._waveform_harmonic_splitter.setChildrenCollapsible(False)
+        self._waveform_harmonic_splitter.addWidget(self.waveform_widget)
+        self.harmonic_limiter_widget = HarmonicLimiterWidget()
+        self._waveform_harmonic_splitter.addWidget(self.harmonic_limiter_widget)
+        try:
+            self._waveform_harmonic_splitter.setStretchFactor(0, 2)
+            self._waveform_harmonic_splitter.setStretchFactor(1, 3)
+            self._waveform_harmonic_splitter.setSizes([400, 600])
+        except Exception:
+            pass
+        waveform_container.addWidget(self._waveform_harmonic_splitter, stretch=1)
 
         playback_row = QHBoxLayout()
         self.play_btn = QPushButton(tr("main.button.play", "Play"))
@@ -1153,6 +1294,10 @@ class MainWindow(QMainWindow):
             self.waveform_widget.retranslate_ui()
         except Exception:
             pass
+        try:
+            self.harmonic_limiter_widget.retranslate_ui()
+        except Exception:
+            pass
 
         try:
             if self._preferences_dialog is not None:
@@ -1259,6 +1404,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.note_combo.currentTextChanged.connect(lambda _t: self._sync_piano_roll_to_settings())
         self.waveform_widget.blob_note_changed.connect(self._on_waveform_blob_note_changed)
         self.waveform_widget.midi_view_range_changed.connect(self.piano_roll.set_midi_range)
+        self.harmonic_limiter_widget.ceiling_changed.connect(self._on_harmonic_ceiling_changed)
+        self.harmonic_limiter_widget.reset_all_clicked.connect(self._on_harmonic_reset_all)
 
     def _default_theme(self) -> dict:
         return {
@@ -1269,6 +1416,8 @@ class MainWindow(QMainWindow):
             "highlight": "#6B999F",
             "success": "#4EDE83",
             "text": "#ffffff",
+            "harmonic_node_grad_start": "#33CED6",
+            "harmonic_node_grad_end": "#4EDE83",
         }
 
     def _read_theme(self) -> dict:
@@ -1851,6 +2000,10 @@ class MainWindow(QMainWindow):
             self.waveform_widget.apply_theme({"bg": bg, "accent": accent})
         except Exception:
             pass
+        try:
+            self.harmonic_limiter_widget.apply_theme(dict(self._theme))
+        except Exception:
+            pass
 
         try:
             self.piano_roll.apply_theme(dict(self._theme))
@@ -2112,6 +2265,7 @@ class MainWindow(QMainWindow):
             return
 
         settings = self.settings_panel.get_settings()
+        settings["harmonic_ceiling_offsets_db"] = dict(self._harmonic_offsets_db)
         self._start_processing_with_settings(settings)
 
     def _start_processing_with_settings(self, settings: dict):
@@ -2135,6 +2289,7 @@ class MainWindow(QMainWindow):
         self.processing_thread.finished.connect(lambda result, _t=token: self._on_processing_finished(result, _t))
         self.processing_thread.error.connect(lambda msg, _t=token: self._on_processing_error(msg, _t))
         self.processing_thread.progress.connect(lambda msg, _t=token: self._on_processing_progress(msg, _t))
+        self.processing_thread.harmonic_analysis_ready.connect(lambda p, _t=token: self._on_harmonic_analysis_ready(p, _t))
 
         self.processing_thread.start()
 
@@ -2179,6 +2334,7 @@ class MainWindow(QMainWindow):
         self._update_waveform_display()
 
         self._sync_piano_roll_to_settings()
+        self._apply_harmonic_analysis_to_view()
 
         self.settings_panel.set_buttons_enabled(process=False, export=True)
         self.waveform_toggle_btn.setEnabled(True)
@@ -2195,6 +2351,62 @@ class MainWindow(QMainWindow):
         if self._processing_pending:
             self._processing_pending = False
             self._pending_settings = None
+
+    def _on_harmonic_analysis_ready(self, payload: dict, token: int):
+        if token != self._current_processing_token:
+            return
+        if not isinstance(payload, dict):
+            return
+        self._harmonic_analysis = dict(payload)
+        try:
+            self._apply_harmonic_analysis_to_view()
+        except Exception:
+            pass
+
+    def _apply_harmonic_analysis_to_view(self):
+        ha = self._harmonic_analysis if isinstance(self._harmonic_analysis, dict) else {}
+        pre = ha.get("pre", {})
+        post = ha.get("post", {})
+        note_label = "-"
+        try:
+            note_label = str(self.settings_panel.get_target_note())
+        except Exception:
+            pass
+        try:
+            self.harmonic_limiter_widget.set_analysis(pre, post, self._harmonic_offsets_db, note_label=note_label)
+        except Exception:
+            pass
+
+    def _on_harmonic_ceiling_changed(self, harmonic_number: int, ceiling_db: float):
+        h = int(harmonic_number)
+        pre = self._harmonic_analysis.get("pre", {}) if isinstance(self._harmonic_analysis, dict) else {}
+        harms = list(pre.get("harmonic_numbers", []))
+        peaks = list(pre.get("peak_db", []))
+        if h not in harms:
+            return
+        idx = harms.index(h)
+        peak = float(peaks[idx])
+        off = float(ceiling_db) - float(peak)
+        if abs(off) <= 1e-6:
+            self._harmonic_offsets_db.pop(h, None)
+        else:
+            self._harmonic_offsets_db[h] = float(off)
+        try:
+            self.settings_panel.set_harmonic_ceiling_offsets(self._harmonic_offsets_db)
+        except Exception:
+            pass
+        self._schedule_save_settings()
+        self._schedule_processing(immediate=False)
+
+    def _on_harmonic_reset_all(self):
+        self._harmonic_offsets_db = {}
+        try:
+            self.settings_panel.set_harmonic_ceiling_offsets({})
+        except Exception:
+            pass
+        self._schedule_save_settings()
+        self._apply_harmonic_analysis_to_view()
+        self._schedule_processing(immediate=False)
 
     def _on_export(self):
         """Export processed audio to file."""

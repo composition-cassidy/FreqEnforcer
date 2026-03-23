@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QSize, QEvent
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QStandardItem, QStandardItemModel
 
 import importlib
+import numpy as np
 
 from ui.knob_widget import KnobWidget
 from ui.mini_piano_widget import MiniPianoWidget
@@ -185,6 +186,7 @@ class SettingsPanel(QWidget):
         self._theme = None
         self._sample_rate = 44100
         self._note_notation = "sharps"
+        self._harmonic_ceiling_offsets_db: dict[int, float] = {}
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -385,7 +387,54 @@ class SettingsPanel(QWidget):
         stretch_manual_row.addWidget(self.stretch_spin)
         process_layout.addLayout(stretch_manual_row)
 
+        self.breathiness_slider = SliderWidget(
+            label=tr("settings.label.breathiness", "Breathiness"),
+            minimum=0.0,
+            maximum=5.0,
+            default_value=1.0,
+            step=0.01,
+            suffix="",
+            decimals=2,
+            orientation=Qt.Orientation.Horizontal,
+        )
+        self.breathiness_slider.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        process_layout.addWidget(self.breathiness_slider)
+
+        self.hf_bias_slider = SliderWidget(
+            label=tr("settings.label.hf_bias", "HF Bias"),
+            minimum=0.0,
+            maximum=1.0,
+            default_value=0.0,
+            step=0.01,
+            suffix="",
+            decimals=2,
+            orientation=Qt.Orientation.Horizontal,
+        )
+        self.hf_bias_slider.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        process_layout.addWidget(self.hf_bias_slider)
+
         layout.addWidget(self.process_group)
+
+        self.harmonic_group = QGroupBox(tr("harmonic.title", "Harmonic limiter"))
+        harmonic_layout = QVBoxLayout(self.harmonic_group)
+        harmonic_layout.setSpacing(8)
+        self.harmonic_enabled_check = QCheckBox(tr("harmonic.enabled", "Enabled"))
+        self.harmonic_enabled_check.setChecked(False)
+        self.harmonic_enabled_check.stateChanged.connect(lambda _s: self.settings_changed.emit())
+        harmonic_layout.addWidget(self.harmonic_enabled_check)
+        self.harmonic_amount_slider = SliderWidget(
+            label=tr("harmonic.amount", "Compression"),
+            minimum=0,
+            maximum=100,
+            default_value=50,
+            step=1,
+            suffix="%",
+            decimals=0,
+            orientation=Qt.Orientation.Horizontal,
+        )
+        self.harmonic_amount_slider.valueChanged.connect(lambda _v: self.settings_changed.emit())
+        harmonic_layout.addWidget(self.harmonic_amount_slider)
+        layout.addWidget(self.harmonic_group)
 
         self.clean_group = QGroupBox(tr("settings.group.cleanliness", "Cleanliness"))
         clean_layout = QVBoxLayout(self.clean_group)
@@ -523,6 +572,11 @@ class SettingsPanel(QWidget):
             self.clean_advanced_check.setText(tr("settings.checkbox.advanced_mode", "Advanced Mode"))
             self.clean_warning_label.setText(tr("settings.warning.robotic", "High values = robotic sound"))
             self.clean_shelf_freq_label.setText(tr("settings.label.shelf_freq", "Shelf Freq:"))
+        except Exception:
+            pass
+        try:
+            self.harmonic_group.setTitle(tr("harmonic.title", "Harmonic limiter"))
+            self.harmonic_enabled_check.setText(tr("harmonic.enabled", "Enabled"))
         except Exception:
             pass
 
@@ -677,6 +731,9 @@ class SettingsPanel(QWidget):
             self.formant_knob.apply_theme(t)
             self.formant_adapt_slider.apply_theme(t)
             self.stretch_slider.apply_theme(t)
+            self.breathiness_slider.apply_theme(t)
+            self.hf_bias_slider.apply_theme(t)
+            self.harmonic_amount_slider.apply_theme(t)
 
             self.cleanliness_slider.apply_theme(t)
             self.clean_lowcut_slider.apply_theme(t)
@@ -717,11 +774,16 @@ class SettingsPanel(QWidget):
                 "formant_shift_cents": 0,
                 "stretch_method": default_stretch_method,
                 "stretch_factor": 1.0,
+                "breathiness": 1.0,
+                "hf_bias": 0.0,
                 "cleanliness_percent": 0,
                 "clean_advanced_mode": False,
                 "clean_lowcut_hz": 50,
                 "clean_high_shelf_db": 0,
                 "clean_high_shelf_hz": 10000,
+                "harmonic_limiter_enabled": False,
+                "harmonic_amount": 50,
+                "harmonic_ceiling_offsets_db": {},
             }
         )
 
@@ -741,11 +803,16 @@ class SettingsPanel(QWidget):
             "formant_shift_beta": int(self.formant_adapt_slider.value()),
             "stretch_method": self.stretch_method_combo.currentData(role_key),
             "stretch_factor": float(self._stretch_factor_effective),
+            "breathiness": float(self.breathiness_slider.value()),
+            "hf_bias": float(self.hf_bias_slider.value()),
             "cleanliness_percent": int(self.cleanliness_slider.value()),
             "clean_advanced_mode": bool(self.clean_advanced_check.isChecked()),
             "clean_lowcut_hz": int(self.clean_lowcut_slider.value()),
             "clean_high_shelf_db": int(self.clean_high_shelf_gain_slider.value()),
             "clean_high_shelf_hz": int(self.clean_high_shelf_freq_spin.value()),
+            "harmonic_limiter_enabled": bool(self.harmonic_enabled_check.isChecked()),
+            "harmonic_amount": int(self.harmonic_amount_slider.value()),
+            "harmonic_ceiling_offsets_db": {str(k): float(v) for k, v in self._harmonic_ceiling_offsets_db.items()},
         }
 
     def apply_ui_state(self, state: dict):
@@ -763,11 +830,16 @@ class SettingsPanel(QWidget):
         formant_shift_beta = state.get("formant_shift_beta")
         stretch_method = state.get("stretch_method")
         stretch_factor = state.get("stretch_factor")
+        breathiness = state.get("breathiness")
+        hf_bias = state.get("hf_bias")
         cleanliness_percent = state.get("cleanliness_percent")
         clean_advanced_mode = state.get("clean_advanced_mode")
         clean_lowcut_hz = state.get("clean_lowcut_hz")
         clean_high_shelf_db = state.get("clean_high_shelf_db")
         clean_high_shelf_hz = state.get("clean_high_shelf_hz")
+        harmonic_limiter_enabled = state.get("harmonic_limiter_enabled")
+        harmonic_amount = state.get("harmonic_amount")
+        harmonic_ceiling_offsets_db = state.get("harmonic_ceiling_offsets_db")
 
         self.blockSignals(True)
         try:
@@ -849,6 +921,25 @@ class SettingsPanel(QWidget):
                     self._apply_stretch_effective(float(stretch_factor), emit=False)
                 except Exception:
                     pass
+            if breathiness is not None:
+                self.breathiness_slider.setValue(float(breathiness))
+            if hf_bias is not None:
+                self.hf_bias_slider.setValue(float(hf_bias))
+            if harmonic_limiter_enabled is not None:
+                self.harmonic_enabled_check.setChecked(bool(harmonic_limiter_enabled))
+            if harmonic_amount is not None:
+                self.harmonic_amount_slider.setValue(int(harmonic_amount))
+            if isinstance(harmonic_ceiling_offsets_db, dict):
+                cleaned: dict[int, float] = {}
+                for k, v in harmonic_ceiling_offsets_db.items():
+                    try:
+                        kk = int(k)
+                        vv = float(v)
+                    except Exception:
+                        continue
+                    if np.isfinite(vv):
+                        cleaned[int(kk)] = float(vv)
+                self._harmonic_ceiling_offsets_db = cleaned
 
             try:
                 self.mini_piano.setNote(str(self.note_combo.currentText()))
@@ -991,6 +1082,7 @@ class SettingsPanel(QWidget):
             self._apply_cleanliness_automation(int(value))
         except Exception:
             pass
+        self.settings_changed.emit()
 
     def _on_clean_lowcut_slider(self, value: int):
         pass
@@ -1402,6 +1494,13 @@ class SettingsPanel(QWidget):
         formant_shift = int(self.formant_knob.value())
         preserve = (formant_shift == 0)
 
+        # Map compression amount (0-100%) to knee_db and release_ms
+        # Amount 0% = Knee 12 dB (soft), Release 200 ms (slow) - gentlest
+        # Amount 100% = Knee 0 dB (hard), Release 10 ms (fast) - aggressive
+        amount = float(self.harmonic_amount_slider.value())
+        knee_db = 12.0 - (amount / 100.0) * 12.0
+        release_ms = 200.0 - (amount / 100.0) * 190.0
+
         return {
             "target_note": self.get_target_note(),
             "pitch_mode": str(self.pitch_mode_combo.currentData()),
@@ -1419,7 +1518,31 @@ class SettingsPanel(QWidget):
             "clean_high_shelf_hz": float(self.clean_high_shelf_freq_spin.value()),
             "stretch_method": self.stretch_method_combo.currentData(role_key),
             "stretch_factor": float(self._stretch_factor_effective),
+            "breathiness": float(self.breathiness_slider.value()),
+            "hf_bias": float(self.hf_bias_slider.value()),
+            "harmonic_limiter_enabled": bool(self.harmonic_enabled_check.isChecked()),
+            "harmonic_knee_db": float(knee_db),
+            "harmonic_release_ms": float(release_ms),
+            "harmonic_ceiling_offsets_db": {int(k): float(v) for k, v in self._harmonic_ceiling_offsets_db.items()},
         }
+
+    def get_harmonic_ceiling_offsets(self) -> dict[int, float]:
+        return {int(k): float(v) for k, v in self._harmonic_ceiling_offsets_db.items()}
+
+    def set_harmonic_ceiling_offsets(self, offsets: dict[int, float]):
+        if not isinstance(offsets, dict):
+            self._harmonic_ceiling_offsets_db = {}
+            return
+        cleaned: dict[int, float] = {}
+        for k, v in offsets.items():
+            try:
+                kk = int(k)
+                vv = float(v)
+            except Exception:
+                continue
+            if np.isfinite(vv):
+                cleaned[int(kk)] = float(vv)
+        self._harmonic_ceiling_offsets_db = cleaned
 
     def set_sample_rate(self, sr: int):
         try:
