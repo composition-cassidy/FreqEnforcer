@@ -22,6 +22,6 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         amount=float(settings.get("pitch_amount", 1.0)),
         retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-        voicing_mode="strict",
+        voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
     )

@@ -126,12 +126,15 @@ def autotune_with_formant_shift(
 
 
 def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+    voicing = settings.get("voicing_mode") or "force"
     if settings.get("preserve_formants", True):
         return autotune_to_note(audio, sr, settings["target_note"],
-                                preserve_formants=True, world_cache=world_cache)
+                                preserve_formants=True, voicing_mode=voicing,
+                                world_cache=world_cache)
     return autotune_with_formant_shift(
         audio, sr,
         settings["target_note"],
         settings.get("formant_shift_cents", 0),
+        voicing_mode=voicing,
         world_cache=world_cache,
     )

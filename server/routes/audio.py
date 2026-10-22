@@ -333,6 +333,17 @@ class LoadAudioRequest(BaseModel):
         return v
 
 
+VOICING_MODES = ("strict", "force", "dilate")
+
+
+def _validate_voicing(v: Optional[str]) -> Optional[str]:
+    if v is None or v == "":
+        return None
+    if v not in VOICING_MODES:
+        raise ValueError(f"voicing_mode must be one of {VOICING_MODES}")
+    return v
+
+
 class ProcessRequest(BaseModel):
     target_note: str = "C4"
     pitch_mode: str = "world_hard"
@@ -354,6 +365,14 @@ class ProcessRequest(BaseModel):
     harmonic_knee_db: float = 6.0
     harmonic_release_ms: float = 50.0
     normalize: bool = False
+    # None keeps each WORLD mode's historical default (force for world_hard,
+    # strict for world_soft / world_vt / world_hnm). Ignored by other modes.
+    voicing_mode: Optional[str] = None
+
+    @field_validator("voicing_mode")
+    @classmethod
+    def valid_voicing(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_voicing(v)
 
     @field_validator("stretch_factor")
     @classmethod
@@ -426,6 +445,12 @@ class RenderMultisampleRequest(BaseModel):
     harmonic_knee_db: float = 6.0
     harmonic_release_ms: float = 50.0
     normalize: bool = False
+    voicing_mode: Optional[str] = None
+
+    @field_validator("voicing_mode")
+    @classmethod
+    def valid_voicing(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_voicing(v)
 
     @field_validator("formant_shift_cents")
     @classmethod
@@ -468,15 +493,13 @@ async def load_audio(req: LoadAudioRequest):
         raise HTTPException(status_code=500, detail=f"Load failed: {e}")
 
     _t = time.perf_counter()
-    freq, note, cents = await asyncio.to_thread(
-        _detect_pitch_sync, audio, sr
-    )
+    pitch = await asyncio.to_thread(_detect_pitch_sync, audio, sr)
     load_timings['pitch_detection'] = round((time.perf_counter() - _t) * 1000, 1)
 
     state.original_audio = audio
     state.processed_audio = None
     state.sample_rate = sr
-    state.detected_pitch = {"freq_hz": freq, "note_name": note, "cents": cents}
+    state.detected_pitch = _detected_pitch_state(pitch)
     state.harmonic_analysis = None
     state.world_cache = {'audio_hash': None}
     state.loop_start = None
@@ -512,6 +535,7 @@ async def load_audio(req: LoadAudioRequest):
         "duration_seconds": round(duration, 4),
         "sample_rate": sr,
         "detected_pitch": state.detected_pitch,
+        "f0_contour": pitch["f0_contour"],
         "waveform_peaks": waveform_peaks,
         "peak_db": peak_db_val,
         "rms_db": rms_db_val,
@@ -524,9 +548,41 @@ def _load_audio_sync(file_path: str):
     return load_audio(file_path)
 
 
-def _detect_pitch_sync(audio: np.ndarray, sr: int):
-    from server.audio.pitch_detector import get_predominant_pitch
-    return get_predominant_pitch(audio, sr, fast=False)
+def _detect_pitch_sync(audio: np.ndarray, sr: int) -> dict:
+    """Full pYIN pass: note/cents/Hz plus a UI contour and confidence."""
+    from server.audio.pitch_detector import get_pitch_summary
+    return get_pitch_summary(audio, sr, fast=False)
+
+
+def _contour_sync(audio: np.ndarray, sr: int) -> dict:
+    """Cheap YIN contour of the processed output for the corrected-pitch overlay.
+
+    Runs on a 2x pair-averaged decimation with a half-size frame, so the time
+    resolution matches the detector (hop 512 @ 44.1 kHz) at a quarter of the cost.
+    Display only; never feeds the DSP.
+    """
+    from server.audio.pitch_detector import pitch_contour
+    from server.audio.pitch_yin import yin
+    a = np.asarray(audio, dtype=np.float32)
+    if a.size < 2:
+        return {"times": [], "hz": []}
+    half = (a[0:a.size - a.size % 2:2] + a[1::2]) * 0.5
+    sr2 = sr / 2.0
+    hop = 256
+    f0 = yin(half, int(sr2), fmin=50.0, fmax=1000.0, frame_length=1024, hop_length=hop)
+    f0 = np.asarray(f0, dtype=np.float32)
+    f0[f0 <= 0] = np.nan
+    times = np.arange(f0.size, dtype=np.float32) * hop / sr2
+    return pitch_contour({"f0_array": f0, "times": times})
+
+
+def _detected_pitch_state(summary: dict) -> dict:
+    return {
+        "freq_hz": summary["freq_hz"],
+        "note_name": summary["note_name"],
+        "cents": summary["cents"],
+        "confidence": summary["confidence"],
+    }
 
 
 @router.post("/load-audio-upload")
@@ -559,12 +615,12 @@ async def load_audio_upload(file: UploadFile = FastAPIFile(...)):
         os.unlink(tmp_path)
         raise HTTPException(status_code=500, detail=f"Load failed: {e}")
 
-    freq, note, cents = await asyncio.to_thread(_detect_pitch_sync, audio, sr)
+    pitch = await asyncio.to_thread(_detect_pitch_sync, audio, sr)
 
     state.original_audio = audio
     state.processed_audio = None
     state.sample_rate = sr
-    state.detected_pitch = {"freq_hz": freq, "note_name": note, "cents": cents}
+    state.detected_pitch = _detected_pitch_state(pitch)
     state.harmonic_analysis = None
     state.world_cache = {'audio_hash': None}
     state.loop_start = None
@@ -579,6 +635,7 @@ async def load_audio_upload(file: UploadFile = FastAPIFile(...)):
         "duration_seconds": round(duration, 4),
         "sample_rate": sr,
         "detected_pitch": state.detected_pitch,
+        "f0_contour": pitch["f0_contour"],
         "waveform_peaks": waveform_peaks,
         "peak_db": round(_peak_db(audio), 2),
         "rms_db": round(_rms_db(audio), 2),
@@ -641,6 +698,13 @@ async def process_audio(req: ProcessRequest):
     peaks_time = round((time.perf_counter() - _t_peaks) * 1000, 1)
     dsp_timings['waveform_peaks'] = peaks_time
 
+    _t_contour = time.perf_counter()
+    try:
+        f0_contour = await asyncio.to_thread(_contour_sync, result_audio, sr)
+    except Exception:
+        f0_contour = {"times": [], "hz": []}
+    dsp_timings['f0_contour'] = round((time.perf_counter() - _t_contour) * 1000, 1)
+
     duration = float(len(result_audio)) / float(sr)
     serialize_time = round((time.perf_counter() - _t_ser) * 1000, 1)
 
@@ -665,6 +729,7 @@ async def process_audio(req: ProcessRequest):
         "peak_db": round(_peak_db(result_audio), 2),
         "rms_db": round(_rms_db(result_audio), 2),
         "harmonic_analysis": harmonic_dict,
+        "f0_contour": f0_contour,
         "duration_seconds": round(duration, 4),
         "audio_temp_path": tmp_path,
         "audio_temp_filename": os.path.basename(tmp_path),
