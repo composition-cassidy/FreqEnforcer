@@ -316,15 +316,80 @@ def sec_remaining(rows, cl) -> str:
                 table(["combination", "metric", "cause", "f0 ¢", "inharm Δ", "tail", "RMS Δ", "peak", "len Δ"],
                       [[f"`{r['id']}`", m, "/".join(cl.causes(r, m))] + metric_cells(r["metrics"])
                        for r, m in post[:40]])]
-        f0_rows = [r for r, m in post if m == "f0" and r["breath"] == 1.0][:24]
-        if f0_rows:
-            out += ["", "Cross-check of the f0 failures with breathiness off: YIN (the sweep's f0 metric) vs the "
-                    "spectral peaks of harmonics 1-4 in the note body (1 M-point FFT). Where the harmonics sit on "
-                    "the target the YIN reading is biased, not the pitch:", "",
-                    table(["combination", "YIN ¢ (sweep)", "spectral H1..H4 ¢"],
-                          [[f"`{r['id']}`", f(r["metrics"].get("f0_cents"), 1, True),
-                            ", ".join(f(c, 2, True) for c in spectral_harmonics(r))] for r in f0_rows])]
+        out += ["", *sec_reasons(post, cl)]
     return "\n".join(out)
+
+
+REASONS = {
+    "pitch_miss_body": (
+        "Pitch-only render already misses the target note. Cleanliness masks the target's harmonics, so it "
+        "removes most of the (off-target) body; tail and rms are measured relative to that body. Fix belongs "
+        "to the pitch mode (mostly sine_spectral / stft_pitchshift), not the post stages."),
+    "yin_bias": (
+        "YIN (the sweep's f0 metric) misreads the note: the spectral peaks of harmonics 1-4 sit within 2 cents "
+        "of the target. Seen on the breathy fixture once its pitch-locked aspiration noise is removed. The "
+        "pitch is right; the metric is left unchanged, as required."),
+    "lowcut_100": (
+        "Smart low cut at 100 %: the cutoff is 0.85 x the output's lowest f0 (filtfilt, 2nd order), which "
+        "takes ~3.6 dB off the fundamental by design; stacked with other stages it crosses the rule. Lowering "
+        "the 0.85 ceiling would change the control's documented behaviour - a product decision."),
+    "marginal_tail": (
+        "The pitch-only render's own release smear sits just under -40 dB; the post stages raise it by 3 dB "
+        "or less, past the line. The extra energy is in voiced release frames of the pitch mode's synthesis."),
+    "hnm_low_release": (
+        "world_hnm on C1-C2 targets, tail failures caused only by breathiness < 1 and/or the low cut "
+        "(all within ~1 dB of the -40 dB limit in this sweep). Breathiness < 1 makes the decaying "
+        "release frames fully periodic, so HNM's harmonic part rings longer; with the low cut, the IIR "
+        "high-pass (cutoff ~40 Hz) rings after the offset. Fixing either is a design change (keep release "
+        "frames' aperiodicity / guard the low cut's envelope), proposed as a follow-up rather than tuned here."),
+    "other": "Not covered above - listed individually.",
+}
+
+
+def reason_of(r, m, cl, f0_cache: dict) -> str:
+    base = cl.base.get(classify.gkey(r))
+    if base is not None and "f0" in base["fails"]:
+        return "pitch_miss_body"
+    if m == "f0":
+        if r["id"] not in f0_cache:
+            f0_cache[r["id"]] = spectral_harmonics(r)
+        hs = f0_cache[r["id"]]
+        if hs and max(abs(c) for c in hs) <= 2.0:
+            return "yin_bias"
+    labels = {x for c in cl.causes(r, m) for x in classify.expand(c)}
+    if "lowcut" in labels and r["lowcut"] >= 100.0:
+        return "lowcut_100"
+    if (m == "tail" and base is not None and r["metrics"].get("tail_db") is not None
+            and base["metrics"].get("tail_db") is not None
+            and r["metrics"]["tail_db"] - base["metrics"]["tail_db"] <= 3.0):
+        return "marginal_tail"
+    if (m == "tail" and r["mode"] == "world_hnm" and r["target_f0"] < 70.0
+            and labels and labels <= {"breath", "lowcut"}):
+        return "hnm_low_release"
+    return "other"
+
+
+def sec_reasons(post, cl) -> list[str]:
+    f0_cache: dict = {}
+    tagged = [(r, m, reason_of(r, m, cl, f0_cache)) for r, m in post]
+    counts = Counter(t[2] for t in tagged)
+    out = ["**Every remaining post-pitch failure, by documented reason:**", "",
+           table(["reason", "failures", "why it is not fixed here"],
+                 [[k, counts[k], REASONS[k]] for k in REASONS if counts.get(k)]), ""]
+    yb = [(r, m) for r, m, k in tagged if k == "yin_bias"][:24]
+    if yb:
+        out += ["Evidence for *yin_bias* (up to 24): YIN reading vs the offset of harmonics 1-4 from n x target "
+                "(1 M-point FFT of the note body):", "",
+                table(["combination", "YIN ¢", "spectral H1..H4 ¢"],
+                      [[f"`{r['id']}`", f(r["metrics"].get("f0_cents"), 1, True),
+                        ", ".join(f(c, 2, True) for c in f0_cache[r["id"]])] for r, m in yb]), ""]
+    other = [(r, m) for r, m, k in tagged if k == "other"]
+    if other:
+        out += ["Failures under *other*:", "",
+                table(["combination", "metric", "cause", "f0 ¢", "inharm Δ", "tail", "RMS Δ", "peak", "len Δ"],
+                      [[f"`{r['id']}`", m, "/".join(cl.causes(r, m))] + metric_cells(r["metrics"])
+                       for r, m in other])]
+    return out
 
 
 def spectral_harmonics(r) -> list[float]:

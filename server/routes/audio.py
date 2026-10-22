@@ -93,6 +93,26 @@ def _push_progress(loop: Optional[asyncio.AbstractEventLoop], progress: float, s
 # DSP pipeline (mirrors ProcessingThread.run exactly)
 # ---------------------------------------------------------------------------
 
+# WORLD analysis behind state.world_cache (dio + stonemask, cheaptrick, d4c).
+WORLD_F0_FLOOR = 50.0
+WORLD_F0_CEIL = 500.0
+WORLD_FRAME_PERIOD_MS = 5.0     # pyworld default
+
+
+def _world_cache_key(audio: np.ndarray, sr: int) -> str:
+    """Identity of a WORLD analysis: BLAKE2b over the full sample buffer
+    (dtype and shape included), the sample rate and the analysis parameters.
+    ~10 ms for 60 s of mono float32 at 44.1 kHz."""
+    import hashlib
+
+    a = np.ascontiguousarray(audio)
+    h = hashlib.blake2b(digest_size=16)
+    h.update(f"{a.dtype.str}|{a.shape}|{int(sr)}|dio+stonemask|{WORLD_F0_FLOOR}|{WORLD_F0_CEIL}|"
+             f"{WORLD_FRAME_PERIOD_MS}|cheaptrick|d4c".encode())
+    h.update(memoryview(a).cast("B"))
+    return h.hexdigest()
+
+
 def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) -> Optional[dict]:
     """WORLD analysis of the input for the WORLD pitch modes (step 0 of the
     pipeline).  Reuses state.world_cache when it belongs to this audio;
@@ -104,8 +124,7 @@ def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) 
     world_cache = None
 
     if needs_world:
-        import hashlib
-        audio_hash = hashlib.md5(audio[:min(1000, len(audio))].tobytes()).hexdigest()
+        audio_hash = _world_cache_key(audio, sr)
         cached = state.world_cache
         if cached.get('audio_hash') == audio_hash and cached.get('sr') == sr:
             world_cache = cached
@@ -114,7 +133,8 @@ def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) 
             import pyworld as pw
             x64 = np.ascontiguousarray(audio, dtype=np.float64)
             _wt = time.perf_counter()
-            w_f0, w_timeaxis = pw.dio(x64, sr, f0_floor=50.0, f0_ceil=500.0)
+            w_f0, w_timeaxis = pw.dio(x64, sr, f0_floor=WORLD_F0_FLOOR, f0_ceil=WORLD_F0_CEIL,
+                                      frame_period=WORLD_FRAME_PERIOD_MS)
             w_f0 = pw.stonemask(x64, w_f0, w_timeaxis, sr)
             w_sp = pw.cheaptrick(x64, w_f0, w_timeaxis, sr)
             w_ap = pw.d4c(x64, w_f0, w_timeaxis, sr)
