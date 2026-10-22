@@ -1,0 +1,55 @@
+/* Title bar, file header, footer. */
+
+/* ── title bar ──────────────────────────────────────────────────────────── */
+.title {
+  grid-area: title; display: flex; align-items: stretch;
+  background: var(--bg-1); border-bottom: var(--bw) solid var(--line-1);
+  -webkit-app-region: drag;
+}
+.title__brand { padding: 0 var(--s3); display: flex; align-items: center; gap: var(--s2); font-weight: 600; }
+.title__brand .ver { font-weight: 400; color: var(--fg-3); }
+.title__menus { display: flex; -webkit-app-region: no-drag; }
+.title__menus button { background: none; border: 0; padding: 0 var(--s3); color: var(--fg-2); cursor: pointer; }
+.title__menus button:hover, .title__menus button[aria-expanded="true"] { background: var(--bg-3); color: var(--fg-1); }
+.title__spacer { flex: 1; }
+.title__status { display: flex; align-items: center; gap: var(--s2); color: var(--fg-2); padding: 0 var(--s3); white-space: nowrap; }
+.title__wc { display: flex; -webkit-app-region: no-drag; }
+.title__wc button { width: 46px; background: none; border: 0; color: var(--fg-2); cursor: pointer; font-size: var(--fs-13); }
+.title__wc button:hover { background: var(--bg-3); color: var(--fg-1); }
+.title__wc button.close:hover { background: var(--err); color: #fff; }
+
+/* ── header: file + detected pitch ──────────────────────────────────────── */
+.header {
+  grid-area: header; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; padding: 0 var(--s4); gap: var(--s6);
+  background: var(--bg-1); border-bottom: var(--bw) solid var(--line-1);
+}
+.file { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.file__name { font-size: var(--fs-13); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.file__name--none { color: var(--fg-2); font-weight: 400; }
+.file__meta { color: var(--fg-2); white-space: nowrap; }
+.file__meta span + span::before { content: "·"; margin: 0 var(--s2); color: var(--fg-3); }
+
+.detected { display: grid; grid-auto-flow: column; gap: 0 var(--s5); align-items: baseline; }
+.detected .k { font-size: var(--fs-10); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); display: block; }
+.detected .v { font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-1); min-width: 64px; display: inline-block; }
+.detected .note { font-family: var(--font-mono); font-size: var(--fs-28); line-height: 1; font-weight: 600; min-width: 56px; display: inline-block; }
+.detected .note sub { font-size: var(--fs-13); font-weight: 400; color: var(--fg-2); vertical-align: baseline; }
+
+/* ── footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  grid-area: footer; display: flex; align-items: center; gap: var(--s3); padding: 0 var(--s4);
+  background: var(--bg-1); border-top: var(--bw) solid var(--line-1);
+}
+.transport { display: flex; align-items: center; gap: var(--s3); }
+.transport__time { font-family: var(--font-mono); font-size: var(--fs-13); min-width: 150px; }
+.transport__time span { color: var(--fg-3); }
+.levels { font-family: var(--font-mono); color: var(--fg-2); display: flex; gap: var(--s3); }
+.levels b { font-weight: 400; color: var(--fg-3); }
+.levels i { font-style: normal; display: inline-block; min-width: 64px; text-align: right; }
+.footer__spacer { flex: 1; }
+.history { display: flex; gap: 2px; }
+.btn--play { width: 56px; justify-content: center; }
+
+/* narrow windows: drop the shortcut hints from the footer buttons */
+@media (max-width: 1180px) { .footer .btn kbd { display: none; } }

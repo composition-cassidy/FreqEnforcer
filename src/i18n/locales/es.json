@@ -2,129 +2,61 @@
   "app": {
     "title": "FreqEnforcer"
   },
-  "ui": {
-    "menu": {
-      "file": "Archivo",
-      "options": "Opciones",
-      "language": "Idioma",
-      "file_new_sample": "Nueva Muestra",
-      "file_refresh_sample": "Actualizar Muestra",
-      "file_quit": "Salir"
-    },
-    "language": {
-      "en": "Inglés",
-      "es": "Español",
-      "pt_BR": "Portugués (Brasil)",
-      "ja": "Japonés",
-      "ru": "Ruso"
-    },
-    "title": {
-      "debug": "Depuración",
-      "select_audio_file": "Seleccionar Archivo de Audio"
-    },
-    "placeholder": {
-      "debug_notes": "Escriba notas de retroalimentación/aprobación aquí. Haga clic en Guardar para escribir en disco."
-    },
-    "button": {
-      "save": "Guardar"
-    },
-    "filter": {
-      "audio_files": "Archivos de Audio (*.wav *.mp3 *.flac *.ogg);;Todos los Archivos (*)"
-    }
+  "menu": {
+    "main": "Menú principal",
+    "file": "Archivo",
+    "export": "Exportar",
+    "options": "Opciones",
+    "open": "Abrir…",
+    "reload": "Recargar muestra",
+    "close_sample": "Cerrar muestra",
+    "quit": "Salir",
+    "export_wav": "Exportar WAV…",
+    "quick_export": "Exportación rápida junto al original",
+    "multisample": "Multimuestra / SFZ…",
+    "preferences": "Preferencias"
   },
-  "main": {
-    "input_file": "ARCHIVO DE ENTRADA:",
-    "input_placeholder": "/ruta/al/archivo/de/audio.wav",
-    "button": {
-      "browse": "Explorar",
-      "show_processed": "Mostrar Procesado",
-      "show_original": "Mostrar Original",
-      "play": "Reproducir",
-      "stop": "Detener"
-    },
-    "waveform": {
-      "original": "Original",
-      "processed": "Procesado"
-    },
-    "dialog": {
-      "error": "Error",
-      "loading_title": "Cargando",
-      "loading_label": "Cargando audio...",
-      "rendering_waveform": "Renderizando forma de onda...",
-      "load_failed_fmt": "Error al cargar archivo de audio:\\n{error}"
-    }
+  "window": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Cerrar"
   },
-  "progress": {
-    "autotuning": "Afinando automáticamente...",
-    "stretching_fmt": "Estirando... ({method}, x{factor:.2f})",
-    "lowcut_fmt": "Eliminando sub (corte bajo {hz:.0f} Hz)...",
-    "cleanliness_fmt": "Aplicando {pct:.0f}% de limpieza...",
-    "highshelf_fmt": "Limpiando agudos (shelf {db:.1f} dB @ {hz:.0f} Hz)...",
-    "breathiness": "Aplicando respiración...",
-    "harmonic_limiting": "Aplicando limitador armónico...",
-    "normalizing": "Normalizando...",
-    "processing": "Procesando...",
-    "preparing_audio_engine": "Preparando motor de audio...",
-    "preparing_pitch_detector": "Preparando detector de pitch rápido...",
-    "reading_file": "Leyendo archivo...",
-    "detecting_pitch": "Detectando pitch...",
-    "finalizing": "Finalizando..."
+  "status": {
+    "processing": "Procesando",
+    "loading": "Cargando…"
+  },
+  "header": {
+    "open": "Abrir…",
+    "no_sample": "Ninguna muestra cargada",
+    "mono": "mono",
+    "detected": "Detectada",
+    "cents": "Cents",
+    "frequency": "Frecuencia",
+    "confidence": "Confianza"
+  },
+  "view": {
+    "original": "Original",
+    "corrected": "Corregida",
+    "original_pitch": "tono original",
+    "corrected_pitch": "tono corregido",
+    "loop": "Bucle",
+    "zoom_in": "Acercar (rango de tono más estrecho)",
+    "zoom_out": "Alejar (rango de tono más amplio)",
+    "aria": "Forma de onda con curvas de tono, objetivo {{target}}. Arrastra la línea objetivo para cambiar la nota, haz clic para desplazarte.",
+    "drop_hint": "Suelta una muestra aquí",
+    "open_hint": "o",
+    "formats": "WAV, MP3, FLAC, OGG, AIFF",
+    "drop_now": "Suelta para cargar"
+  },
+  "harm": {
+    "title": "Techos armónicos",
+    "hint": "Techos armónicos · arrastra un nodo hacia abajo · doble clic restablece",
+    "reset_all": "Restablecer todo",
+    "empty": "Procesa una muestra para ver sus armónicos"
   },
   "settings": {
-    "tabs": {
-      "settings": "Ajustes",
-      "themes": "Temas"
-    },
-    "themes": {
-      "description": "Personaliza los colores de la aplicación.",
-      "open_editor": "Abrir Editor de Temas"
-    },
-    "group": {
-      "target_note": "Nota Objetivo",
-      "processing": "Procesamiento",
-      "cleanliness": "Limpieza",
-      "detected_pitch": "Pitch Detectado"
-    },
-    "label": {
-      "note": "Nota:",
-      "octave": "Octava:",
-      "pitch_mode": "Modo de Pitch:",
-      "correction_amount": "Cantidad de Corrección:",
-      "retune_speed": "Velocidad de Reafinación:",
-      "preserve_vibrato": "Preservar Vibrato:",
-      "formant_shift": "Desplazamiento de Formantes:",
-      "stretching_method": "Método de Estiramiento:",
-      "stretch_factor": "Factor de Estiramiento:",
-      "manual": "Manual:",
-      "breathiness": "Respiración:",
-      "hf_bias": "Sesgo HF:",
-      "amount": "Cantidad:",
-      "low_cut": "Corte Bajo:",
-      "high_shelf": "High Shelf:",
-      "shelf_freq": "Shelf Freq:"
-    },
-    "target_fmt": "Objetivo: {note}{octave} ({freq:.2f} Hz)",
-    "checkbox": {
-      "normalize": "Normalizar a 0dB",
-      "preserve_formants": "Preservar Formantes",
-      "advanced_mode": "Modo Avanzado"
-    },
-    "warning": {
-      "robotic": "Valores altos = sonido robótico"
-    },
-    "lowcut": {
-      "off": "Desactivado"
-    },
-    "detected": {
-      "no_audio_loaded": "No hay audio cargado",
-      "no_pitch": "No se detectó pitch",
-      "pitch_fmt": "{note} ({freq:.1f} Hz, {cents} ct)"
-    },
-    "button": {
-      "export_wav": "Exportar WAV",
-      "quick_export": "Exportación Rápida",
-      "multi_sample_export": "Exportar Multi-Muestra"
-    },
+    "title": "Ajustes",
     "pitch_mode": {
       "praat_soft": {
         "label": "PSOLA (Praat) Suave",
@@ -187,193 +119,177 @@
         "label": "TD-PSOLA",
         "info": "Extensor de respaldo que funciona sin audiotsm/rubberband (puede ser más lento)."
       }
-    },
-    "stretch": {
-      "confirm": {
-        "title": "Advertencia",
-        "text": "Superar x2 puede causar muchos artefactos y hacer que tu muestra suene falsa.",
-        "info_fmt": "Solicitado: {factor:.2f}x",
-        "yes": "¡a huevo!",
-        "no": "¡ni madres!!"
-      }
     }
   },
-  "theme": {
-    "title": "Editor de Temas",
-    "info": "Edita los colores del tema como hex (#RRGGBB).",
-    "preset": "Preajuste:",
-    "name": "Nombre:",
-    "name_placeholder": "Nombre del tema",
-    "button": {
-      "load": "Cargar",
-      "import": "Importar",
-      "export": "Exportar",
-      "save": "Guardar",
-      "apply": "Aplicar",
-      "close": "Cerrar",
-      "pick": "Elegir"
-    },
-    "pick_color_title_fmt": "Elegir color de {key}",
-    "color": {
-      "bg": "Fondo",
-      "panel": "Panel",
-      "primary": "Primario",
-      "accent": "Acento",
-      "highlight": "Resaltado",
-      "success": "Éxito",
-      "text": "Texto"
-    }
+  "target": {
+    "title": "Objetivo",
+    "octave": "Octava",
+    "octave_down": "Octava abajo",
+    "octave_up": "Octava arriba",
+    "hint": "Ctrl+↑/↓ semitono · Ctrl+Shift+↑/↓ octava · arrastra la línea objetivo en la forma de onda"
   },
-  "waveform": {
-    "axis": {
-      "time": "Tiempo",
-      "midi_note": "Nota MIDI"
-    }
+  "mode": {
+    "title": "Modo",
+    "amount": "Cantidad",
+    "retune_speed": "Velocidad de reafinación",
+    "keep_vibrato": "Conservar vibrato",
+    "formant_shift": "Desplazamiento de formantes",
+    "vocal_tract": "Modelo de tracto vocal",
+    "normalize": "Normalizar a −0,1 dBFS"
   },
-  "harmonic": {
-    "title": "Limitador armónico",
-    "button": {
-      "reset_all": "Restablecer todo"
-    },
-    "enabled": "Activado",
-    "amount": "Compresión",
-    "axis": {
-      "db": "dB",
-      "freq": "Frecuencia"
-    },
-    "meta_fmt": "{note} - {count} armónicos detectados"
+  "voicing": {
+    "title": "Sonoridad",
+    "strict": "Estricta",
+    "force": "Forzar",
+    "dilate": "Dilatar",
+    "default": "predeterminado: {{mode}}",
+    "world_only": "Solo WORLD",
+    "help": "Forzar hace sonoros todos los cuadros; Estricta mantiene los cuadros sordos; Dilatar amplía las regiones sonoras 3 cuadros. Solo modos WORLD."
   },
-  "preferences": {
+  "stretch": {
+    "title": "Estiramiento",
+    "method": "Método de estiramiento",
+    "factor": "Factor",
+    "warn_over_2": "Por encima de 2× habrá artefactos; la muestra puede sonar falsa."
+  },
+  "advanced": {
+    "title": "Avanzado",
+    "active": "{{count}} activos",
+    "cleanliness": "Limpieza",
+    "amount": "Cantidad",
+    "low_cut": "Corte de graves",
+    "hf_rollback": "Atenuación de agudos",
+    "breath": "Aire",
+    "breathiness": "Aire",
+    "hf_bias": "Sesgo HF",
+    "limiter": "Limitador armónico",
+    "enable": "Activar",
+    "limiter_help": "Abre el editor de techos bajo la forma de onda.",
+    "compression": "Compresión",
+    "loop": "Bucle con crossfade",
+    "template": "Plantilla",
+    "min_loop": "Bucle mín.",
+    "crossfade": "Crossfade",
+    "no_loop": "sin puntos de bucle",
+    "find_loop": "Buscar bucle"
+  },
+  "controls": {
+    "reset_hint": "Doble clic en cualquier control para restablecerlo. ● marca un valor no predeterminado."
+  },
+  "footer": {
+    "play": "Reproducir",
+    "stop": "Detener",
+    "ab": "A/B: original / corregida",
+    "a": "A · Original",
+    "b": "B · Corregida",
+    "peak": "pico",
+    "rms": "rms",
+    "undo": "Deshacer",
+    "redo": "Rehacer",
+    "multisample": "Multimuestra…",
+    "quick_export": "Exportación rápida",
+    "export_wav": "Exportar WAV"
+  },
+  "ms": {
+    "title": "Multimuestra / SFZ",
+    "back": "Volver a ajustes",
+    "range": "Rango",
+    "low": "Grave",
+    "high": "Aguda",
+    "source": "Origen {{note}} · {{count}} notas",
+    "invalid_range": "La nota grave no puede estar por encima de la aguda",
+    "per_note": "Por nota",
+    "loop": "Bucle con crossfade",
+    "loop_help": "Usa los ajustes de bucle de Avanzado.",
+    "start_trim": "Recorte inicial",
+    "trim": "Recorte",
+    "sfz": "Escribir instrumento .sfz (DirectWave)",
+    "output": "Salida",
+    "output_auto": "Carpeta junto al original (automático)",
+    "output_help": "Un WAV por nota, con nota raíz y puntos de bucle incrustados.",
+    "change_folder": "Cambiar…",
+    "progress": "Progreso",
+    "rendering": "Renderizando {{note}} · {{done}} / {{total}}",
+    "complete": "{{count}} notas renderizadas en {{dir}}",
+    "error": "Error: {{error}}",
+    "cancelled": "Cancelado",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "render": "Renderizar",
+    "rendering_btn": "Renderizando…"
+  },
+  "prefs": {
     "title": "Preferencias",
-    "section": {
-      "general": "General",
-      "display": "Visualización"
-    },
-    "tabs": {
-      "preferences": "Preferencias",
-      "theme": "Tema"
-    },
-    "show_loading_dialog": {
-      "label": "Mostrar diálogo de carga",
-      "desc": "Mostrar una superposición al cargar y procesar audio"
-    },
-    "performance_mode": {
-      "label": "Modo de rendimiento",
-      "desc": "Aumenta el retraso de debounce y reduce el detalle de la forma de onda"
-    },
-    "warmup_enabled": {
-      "label": "Precalentar el motor de audio al iniciar",
-      "desc": "Preinicializa el backend al iniciar para un procesamiento más rápido"
-    },
-    "note_notation": {
-      "label": "Notación de notas",
-      "desc": "Mostrar accidentales como sostenidos (C#) o bemoles (Db)",
-      "sharps": "Sostenidos",
-      "flats": "Bemoles"
-    }
+    "general": "General",
+    "theme": "Tema",
+    "theme_help": "Un tema oscuro y uno claro.",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "language": "Idioma",
+    "language_help": "Idioma de la interfaz.",
+    "notation": "Nombres de notas",
+    "notation_help": "Sostenidos o bemoles en todas partes.",
+    "performance": "Modo rendimiento",
+    "performance_help": "Mayor espera antes de reprocesar.",
+    "warmup": "Precalentar el motor al iniciar",
+    "warmup_help": "Inicializa el DSP para que el primer proceso sea más rápido.",
+    "on": "Sí",
+    "off": "No",
+    "shortcuts": "Atajos"
   },
-  "electron": {
-    "titlebar": {
-      "no_sample": "Sin muestra cargada",
-      "processing": "Procesando",
-      "toggle_ab": "Alternar A/B: Original / Procesado",
-      "minimize": "Minimizar",
-      "maximize": "Maximizar",
-      "restore": "Restaurar",
-      "close": "Cerrar",
-      "preferences": "Preferencias..."
-    },
-    "filebar": {
-      "input_label": "Archivo de Entrada:",
-      "placeholder": "Sin archivo cargado — explorar o soltar un archivo de audio aquí",
-      "browse": "Explorar…",
-      "loading": "Cargando…"
-    },
-    "waveform": {
-      "no_audio": "Sin audio cargado",
-      "processing": "Procesando…",
-      "drop_hint": "Soltar un archivo de audio o clic en Archivo → Nueva Muestra"
-    },
-    "harmonic": {
-      "empty": "Carga una muestra y procesa para ver los armónicos",
-      "disabled": "DESACTIVADO",
-      "reset": "RESTABLECER",
-      "frequency_hz": "FRECUENCIA (Hz)",
-      "level_db": "NIVEL (dB)"
-    },
-    "toast": {
-      "load_failed": "Error al cargar audio",
-      "processing_failed": "Error en el procesamiento",
-      "export_complete": "Exportación completada",
-      "file_not_found": "Archivo no encontrado",
-      "backend_not_running": "Backend no está activo — inicia el servidor Python en el puerto 8765.",
-      "still_loading": "Aún cargando… (¿archivo grande?)",
-      "dismiss": "Descartar",
-      "loaded": "Cargado: {{name}}",
-      "theme_applied": "Tema aplicado.",
-      "theme_saved": "Tema \"{{name}}\" guardado.",
-      "theme_load_failed": "Error al cargar el tema.",
-      "theme_save_failed": "Error al guardar el tema.",
-      "theme_file_load_failed": "Error al cargar el archivo de tema.",
-      "theme_file_save_failed": "Error al guardar el archivo de tema."
-    },
-    "settings": {
-      "normalize": "Normalizar a 0 dB",
-      "vocal_tract_model": "Modelo de Tracto Vocal",
-      "harmonic_amount": "Cantidad de Armónicos",
-      "limiter": "Limitador",
-      "high_shelf_gain": "Ganancia High Shelf",
-      "high_shelf_freq": "Frecuencia High Shelf",
-      "advanced_warning": "Los controles avanzados pueden degradar la calidad del audio",
-      "target": "Objetivo:",
-      "detected": "Detectado:",
-      "on": "ACTIVADO",
-      "off": "DESACTIVADO"
-    },
-    "theme": {
-      "simple": "Simple",
-      "advanced": "Avanzado",
-      "my_custom_theme": "Mi Tema Personalizado",
-      "open_themes_folder": "Abrir carpeta de temas",
-      "folder": "Carpeta",
-      "hue": "Tono",
-      "saturation": "Saturación",
-      "brightness": "Brillo",
-      "group_backgrounds": "FONDOS",
-      "group_borders": "BORDES",
-      "group_text": "TEXTO",
-      "group_accent": "ACENTO",
-      "group_waveform": "FORMA DE ONDA",
-      "group_harmonic": "ARMÓNICO",
-      "group_semantic": "SEMÁNTICO",
-      "var_app_background": "Fondo de la app",
-      "var_title_bar": "Barra de título",
-      "var_panel_surfaces": "Superficies del panel",
-      "var_panel_hover": "Panel al pasar el cursor",
-      "var_panel_light": "Panel claro",
-      "var_default_border": "Borde predeterminado",
-      "var_emphasis_border": "Borde de énfasis",
-      "var_primary_text": "Texto principal",
-      "var_secondary_text": "Texto secundario",
-      "var_dimmed_text": "Texto atenuado",
-      "var_bright_text": "Texto brillante",
-      "var_accent": "Acento",
-      "var_accent_hover": "Acento al pasar el cursor",
-      "var_white_key_lane": "Carril de tecla blanca",
-      "var_black_key_lane": "Carril de tecla negra",
-      "var_grid_lines": "Líneas de cuadrícula",
-      "var_note_labels": "Etiquetas de notas",
-      "var_bg_white_note": "Fondo nota blanca",
-      "var_bg_black_note": "Fondo nota negra",
-      "var_bg_grid_line": "Fondo línea de cuadrícula",
-      "var_node_gradient_start": "Inicio de gradiente del nodo",
-      "var_node_gradient_end": "Fin de gradiente del nodo",
-      "var_harmonic_grid_lines": "Líneas de cuadrícula",
-      "var_modified_node": "Nodo modificado",
-      "var_success_ok": "Éxito / Aceptar",
-      "var_error_close": "Error / Cerrar",
-      "var_warning": "Advertencia",
-      "var_primary_action": "Acción principal"
-    }
+  "shortcuts": {
+    "play": "Reproducir / detener",
+    "ab": "Alternar A/B",
+    "export": "Exportar WAV",
+    "quick_export": "Exportación rápida",
+    "undo": "Deshacer",
+    "redo": "Rehacer",
+    "mode": "Modo de tono",
+    "semitone": "Objetivo ± semitono",
+    "octave": "Objetivo ± octava",
+    "open": "Abrir muestra",
+    "multisample": "Multimuestra",
+    "preferences": "Preferencias"
+  },
+  "toast": {
+    "dismiss": "Cerrar",
+    "loaded": "Cargado {{name}}",
+    "still_loading": "Aún cargando… (¿archivo grande?)",
+    "backend_not_running": "El motor no está en ejecución. Reinicia la aplicación.",
+    "load_failed": "No se pudo cargar el audio",
+    "unsupported_format": "Formato de audio no compatible",
+    "file_too_large": "Archivo demasiado grande (máx. 100 MB)",
+    "decode_failed": "No se pudo decodificar el archivo de audio",
+    "out_of_memory": "Sin memoria. Prueba con una muestra más corta.",
+    "processing_timeout": "El procesamiento tardó demasiado. Prueba con una muestra más corta.",
+    "processing_failed": "El procesamiento falló",
+    "backend_reconnecting": "Se perdió la conexión con el motor. Reconectando…",
+    "backend_reconnected": "Motor reconectado",
+    "wait_processing": "Espera a que termine el procesamiento antes de exportar",
+    "exported": "Exportado a {{path}}",
+    "export_failed": "La exportación falló",
+    "export_permission": "No se puede escribir en esta ubicación. Elige otra carpeta.",
+    "export_disk_full": "Disco lleno. No se puede exportar.",
+    "export_path_too_long": "Ruta demasiado larga (máx. 260 caracteres)",
+    "file_exists": "{{name}} ya existe. ¿Sobrescribir?",
+    "overwrite": "Sobrescribir",
+    "loop_none": "No se encontró una región de bucle adecuada",
+    "loop_set": "Puntos de bucle: {{start}} – {{end}} s",
+    "loop_failed": "El bucle falló"
+  },
+  "backend": {
+    "checking": "Iniciando el motor de audio…",
+    "failed": "El motor de audio no pudo iniciarse.",
+    "retry": "Reintentar"
+  },
+  "error": {
+    "component_failed": "{{name}} no se pudo mostrar. Reinicia la aplicación."
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "pt_BR": "Português (Brasil)",
+    "ja": "日本語",
+    "ru": "Русский"
   }
 }

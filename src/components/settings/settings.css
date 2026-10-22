@@ -1,0 +1,57 @@
+/* Right column: settings groups and the sheets that replace them. */
+
+.side { grid-area: side; background: var(--bg-1); min-height: 0; position: relative; overflow: hidden; }
+.side > section { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
+.side > section::-webkit-scrollbar { width: 8px; }
+.side > section::-webkit-scrollbar-thumb { background: var(--bg-3); }
+.side__grow { flex: 1; }
+
+.group { border-bottom: var(--bw) solid var(--line-1); }
+.group__head {
+  display: flex; align-items: center; height: 28px; padding: 0 var(--s3) 0 var(--s4); width: 100%;
+  font-size: var(--fs-10); letter-spacing: .08em; text-transform: uppercase; color: var(--fg-2);
+  background: none; border: 0; text-align: left;
+}
+.group__head .r { margin-left: auto; font-family: var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--fg-3); }
+.group__body { padding: 0 var(--s4) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.group--disabled .group__body { opacity: .4; pointer-events: none; }
+.group--collapsible .group__head { cursor: pointer; }
+.group--collapsible .group__head:hover { color: var(--fg-1); }
+.group--collapsible .group__head::before {
+  content: ""; width: 0; height: 0; border: 4px solid transparent; border-left-color: var(--fg-2);
+  margin: 0 var(--s2) 0 -2px; transition: transform 80ms;
+}
+.group--open .group__head::before { transform: rotate(90deg); }
+.sub { font-size: var(--fs-10); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin-top: var(--s2); }
+.sub:first-child { margin-top: 0; }
+
+.target-readout { display: grid; grid-template-columns: 1fr auto; align-items: baseline; }
+.target-readout__big { font-family: var(--font-mono); font-size: var(--fs-22); font-weight: 600; line-height: 1; }
+.target-readout__big sub { font-size: var(--fs-12); font-weight: 400; color: var(--fg-2); vertical-align: baseline; }
+.target-readout__hz { font-size: var(--fs-12); font-weight: 400; color: var(--fg-2); margin-left: var(--s2); }
+.target-readout__delta { font-family: var(--font-mono); color: var(--fg-2); }
+
+/* sheets (multisample, preferences) */
+.sheet__head { display: flex; align-items: center; gap: var(--s2); height: 28px; padding: 0 var(--s3); border-bottom: var(--bw) solid var(--line-1); flex: none; }
+.sheet__back { background: none; border: 0; color: var(--fg-2); cursor: pointer; padding: 0 var(--s1); font-size: var(--fs-16); line-height: 1; }
+.sheet__back:hover { color: var(--fg-1); }
+.sheet__head h3 { font-size: var(--fs-12); font-weight: 600; }
+.sheet__foot { display: flex; gap: var(--s2); padding: var(--s3) var(--s4); border-top: var(--bw) solid var(--line-1); justify-content: flex-end; flex: none; }
+.pathbox { background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r); padding: var(--s1) var(--s2); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; user-select: text; }
+.rangebar { height: 20px; display: flex; border: var(--bw) solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--bg-2); position: relative; }
+.rangebar i { position: absolute; top: 0; bottom: 0; }
+.rangebar .in { background: var(--accent); opacity: .35; }
+.rangebar .src { width: 2px; background: var(--fg-1); }
+.pbar { height: 4px; background: var(--bg-3); border-radius: var(--r); overflow: hidden; }
+.pbar i { display: block; height: 100%; background: var(--accent); transition: width 150ms linear; }
+.status-line { font-family: var(--font-mono); }
+.status-line--err { color: var(--err); }
+.status-line--ok { color: var(--ok); }
+
+.pref { display: grid; grid-template-columns: 1fr auto; gap: var(--s1) var(--s3); align-items: center; padding: var(--s2) 0; border-bottom: var(--bw) solid var(--line-1); }
+.pref:last-child { border-bottom: 0; }
+.pref__desc { grid-column: 1; color: var(--fg-3); font-size: var(--fs-11); }
+.pref > span:first-child { grid-column: 1; grid-row: 1; }
+.pref__ctl { grid-column: 2; grid-row: 1 / span 2; }
+.shortcuts { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s3); font-size: var(--fs-11); color: var(--fg-2); }
+.shortcuts kbd { font-family: var(--font-mono); color: var(--fg-1); white-space: nowrap; }

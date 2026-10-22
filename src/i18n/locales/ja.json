@@ -2,129 +2,61 @@
   "app": {
     "title": "FreqEnforcer"
   },
-  "ui": {
-    "menu": {
-      "file": "ファイル",
-      "options": "オプション",
-      "language": "言語",
-      "file_new_sample": "新規サンプル",
-      "file_refresh_sample": "サンプルを更新",
-      "file_quit": "終了"
-    },
-    "language": {
-      "en": "英語",
-      "es": "スペイン語",
-      "pt_BR": "ポルトガル語（ブラジル）",
-      "ja": "日本語",
-      "ru": "ロシア語"
-    },
-    "title": {
-      "debug": "デバッグ",
-      "select_audio_file": "オーディオファイルを選択"
-    },
-    "placeholder": {
-      "debug_notes": "フィードバック/承認メモをここに入力。保存をクリックしてディスクに書き込み。"
-    },
-    "button": {
-      "save": "保存"
-    },
-    "filter": {
-      "audio_files": "オーディオファイル (*.wav *.mp3 *.flac *.ogg);;すべてのファイル (*)"
-    }
+  "menu": {
+    "main": "メインメニュー",
+    "file": "ファイル",
+    "export": "書き出し",
+    "options": "オプション",
+    "open": "開く…",
+    "reload": "サンプルを再読み込み",
+    "close_sample": "サンプルを閉じる",
+    "quit": "終了",
+    "export_wav": "WAV を書き出す…",
+    "quick_export": "元ファイルの隣にクイック書き出し",
+    "multisample": "マルチサンプル / SFZ…",
+    "preferences": "環境設定"
   },
-  "main": {
-    "input_file": "入力ファイル:",
-    "input_placeholder": "/path/to/audio/file.wav",
-    "button": {
-      "browse": "参照",
-      "show_processed": "処理済みを表示",
-      "show_original": "オリジナルを表示",
-      "play": "再生",
-      "stop": "停止"
-    },
-    "waveform": {
-      "original": "オリジナル",
-      "processed": "処理済み"
-    },
-    "dialog": {
-      "error": "エラー",
-      "loading_title": "読み込み中",
-      "loading_label": "オーディオを読み込み中...",
-      "rendering_waveform": "波形をレンダリング中...",
-      "load_failed_fmt": "オーディオファイルの読み込みに失敗しました:\\n{error}"
-    }
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す",
+    "close": "閉じる"
   },
-  "progress": {
-    "autotuning": "オートチューン中...",
-    "stretching_fmt": "ストレッチ中... ({method}, x{factor:.2f})",
-    "lowcut_fmt": "サブを除去中 (ローカット {hz:.0f} Hz)...",
-    "cleanliness_fmt": "クリーンネス {pct:.0f}% を適用中...",
-    "highshelf_fmt": "高域をクリーニング中 (シェルフ {db:.1f} dB @ {hz:.0f} Hz)...",
-    "breathiness": "ブレッシネスを適用中...",
-    "harmonic_limiting": "ハーモニックリミッターを適用中...",
-    "normalizing": "ノーマライズ中...",
-    "processing": "処理中...",
-    "preparing_audio_engine": "オーディオエンジンを準備中...",
-    "preparing_pitch_detector": "高速ピッチ検出器を準備中...",
-    "reading_file": "ファイルを読み込み中...",
-    "detecting_pitch": "ピッチを検出中...",
-    "finalizing": "完了処理中..."
+  "status": {
+    "processing": "処理中",
+    "loading": "読み込み中…"
+  },
+  "header": {
+    "open": "開く…",
+    "no_sample": "サンプルが読み込まれていません",
+    "mono": "モノラル",
+    "detected": "検出",
+    "cents": "セント",
+    "frequency": "周波数",
+    "confidence": "信頼度"
+  },
+  "view": {
+    "original": "オリジナル",
+    "corrected": "補正後",
+    "original_pitch": "元のピッチ",
+    "corrected_pitch": "補正後のピッチ",
+    "loop": "ループ",
+    "zoom_in": "拡大（ピッチ範囲を狭く）",
+    "zoom_out": "縮小（ピッチ範囲を広く）",
+    "aria": "ピッチ曲線付き波形。ターゲット {{target}}。ターゲット線をドラッグしてノートを変更、クリックで再生位置を移動。",
+    "drop_hint": "ここにサンプルをドロップ",
+    "open_hint": "または",
+    "formats": "WAV, MP3, FLAC, OGG, AIFF",
+    "drop_now": "ドロップして読み込む"
+  },
+  "harm": {
+    "title": "倍音シーリング",
+    "hint": "倍音シーリング · ノードを下にドラッグ · ダブルクリックでリセット",
+    "reset_all": "すべてリセット",
+    "empty": "サンプルを処理すると倍音が表示されます"
   },
   "settings": {
-    "tabs": {
-      "settings": "設定",
-      "themes": "テーマ"
-    },
-    "themes": {
-      "description": "アプリの色をカスタマイズ。",
-      "open_editor": "テーマエディタを開く"
-    },
-    "group": {
-      "target_note": "ターゲットノート",
-      "processing": "処理",
-      "cleanliness": "クリーンネス",
-      "detected_pitch": "検出されたピッチ"
-    },
-    "label": {
-      "note": "ノート:",
-      "octave": "オクターブ:",
-      "pitch_mode": "ピッチモード:",
-      "correction_amount": "補正量:",
-      "retune_speed": "リチューン速度:",
-      "preserve_vibrato": "ビブラートを保持:",
-      "formant_shift": "フォルマントシフト:",
-      "stretching_method": "ストレッチ方法:",
-      "stretch_factor": "ストレッチ係数:",
-      "manual": "マニュアル:",
-      "breathiness": "ブレッシネス:",
-      "hf_bias": "HFバイアス:",
-      "amount": "量:",
-      "low_cut": "ローカット:",
-      "high_shelf": "ハイシェルフ:",
-      "shelf_freq": "シェルフ周波数:"
-    },
-    "target_fmt": "ターゲット: {note}{octave} ({freq:.2f} Hz)",
-    "checkbox": {
-      "normalize": "0dBにノーマライズ",
-      "preserve_formants": "フォルマントを保持",
-      "advanced_mode": "詳細モード"
-    },
-    "warning": {
-      "robotic": "高い値 = ロボット的なサウンド"
-    },
-    "lowcut": {
-      "off": "オフ"
-    },
-    "detected": {
-      "no_audio_loaded": "オーディオが読み込まれていません",
-      "no_pitch": "ピッチが検出されませんでした",
-      "pitch_fmt": "{note} ({freq:.1f} Hz, {cents} ct)"
-    },
-    "button": {
-      "export_wav": "WAVをエクスポート",
-      "quick_export": "クイックエクスポート",
-      "multi_sample_export": "マルチサンプルエクスポート"
-    },
+    "title": "設定",
     "pitch_mode": {
       "praat_soft": {
         "label": "PSOLA (Praat) ソフト",
@@ -187,193 +119,177 @@
         "label": "TD-PSOLA",
         "info": "audiotsm/Rubber Bandなしで動作するフォールバックストレッチャー（遅くなる可能性があります）。"
       }
-    },
-    "stretch": {
-      "confirm": {
-        "title": "警告",
-        "text": "x2を超えると多くのアーティファクトが発生し、サンプルが不自然に聞こえる可能性があります。",
-        "info_fmt": "リクエスト: {factor:.2f}x",
-        "yes": "やってやる！",
-        "no": "絶対やだ！！"
-      }
     }
   },
-  "theme": {
-    "title": "テーマエディタ",
-    "info": "テーマカラーを16進数 (#RRGGBB) で編集。",
-    "preset": "プリセット:",
-    "name": "名前:",
-    "name_placeholder": "テーマ名",
-    "button": {
-      "load": "読み込み",
-      "import": "インポート",
-      "export": "エクスポート",
-      "save": "保存",
-      "apply": "適用",
-      "close": "閉じる",
-      "pick": "選択"
-    },
-    "pick_color_title_fmt": "{key}の色を選択",
-    "color": {
-      "bg": "背景",
-      "panel": "パネル",
-      "primary": "プライマリ",
-      "accent": "アクセント",
-      "highlight": "ハイライト",
-      "success": "成功",
-      "text": "テキスト"
-    }
+  "target": {
+    "title": "ターゲット",
+    "octave": "オクターブ",
+    "octave_down": "オクターブ下げ",
+    "octave_up": "オクターブ上げ",
+    "hint": "Ctrl+↑/↓ 半音 · Ctrl+Shift+↑/↓ オクターブ · 波形上のターゲット線をドラッグ"
   },
-  "waveform": {
-    "axis": {
-      "time": "時間",
-      "midi_note": "MIDIノート"
-    }
+  "mode": {
+    "title": "モード",
+    "amount": "量",
+    "retune_speed": "リチューン速度",
+    "keep_vibrato": "ビブラートを保持",
+    "formant_shift": "フォルマントシフト",
+    "vocal_tract": "声道モデル",
+    "normalize": "−0.1 dBFS にノーマライズ"
   },
-  "harmonic": {
-    "title": "ハーモニックリミッター",
-    "button": {
-      "reset_all": "すべてリセット"
-    },
-    "enabled": "有効",
-    "amount": "コンプレッション",
-    "axis": {
-      "db": "dB",
-      "freq": "周波数"
-    },
-    "meta_fmt": "{note} - {count} 個の倍音を検出"
+  "voicing": {
+    "title": "有声判定",
+    "strict": "厳密",
+    "force": "強制",
+    "dilate": "拡張",
+    "default": "既定: {{mode}}",
+    "world_only": "WORLD のみ",
+    "help": "強制は全フレームを有声として扱い、厳密は無声フレームを無声のまま保ち、拡張は有声区間を 3 フレーム広げます。WORLD モードのみ。"
   },
-  "preferences": {
-    "title": "設定",
-    "section": {
-      "general": "一般",
-      "display": "表示"
-    },
-    "tabs": {
-      "preferences": "設定",
-      "theme": "テーマ"
-    },
-    "show_loading_dialog": {
-      "label": "読み込みダイアログを表示",
-      "desc": "オーディオの読み込みと処理中にオーバーレイを表示"
-    },
-    "performance_mode": {
-      "label": "パフォーマンスモード",
-      "desc": "デバウンス遅延を増加し、波形の詳細度を下げる"
-    },
-    "warmup_enabled": {
-      "label": "起動時にオーディオエンジンをウォームアップ",
-      "desc": "起動時にバックエンドを事前初期化して処理を高速化"
-    },
-    "note_notation": {
-      "label": "音符表記",
-      "desc": "半音をシャープ (C#) またはフラット (Db) で表示",
-      "sharps": "シャープ",
-      "flats": "フラット"
-    }
+  "stretch": {
+    "title": "ストレッチ",
+    "method": "ストレッチ方式",
+    "factor": "倍率",
+    "warn_over_2": "2× を超えるとアーティファクトが増え、不自然に聞こえることがあります。"
   },
-  "electron": {
-    "titlebar": {
-      "no_sample": "サンプルが読み込まれていません",
-      "processing": "処理中",
-      "toggle_ab": "A/B切替: オリジナル / 処理済み",
-      "minimize": "最小化",
-      "maximize": "最大化",
-      "restore": "元に戻す",
-      "close": "閉じる",
-      "preferences": "環境設定..."
-    },
-    "filebar": {
-      "input_label": "入力ファイル:",
-      "placeholder": "ファイルが読み込まれていません — 参照またはオーディオファイルをドロップ",
-      "browse": "参照…",
-      "loading": "読み込み中…"
-    },
-    "waveform": {
-      "no_audio": "オーディオが読み込まれていません",
-      "processing": "処理中…",
-      "drop_hint": "オーディオファイルをドロップするか、ファイル → 新しいサンプルをクリック"
-    },
-    "harmonic": {
-      "empty": "サンプルを読み込んで処理すると倍音が表示されます",
-      "disabled": "無効",
-      "reset": "リセット",
-      "frequency_hz": "周波数 (Hz)",
-      "level_db": "レベル (dB)"
-    },
-    "toast": {
-      "load_failed": "オーディオの読み込みに失敗しました",
-      "processing_failed": "処理に失敗しました",
-      "export_complete": "エクスポート完了",
-      "file_not_found": "ファイルが見つかりません",
-      "backend_not_running": "バックエンドが起動していません — ポート8765でPythonサーバーを起動してください。",
-      "still_loading": "読み込み中… (大きなファイル?)",
-      "dismiss": "閉じる",
-      "loaded": "読み込み完了: {{name}}",
-      "theme_applied": "テーマを適用しました。",
-      "theme_saved": "テーマ \"{{name}}\" を保存しました。",
-      "theme_load_failed": "テーマの読み込みに失敗しました。",
-      "theme_save_failed": "テーマの保存に失敗しました。",
-      "theme_file_load_failed": "テーマファイルの読み込みに失敗しました。",
-      "theme_file_save_failed": "テーマファイルの保存に失敗しました。"
-    },
-    "settings": {
-      "normalize": "0 dBにノーマライズ",
-      "vocal_tract_model": "ボーカルトラクトモデル",
-      "harmonic_amount": "ハーモニック量",
-      "limiter": "リミッター",
-      "high_shelf_gain": "ハイシェルフゲイン",
-      "high_shelf_freq": "ハイシェルフ周波数",
-      "advanced_warning": "詳細コントロールはオーディオ品質を低下させる可能性があります",
-      "target": "ターゲット:",
-      "detected": "検出:",
-      "on": "オン",
-      "off": "オフ"
-    },
-    "theme": {
-      "simple": "シンプル",
-      "advanced": "詳細",
-      "my_custom_theme": "マイカスタムテーマ",
-      "open_themes_folder": "テーマフォルダを開く",
-      "folder": "フォルダ",
-      "hue": "色相",
-      "saturation": "彩度",
-      "brightness": "明度",
-      "group_backgrounds": "背景",
-      "group_borders": "ボーダー",
-      "group_text": "テキスト",
-      "group_accent": "アクセント",
-      "group_waveform": "波形",
-      "group_harmonic": "ハーモニック",
-      "group_semantic": "セマンティック",
-      "var_app_background": "アプリ背景",
-      "var_title_bar": "タイトルバー",
-      "var_panel_surfaces": "パネル面",
-      "var_panel_hover": "パネルホバー",
-      "var_panel_light": "パネルライト",
-      "var_default_border": "デフォルトボーダー",
-      "var_emphasis_border": "強調ボーダー",
-      "var_primary_text": "プライマリテキスト",
-      "var_secondary_text": "セカンダリテキスト",
-      "var_dimmed_text": "薄いテキスト",
-      "var_bright_text": "明るいテキスト",
-      "var_accent": "アクセント",
-      "var_accent_hover": "アクセントホバー",
-      "var_white_key_lane": "白鍵レーン",
-      "var_black_key_lane": "黒鍵レーン",
-      "var_grid_lines": "グリッド線",
-      "var_note_labels": "ノートラベル",
-      "var_bg_white_note": "背景 白鍵ノート",
-      "var_bg_black_note": "背景 黒鍵ノート",
-      "var_bg_grid_line": "背景 グリッド線",
-      "var_node_gradient_start": "ノードグラデーション開始",
-      "var_node_gradient_end": "ノードグラデーション終了",
-      "var_harmonic_grid_lines": "グリッド線",
-      "var_modified_node": "変更済みノード",
-      "var_success_ok": "成功 / OK",
-      "var_error_close": "エラー / 閉じる",
-      "var_warning": "警告",
-      "var_primary_action": "プライマリアクション"
-    }
+  "advanced": {
+    "title": "詳細",
+    "active": "{{count}} 件有効",
+    "cleanliness": "クリーン化",
+    "amount": "量",
+    "low_cut": "ローカット",
+    "hf_rollback": "高域ロールバック",
+    "breath": "ブレス",
+    "breathiness": "ブレス感",
+    "hf_bias": "高域バイアス",
+    "limiter": "倍音リミッター",
+    "enable": "有効",
+    "limiter_help": "波形の下にシーリングエディタを開きます。",
+    "compression": "圧縮",
+    "loop": "クロスフェードループ",
+    "template": "テンプレート",
+    "min_loop": "最小ループ",
+    "crossfade": "クロスフェード",
+    "no_loop": "ループポイントなし",
+    "find_loop": "ループを探す"
+  },
+  "controls": {
+    "reset_hint": "コントロールをダブルクリックするとリセットされます。● は既定値以外を示します。"
+  },
+  "footer": {
+    "play": "再生",
+    "stop": "停止",
+    "ab": "A/B: オリジナル / 補正後",
+    "a": "A · オリジナル",
+    "b": "B · 補正後",
+    "peak": "peak",
+    "rms": "rms",
+    "undo": "元に戻す",
+    "redo": "やり直す",
+    "multisample": "マルチサンプル…",
+    "quick_export": "クイック書き出し",
+    "export_wav": "WAV を書き出す"
+  },
+  "ms": {
+    "title": "マルチサンプル / SFZ",
+    "back": "設定に戻る",
+    "range": "範囲",
+    "low": "最低音",
+    "high": "最高音",
+    "source": "ソース {{note}} · {{count}} ノート",
+    "invalid_range": "最低音は最高音より高くできません",
+    "per_note": "ノートごと",
+    "loop": "クロスフェードループ",
+    "loop_help": "「詳細」のループ設定を使用します。",
+    "start_trim": "開始トリム",
+    "trim": "トリム",
+    "sfz": ".sfz インストゥルメントを書き出す (DirectWave)",
+    "output": "出力",
+    "output_auto": "元ファイルの隣のフォルダ（自動）",
+    "output_help": "ノートごとに 1 つの WAV。ルートノートとループポイントを埋め込みます。",
+    "change_folder": "変更…",
+    "progress": "進行状況",
+    "rendering": "{{note}} をレンダリング中 · {{done}} / {{total}}",
+    "complete": "{{count}} ノートを {{dir}} にレンダリングしました",
+    "error": "エラー: {{error}}",
+    "cancelled": "キャンセルされました",
+    "cancel": "キャンセル",
+    "close": "閉じる",
+    "render": "レンダリング",
+    "rendering_btn": "レンダリング中…"
+  },
+  "prefs": {
+    "title": "環境設定",
+    "general": "一般",
+    "theme": "テーマ",
+    "theme_help": "ダークとライトの 2 種類。",
+    "dark": "ダーク",
+    "light": "ライト",
+    "language": "言語",
+    "language_help": "インターフェースの言語。",
+    "notation": "音名",
+    "notation_help": "すべてシャープまたはフラットで表示。",
+    "performance": "パフォーマンスモード",
+    "performance_help": "再処理までの待ち時間を長くします。",
+    "warmup": "起動時にエンジンをウォームアップ",
+    "warmup_help": "DSP を事前初期化して初回処理を速くします。",
+    "on": "オン",
+    "off": "オフ",
+    "shortcuts": "ショートカット"
+  },
+  "shortcuts": {
+    "play": "再生 / 停止",
+    "ab": "A/B 切り替え",
+    "export": "WAV を書き出す",
+    "quick_export": "クイック書き出し",
+    "undo": "元に戻す",
+    "redo": "やり直す",
+    "mode": "ピッチモード",
+    "semitone": "ターゲット ± 半音",
+    "octave": "ターゲット ± オクターブ",
+    "open": "サンプルを開く",
+    "multisample": "マルチサンプル",
+    "preferences": "環境設定"
+  },
+  "toast": {
+    "dismiss": "閉じる",
+    "loaded": "{{name}} を読み込みました",
+    "still_loading": "まだ読み込み中です…（大きなファイル？）",
+    "backend_not_running": "エンジンが動作していません。アプリを再起動してください。",
+    "load_failed": "オーディオを読み込めませんでした",
+    "unsupported_format": "対応していないオーディオ形式です",
+    "file_too_large": "ファイルが大きすぎます（最大 100 MB）",
+    "decode_failed": "オーディオファイルをデコードできませんでした",
+    "out_of_memory": "メモリ不足です。短いサンプルを試してください。",
+    "processing_timeout": "処理がタイムアウトしました。短いサンプルを試してください。",
+    "processing_failed": "処理に失敗しました",
+    "backend_reconnecting": "エンジンとの接続が切れました。再接続中…",
+    "backend_reconnected": "エンジンに再接続しました",
+    "wait_processing": "書き出す前に処理の完了を待ってください",
+    "exported": "{{path}} に書き出しました",
+    "export_failed": "書き出しに失敗しました",
+    "export_permission": "この場所には書き込めません。別のフォルダを選んでください。",
+    "export_disk_full": "ディスクがいっぱいです。書き出せません。",
+    "export_path_too_long": "ファイルパスが長すぎます（最大 260 文字）",
+    "file_exists": "{{name}} は既に存在します。上書きしますか？",
+    "overwrite": "上書き",
+    "loop_none": "適切なループ区間が見つかりませんでした",
+    "loop_set": "ループポイント: {{start}} – {{end}} 秒",
+    "loop_failed": "ループに失敗しました"
+  },
+  "backend": {
+    "checking": "オーディオエンジンを起動中…",
+    "failed": "オーディオエンジンを起動できませんでした。",
+    "retry": "再試行"
+  },
+  "error": {
+    "component_failed": "{{name}} を表示できませんでした。アプリを再起動してください。"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "pt_BR": "Português (Brasil)",
+    "ja": "日本語",
+    "ru": "Русский"
   }
 }

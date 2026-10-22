@@ -1,0 +1,38 @@
+/* Center area: view bar, pitch view canvas, harmonic pane. */
+
+.center {
+  grid-area: center; display: grid; grid-template-rows: var(--h-viewbar) minmax(0, 1fr); min-height: 0;
+  border-right: var(--bw) solid var(--line-1); background: var(--bg-0); position: relative;
+}
+.center--harm { grid-template-rows: var(--h-viewbar) minmax(0, 1fr) var(--s1) var(--harm-h, 200px); }
+
+.viewbar {
+  display: flex; align-items: center; gap: var(--s4); padding: 0 var(--s3);
+  border-bottom: var(--bw) solid var(--line-1); color: var(--fg-2); white-space: nowrap;
+}
+.viewbar__caption { font-family: var(--font-mono); min-width: 110px; color: var(--fg-1); }
+.legend { display: flex; gap: var(--s4); }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: var(--s1); }
+.legend .orig i { background: var(--curve-orig); }
+.legend .corr i { background: var(--accent); }
+.viewbar__spacer { flex: 1; }
+.viewbar__zoom { display: flex; gap: 2px; align-items: center; }
+.viewbar__zoom button { background: none; border: var(--bw) solid var(--line-2); border-radius: var(--r); color: var(--fg-2); width: 22px; height: 20px; cursor: pointer; }
+.viewbar__zoom button:hover { color: var(--fg-1); background: var(--bg-3); }
+.viewbar__zoom button:disabled { color: var(--fg-3); background: none; cursor: default; }
+.viewbar__zoom .mono { min-width: 40px; text-align: center; }
+
+.wave { position: relative; min-height: 0; overflow: hidden; }
+.wave canvas, .harm canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wave--busy canvas { opacity: .6; }
+.wave__empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s2); color: var(--fg-2); font-size: var(--fs-13);
+}
+.wave__empty kbd { font-family: var(--font-mono); color: var(--fg-3); }
+
+.splitter { background: var(--bg-1); border-top: var(--bw) solid var(--line-1); border-bottom: var(--bw) solid var(--line-1); cursor: row-resize; }
+.splitter:hover { background: var(--line-2); }
+.harm { position: relative; min-height: 0; }
+.harm__cap { position: absolute; left: var(--s3); top: var(--s2); color: var(--fg-2); font-size: var(--fs-11); z-index: 1; display: flex; gap: var(--s3); align-items: center; }
+.harm__cap .btn { height: 18px; padding: 0 var(--s2); font-size: var(--fs-11); }

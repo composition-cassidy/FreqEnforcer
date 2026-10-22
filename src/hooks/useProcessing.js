@@ -49,6 +49,8 @@ export function settingsToBackend(settings) {
     harmonic_knee_db:         knee_db,
     harmonic_release_ms:      release_ms,
     harmonic_ceiling_offsets_db: ceilingOffsets,
+    // null keeps the backend's per-mode default (force / strict)
+    voicing_mode:             settings.voicing_mode ?? null,
   };
 }
 
@@ -109,7 +111,7 @@ export function useProcessing({ onStart, onProgress, onComplete, onError }) {
         try {
           const payload = JSON.parse(e.data);
           if (typeof payload.progress === 'number') {
-            onProgressRef.current?.(Math.round(payload.progress * 100));
+            onProgressRef.current?.(Math.round(payload.progress * 100), payload.stage ?? '');
           }
         } catch (_) { /* malformed event -- ignore */ }
       };
@@ -123,16 +125,11 @@ export function useProcessing({ onStart, onProgress, onComplete, onError }) {
     }
 
     // Send the processing request with a 60-second timeout
-    const roundTripStart = performance.now();
-
-    const prepStart = performance.now();
     const backendSettings = settingsToBackend(settings);
-    const prepTime = performance.now() - prepStart;
 
     const fetchCtrl = new AbortController();
     const fetchTimeout = setTimeout(() => fetchCtrl.abort(), 60000);
     try {
-      const fetchStart = performance.now();
       const res = await fetch(`${API_BASE}/api/process`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -190,27 +187,9 @@ export function useProcessing({ onStart, onProgress, onComplete, onError }) {
       }
 
       const data = await res.json();
-      const fetchTime = performance.now() - fetchStart;
 
-      const renderStart = performance.now();
       inFlightRef.current = false;
       onCompleteRef.current?.(data);
-      const renderTime = performance.now() - renderStart;
-
-      const totalRoundTrip = performance.now() - roundTripStart;
-      const backendEndpoint = data.timings?.total_endpoint || 0;
-      const networkOverhead = fetchTime - backendEndpoint;
-
-      console.log('%c=== PROCESSING PERFORMANCE REPORT ===', 'color: #33CED6; font-weight: bold');
-      console.log(`Settings prep:     ${prepTime.toFixed(1)} ms`);
-      console.log(`Fetch round-trip:  ${fetchTime.toFixed(1)} ms`);
-      console.log(`  (Backend total:  ${backendEndpoint.toFixed(1)} ms)`);
-      console.log(`  (Network + JSON: ${networkOverhead.toFixed(1)} ms)`);
-      console.log(`State + render:    ${renderTime.toFixed(1)} ms`);
-      console.log(`TOTAL:             ${totalRoundTrip.toFixed(1)} ms`);
-      if (data.timings) {
-        console.log('Backend breakdown:', data.timings);
-      }
 
       // If new settings arrived during processing, run them now
       if (pendingRef.current) {

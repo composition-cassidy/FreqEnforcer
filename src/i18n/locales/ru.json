@@ -2,129 +2,61 @@
   "app": {
     "title": "FreqEnforcer"
   },
-  "ui": {
-    "menu": {
-      "file": "Файл",
-      "options": "Настройки",
-      "language": "Язык",
-      "file_new_sample": "Новый сэмпл",
-      "file_refresh_sample": "Обновить сэмпл",
-      "file_quit": "Выход"
-    },
-    "language": {
-      "en": "Английский",
-      "es": "Испанский",
-      "pt_BR": "Португальский (Бразилия)",
-      "ja": "Японский",
-      "ru": "Русский"
-    },
-    "title": {
-      "debug": "Отладка",
-      "select_audio_file": "Выбрать аудиофайл"
-    },
-    "placeholder": {
-      "debug_notes": "Введите заметки/комментарии здесь. Нажмите Сохранить для записи на диск."
-    },
-    "button": {
-      "save": "Сохранить"
-    },
-    "filter": {
-      "audio_files": "Аудиофайлы (*.wav *.mp3 *.flac *.ogg);;Все файлы (*)"
-    }
+  "menu": {
+    "main": "Главное меню",
+    "file": "Файл",
+    "export": "Экспорт",
+    "options": "Параметры",
+    "open": "Открыть…",
+    "reload": "Перезагрузить сэмпл",
+    "close_sample": "Закрыть сэмпл",
+    "quit": "Выход",
+    "export_wav": "Экспорт WAV…",
+    "quick_export": "Быстрый экспорт рядом с исходником",
+    "multisample": "Мультисэмпл / SFZ…",
+    "preferences": "Настройки"
   },
-  "main": {
-    "input_file": "ВХОДНОЙ ФАЙЛ:",
-    "input_placeholder": "/путь/к/аудио/файлу.wav",
-    "button": {
-      "browse": "Обзор",
-      "show_processed": "Показать обработанное",
-      "show_original": "Показать оригинал",
-      "play": "Воспроизвести",
-      "stop": "Стоп"
-    },
-    "waveform": {
-      "original": "Оригинал",
-      "processed": "Обработано"
-    },
-    "dialog": {
-      "error": "Ошибка",
-      "loading_title": "Загрузка",
-      "loading_label": "Загрузка аудио...",
-      "rendering_waveform": "Отрисовка волновой формы...",
-      "load_failed_fmt": "Не удалось загрузить аудиофайл:\\n{error}"
-    }
+  "window": {
+    "minimize": "Свернуть",
+    "maximize": "Развернуть",
+    "restore": "Восстановить",
+    "close": "Закрыть"
   },
-  "progress": {
-    "autotuning": "Автотюнинг...",
-    "stretching_fmt": "Растяжение... ({method}, x{factor:.2f})",
-    "lowcut_fmt": "Удаление саба (срез низких {hz:.0f} Гц)...",
-    "cleanliness_fmt": "Применение {pct:.0f}% чистоты...",
-    "highshelf_fmt": "Очистка высоких (полка {db:.1f} дБ @ {hz:.0f} Гц)...",
-    "breathiness": "Применение дыхательности...",
-    "harmonic_limiting": "Применение гармонического лимитера...",
-    "normalizing": "Нормализация...",
-    "processing": "Обработка...",
-    "preparing_audio_engine": "Подготовка аудиодвижка...",
-    "preparing_pitch_detector": "Подготовка быстрого детектора питча...",
-    "reading_file": "Чтение файла...",
-    "detecting_pitch": "Определение питча...",
-    "finalizing": "Завершение..."
+  "status": {
+    "processing": "Обработка",
+    "loading": "Загрузка…"
+  },
+  "header": {
+    "open": "Открыть…",
+    "no_sample": "Сэмпл не загружен",
+    "mono": "моно",
+    "detected": "Определено",
+    "cents": "Центы",
+    "frequency": "Частота",
+    "confidence": "Уверенность"
+  },
+  "view": {
+    "original": "Оригинал",
+    "corrected": "Исправленный",
+    "original_pitch": "исходная высота",
+    "corrected_pitch": "исправленная высота",
+    "loop": "Петля",
+    "zoom_in": "Приблизить (уже диапазон высоты)",
+    "zoom_out": "Отдалить (шире диапазон высоты)",
+    "aria": "Волновая форма с кривыми высоты, цель {{target}}. Перетащите линию цели, чтобы сменить ноту; щёлкните для перемотки.",
+    "drop_hint": "Перетащите сэмпл сюда",
+    "open_hint": "или",
+    "formats": "WAV, MP3, FLAC, OGG, AIFF",
+    "drop_now": "Отпустите для загрузки"
+  },
+  "harm": {
+    "title": "Потолки гармоник",
+    "hint": "Потолки гармоник · тяните узел вниз · двойной щелчок сбрасывает",
+    "reset_all": "Сбросить все",
+    "empty": "Обработайте сэмпл, чтобы увидеть гармоники"
   },
   "settings": {
-    "tabs": {
-      "settings": "Настройки",
-      "themes": "Темы"
-    },
-    "themes": {
-      "description": "Настройте цвета приложения.",
-      "open_editor": "Открыть редактор тем"
-    },
-    "group": {
-      "target_note": "Целевая нота",
-      "processing": "Обработка",
-      "cleanliness": "Чистота",
-      "detected_pitch": "Обнаруженный питч"
-    },
-    "label": {
-      "note": "Нота:",
-      "octave": "Октава:",
-      "pitch_mode": "Режим питча:",
-      "correction_amount": "Степень коррекции:",
-      "retune_speed": "Скорость коррекции:",
-      "preserve_vibrato": "Сохранить вибрато:",
-      "formant_shift": "Сдвиг формант:",
-      "stretching_method": "Метод растяжения:",
-      "stretch_factor": "Коэффициент растяжения:",
-      "manual": "Вручную:",
-      "breathiness": "Дыхательность:",
-      "hf_bias": "HF-смещение:",
-      "amount": "Количество:",
-      "low_cut": "Срез низких:",
-      "high_shelf": "High Shelf:",
-      "shelf_freq": "Shelf Freq:"
-    },
-    "target_fmt": "Цель: {note}{octave} ({freq:.2f} Гц)",
-    "checkbox": {
-      "normalize": "Нормализовать до 0дБ",
-      "preserve_formants": "Сохранить форманты",
-      "advanced_mode": "Расширенный режим"
-    },
-    "warning": {
-      "robotic": "Высокие значения = роботизированный звук"
-    },
-    "lowcut": {
-      "off": "Выкл"
-    },
-    "detected": {
-      "no_audio_loaded": "Аудио не загружено",
-      "no_pitch": "Питч не обнаружен",
-      "pitch_fmt": "{note} ({freq:.1f} Гц, {cents} цт)"
-    },
-    "button": {
-      "export_wav": "Экспорт WAV",
-      "quick_export": "Быстрый экспорт",
-      "multi_sample_export": "Мульти-сэмпл экспорт"
-    },
+    "title": "Настройки",
     "pitch_mode": {
       "praat_soft": {
         "label": "PSOLA (Praat) мягкий",
@@ -187,193 +119,177 @@
         "label": "TD-PSOLA",
         "info": "Резервный метод растяжения без audiotsm/rubberband (может быть медленнее)."
       }
-    },
-    "stretch": {
-      "confirm": {
-        "title": "Предупреждение",
-        "text": "Превышение x2 может вызвать много артефактов и сделать сэмпл ненатуральным.",
-        "info_fmt": "Запрошено: {factor:.2f}x",
-        "yes": "ещё бы!",
-        "no": "да ну нафиг!!"
-      }
     }
   },
-  "theme": {
-    "title": "Редактор тем",
-    "info": "Редактируйте цвета темы в hex (#RRGGBB).",
-    "preset": "Пресет:",
-    "name": "Название:",
-    "name_placeholder": "Название темы",
-    "button": {
-      "load": "Загрузить",
-      "import": "Импорт",
-      "export": "Экспорт",
-      "save": "Сохранить",
-      "apply": "Применить",
-      "close": "Закрыть",
-      "pick": "Выбрать"
-    },
-    "pick_color_title_fmt": "Выбрать цвет {key}",
-    "color": {
-      "bg": "Фон",
-      "panel": "Панель",
-      "primary": "Основной",
-      "accent": "Акцент",
-      "highlight": "Подсветка",
-      "success": "Успех",
-      "text": "Текст"
-    }
+  "target": {
+    "title": "Цель",
+    "octave": "Октава",
+    "octave_down": "Октава ниже",
+    "octave_up": "Октава выше",
+    "hint": "Ctrl+↑/↓ полутон · Ctrl+Shift+↑/↓ октава · тяните линию цели на волновой форме"
   },
-  "waveform": {
-    "axis": {
-      "time": "Время",
-      "midi_note": "MIDI-нота"
-    }
+  "mode": {
+    "title": "Режим",
+    "amount": "Степень",
+    "retune_speed": "Скорость подстройки",
+    "keep_vibrato": "Сохранять вибрато",
+    "formant_shift": "Сдвиг формант",
+    "vocal_tract": "Модель голосового тракта",
+    "normalize": "Нормализовать до −0,1 dBFS"
   },
-  "harmonic": {
-    "title": "Гармонический лимитер",
-    "button": {
-      "reset_all": "Сбросить все"
-    },
-    "enabled": "Включено",
-    "amount": "Компрессия",
-    "axis": {
-      "db": "дБ",
-      "freq": "Частота"
-    },
-    "meta_fmt": "{note} - обнаружено гармоник: {count}"
+  "voicing": {
+    "title": "Вокализация",
+    "strict": "Строго",
+    "force": "Принудительно",
+    "dilate": "Расширить",
+    "default": "по умолчанию: {{mode}}",
+    "world_only": "Только WORLD",
+    "help": "«Принудительно» делает все кадры вокализованными; «Строго» оставляет невокализованные кадры; «Расширить» увеличивает вокализованные участки на 3 кадра. Только режимы WORLD."
   },
-  "preferences": {
+  "stretch": {
+    "title": "Растяжение",
+    "method": "Метод растяжения",
+    "factor": "Коэффициент",
+    "warn_over_2": "Выше 2× появятся артефакты; сэмпл может звучать неестественно."
+  },
+  "advanced": {
+    "title": "Дополнительно",
+    "active": "активно: {{count}}",
+    "cleanliness": "Чистота",
+    "amount": "Степень",
+    "low_cut": "Срез низа",
+    "hf_rollback": "Спад ВЧ",
+    "breath": "Дыхание",
+    "breathiness": "Придыхание",
+    "hf_bias": "Смещение ВЧ",
+    "limiter": "Гармонический лимитер",
+    "enable": "Включить",
+    "limiter_help": "Открывает редактор потолков под волновой формой.",
+    "compression": "Компрессия",
+    "loop": "Петля с кроссфейдом",
+    "template": "Шаблон",
+    "min_loop": "Мин. петля",
+    "crossfade": "Кроссфейд",
+    "no_loop": "точек петли нет",
+    "find_loop": "Найти петлю"
+  },
+  "controls": {
+    "reset_hint": "Двойной щелчок по любому элементу сбрасывает его. ● отмечает значение, отличное от стандартного."
+  },
+  "footer": {
+    "play": "Воспроизвести",
+    "stop": "Стоп",
+    "ab": "A/B: оригинал / исправленный",
+    "a": "A · Оригинал",
+    "b": "B · Исправленный",
+    "peak": "пик",
+    "rms": "rms",
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "multisample": "Мультисэмпл…",
+    "quick_export": "Быстрый экспорт",
+    "export_wav": "Экспорт WAV"
+  },
+  "ms": {
+    "title": "Мультисэмпл / SFZ",
+    "back": "Назад к настройкам",
+    "range": "Диапазон",
+    "low": "Нижняя",
+    "high": "Верхняя",
+    "source": "Источник {{note}} · нот: {{count}}",
+    "invalid_range": "Нижняя нота не может быть выше верхней",
+    "per_note": "Для каждой ноты",
+    "loop": "Петля с кроссфейдом",
+    "loop_help": "Использует настройки петли из раздела «Дополнительно».",
+    "start_trim": "Обрезка начала",
+    "trim": "Обрезка",
+    "sfz": "Записать инструмент .sfz (DirectWave)",
+    "output": "Вывод",
+    "output_auto": "Папка рядом с исходником (автоматически)",
+    "output_help": "Один WAV на ноту, с корневой нотой и точками петли.",
+    "change_folder": "Изменить…",
+    "progress": "Прогресс",
+    "rendering": "Рендеринг {{note}} · {{done}} / {{total}}",
+    "complete": "Нот отрендерено: {{count}}, папка {{dir}}",
+    "error": "Ошибка: {{error}}",
+    "cancelled": "Отменено",
+    "cancel": "Отмена",
+    "close": "Закрыть",
+    "render": "Рендер",
+    "rendering_btn": "Рендеринг…"
+  },
+  "prefs": {
     "title": "Настройки",
-    "section": {
-      "general": "Основные",
-      "display": "Отображение"
-    },
-    "tabs": {
-      "preferences": "Настройки",
-      "theme": "Тема"
-    },
-    "show_loading_dialog": {
-      "label": "Показывать диалог загрузки",
-      "desc": "Показывать оверлей при загрузке и обработке аудио"
-    },
-    "performance_mode": {
-      "label": "Режим производительности",
-      "desc": "Увеличивает задержку дебаунса и снижает детализацию осциллограммы"
-    },
-    "warmup_enabled": {
-      "label": "Прогрев аудиодвигателя при запуске",
-      "desc": "Предварительная инициализация бэкенда для ускорения первой обработки"
-    },
-    "note_notation": {
-      "label": "Нотация нот",
-      "desc": "Отображать знаки как диезы (C#) или бемоли (Db)",
-      "sharps": "Диезы",
-      "flats": "Бемоли"
-    }
+    "general": "Общие",
+    "theme": "Тема",
+    "theme_help": "Одна тёмная и одна светлая тема.",
+    "dark": "Тёмная",
+    "light": "Светлая",
+    "language": "Язык",
+    "language_help": "Язык интерфейса.",
+    "notation": "Названия нот",
+    "notation_help": "Диезы или бемоли везде.",
+    "performance": "Режим производительности",
+    "performance_help": "Большая задержка перед повторной обработкой.",
+    "warmup": "Прогревать движок при запуске",
+    "warmup_help": "Предварительно инициализирует DSP, чтобы первая обработка была быстрее.",
+    "on": "Вкл",
+    "off": "Выкл",
+    "shortcuts": "Горячие клавиши"
   },
-  "electron": {
-    "titlebar": {
-      "no_sample": "Сэмпл не загружен",
-      "processing": "Обработка",
-      "toggle_ab": "Переключение A/B: Оригинал / Обработано",
-      "minimize": "Свернуть",
-      "maximize": "Развернуть",
-      "restore": "Восстановить",
-      "close": "Закрыть",
-      "preferences": "Настройки..."
-    },
-    "filebar": {
-      "input_label": "Входной файл:",
-      "placeholder": "Файл не загружен — выберите или перетащите аудиофайл сюда",
-      "browse": "Обзор…",
-      "loading": "Загрузка…"
-    },
-    "waveform": {
-      "no_audio": "Аудио не загружено",
-      "processing": "Обработка…",
-      "drop_hint": "Перетащите аудиофайл или нажмите Файл → Новый сэмпл"
-    },
-    "harmonic": {
-      "empty": "Загрузите сэмпл и обработайте для просмотра гармоник",
-      "disabled": "ВЫКЛ",
-      "reset": "СБРОС",
-      "frequency_hz": "ЧАСТОТА (Гц)",
-      "level_db": "УРОВЕНЬ (дБ)"
-    },
-    "toast": {
-      "load_failed": "Не удалось загрузить аудио",
-      "processing_failed": "Ошибка обработки",
-      "export_complete": "Экспорт завершён",
-      "file_not_found": "Файл не найден",
-      "backend_not_running": "Бэкенд не запущен — запустите Python-сервер на порту 8765.",
-      "still_loading": "Всё ещё загружается… (большой файл?)",
-      "dismiss": "Закрыть",
-      "loaded": "Загружен: {{name}}",
-      "theme_applied": "Тема применена.",
-      "theme_saved": "Тема «{{name}}» сохранена.",
-      "theme_load_failed": "Не удалось загрузить тему.",
-      "theme_save_failed": "Не удалось сохранить тему.",
-      "theme_file_load_failed": "Не удалось загрузить файл темы.",
-      "theme_file_save_failed": "Не удалось сохранить файл темы."
-    },
-    "settings": {
-      "normalize": "Нормализовать до 0 дБ",
-      "vocal_tract_model": "Модель голосового тракта",
-      "harmonic_amount": "Гармоническое количество",
-      "limiter": "Лимитер",
-      "high_shelf_gain": "High Shelf усиление",
-      "high_shelf_freq": "High Shelf частота",
-      "advanced_warning": "Расширенные настройки могут ухудшить качество звука",
-      "target": "Цель:",
-      "detected": "Обнаружено:",
-      "on": "ВКЛ",
-      "off": "ВЫКЛ"
-    },
-    "theme": {
-      "simple": "Простой",
-      "advanced": "Расширенный",
-      "my_custom_theme": "Моя тема",
-      "open_themes_folder": "Открыть папку тем",
-      "folder": "Папка",
-      "hue": "Оттенок",
-      "saturation": "Насыщенность",
-      "brightness": "Яркость",
-      "group_backgrounds": "ФОНЫ",
-      "group_borders": "ГРАНИЦЫ",
-      "group_text": "ТЕКСТ",
-      "group_accent": "АКЦЕНТ",
-      "group_waveform": "ВОЛНОВАЯ ФОРМА",
-      "group_harmonic": "ГАРМОНИКИ",
-      "group_semantic": "СЕМАНТИКА",
-      "var_app_background": "Фон приложения",
-      "var_title_bar": "Заголовок окна",
-      "var_panel_surfaces": "Поверхности панелей",
-      "var_panel_hover": "Панель при наведении",
-      "var_panel_light": "Панель светлая",
-      "var_default_border": "Стандартная граница",
-      "var_emphasis_border": "Акцентная граница",
-      "var_primary_text": "Основной текст",
-      "var_secondary_text": "Второстепенный текст",
-      "var_dimmed_text": "Приглушённый текст",
-      "var_bright_text": "Яркий текст",
-      "var_accent": "Акцент",
-      "var_accent_hover": "Акцент при наведении",
-      "var_white_key_lane": "Дорожка белой клавиши",
-      "var_black_key_lane": "Дорожка чёрной клавиши",
-      "var_grid_lines": "Линии сетки",
-      "var_note_labels": "Подписи нот",
-      "var_bg_white_note": "Фон белой ноты",
-      "var_bg_black_note": "Фон чёрной ноты",
-      "var_bg_grid_line": "Фон линии сетки",
-      "var_node_gradient_start": "Начало градиента узла",
-      "var_node_gradient_end": "Конец градиента узла",
-      "var_harmonic_grid_lines": "Линии сетки",
-      "var_modified_node": "Изменённый узел",
-      "var_success_ok": "Успех / ОК",
-      "var_error_close": "Ошибка / Закрыть",
-      "var_warning": "Предупреждение",
-      "var_primary_action": "Основное действие"
-    }
+  "shortcuts": {
+    "play": "Воспроизведение / стоп",
+    "ab": "Переключить A/B",
+    "export": "Экспорт WAV",
+    "quick_export": "Быстрый экспорт",
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "mode": "Режим высоты",
+    "semitone": "Цель ± полутон",
+    "octave": "Цель ± октава",
+    "open": "Открыть сэмпл",
+    "multisample": "Мультисэмпл",
+    "preferences": "Настройки"
+  },
+  "toast": {
+    "dismiss": "Закрыть",
+    "loaded": "Загружено: {{name}}",
+    "still_loading": "Всё ещё загружается… (большой файл?)",
+    "backend_not_running": "Движок не запущен. Перезапустите приложение.",
+    "load_failed": "Не удалось загрузить аудио",
+    "unsupported_format": "Неподдерживаемый аудиоформат",
+    "file_too_large": "Файл слишком большой (макс. 100 МБ)",
+    "decode_failed": "Не удалось декодировать аудиофайл",
+    "out_of_memory": "Недостаточно памяти. Попробуйте более короткий сэмпл.",
+    "processing_timeout": "Время обработки истекло. Попробуйте более короткий сэмпл.",
+    "processing_failed": "Ошибка обработки",
+    "backend_reconnecting": "Соединение с движком потеряно. Переподключение…",
+    "backend_reconnected": "Движок снова на связи",
+    "wait_processing": "Дождитесь окончания обработки перед экспортом",
+    "exported": "Экспортировано в {{path}}",
+    "export_failed": "Ошибка экспорта",
+    "export_permission": "Невозможно записать сюда. Выберите другую папку.",
+    "export_disk_full": "Диск заполнен. Экспорт невозможен.",
+    "export_path_too_long": "Путь слишком длинный (макс. 260 символов)",
+    "file_exists": "{{name}} уже существует. Перезаписать?",
+    "overwrite": "Перезаписать",
+    "loop_none": "Подходящий участок для петли не найден",
+    "loop_set": "Точки петли: {{start}} – {{end}} с",
+    "loop_failed": "Ошибка петли"
+  },
+  "backend": {
+    "checking": "Запуск аудиодвижка…",
+    "failed": "Не удалось запустить аудиодвижок.",
+    "retry": "Повторить"
+  },
+  "error": {
+    "component_failed": "{{name}} не удалось отобразить. Перезапустите приложение."
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "pt_BR": "Português (Brasil)",
+    "ja": "日本語",
+    "ru": "Русский"
   }
 }
