@@ -5,6 +5,12 @@ const API_BASE = 'http://localhost:8765';
 // -- Settings to backend parameter mapping --
 // Formulas verified against PyQt6 SettingsPanel.get_settings()
 
+// Ensure a value is a finite number, falling back to a default.
+function safeNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function settingsToBackend(settings) {
   // Harmonic compression amount (0-100 UI) maps to:
   //   Amount 0%   -> Knee 12 dB (soft), Release 200 ms (slow) -- gentlest
@@ -18,24 +24,28 @@ export function settingsToBackend(settings) {
     Object.entries(settings.harmonic_ceiling_offsets_db ?? {}).map(([k, v]) => [String(k), Number(v)])
   );
 
+  // formant_shift_cents must be an integer for the backend's Pydantic model;
+  // the slider emits continuous floats, so round here.
+  const formantCents = Math.round(safeNum(settings.formant_shift_cents, 0));
+
   return {
-    target_note:              `${settings.targetNote}${settings.octave}`,
-    pitch_mode:               settings.pitch_mode,
-    pitch_amount:             settings.pitch_amount,
-    retune_speed_ms:          settings.retune_speed_ms,
-    preserve_vibrato:         settings.preserve_vibrato,
-    preserve_formants:        settings.formant_shift_cents === 0,
-    normalize:                settings.normalize,
-    formant_shift_cents:      settings.formant_shift_cents,
-    formant_shift_beta:       settings.formant_shift_beta,
-    stretch_method:           settings.stretch_method,
-    stretch_factor:           settings.stretch_factor,
-    cleanliness_percent:      settings.cleanliness_percent,
-    clean_lowcut_percent:     settings.clean_lowcut_percent,
-    clean_hf_rollback_percent: settings.clean_hf_rollback_percent,
-    breathiness:              settings.breathiness,
-    hf_bias:                  settings.hf_bias,
-    harmonic_limiter_enabled: settings.harmonic_limiter_enabled,
+    target_note:              `${settings.targetNote ?? 'C'}${settings.octave ?? 4}`,
+    pitch_mode:               settings.pitch_mode     ?? 'world_hard',
+    pitch_amount:             safeNum(settings.pitch_amount, 1.0),
+    retune_speed_ms:          safeNum(settings.retune_speed_ms, 40),
+    preserve_vibrato:         safeNum(settings.preserve_vibrato, 1.0),
+    preserve_formants:        formantCents === 0,
+    normalize:                !!settings.normalize,
+    formant_shift_cents:      formantCents,
+    formant_shift_beta:       safeNum(settings.formant_shift_beta, 0.1),
+    stretch_method:           settings.stretch_method  ?? 'audiotsm_wsola',
+    stretch_factor:           safeNum(settings.stretch_factor, 1.0),
+    cleanliness_percent:      safeNum(settings.cleanliness_percent, 0),
+    clean_lowcut_percent:     safeNum(settings.clean_lowcut_percent, 0),
+    clean_hf_rollback_percent: safeNum(settings.clean_hf_rollback_percent, 0),
+    breathiness:              safeNum(settings.breathiness, 1.0),
+    hf_bias:                  safeNum(settings.hf_bias, 0),
+    harmonic_limiter_enabled: !!settings.harmonic_limiter_enabled,
     harmonic_knee_db:         knee_db,
     harmonic_release_ms:      release_ms,
     harmonic_ceiling_offsets_db: ceilingOffsets,
@@ -113,13 +123,20 @@ export function useProcessing({ onStart, onProgress, onComplete, onError }) {
     }
 
     // Send the processing request with a 60-second timeout
+    const roundTripStart = performance.now();
+
+    const prepStart = performance.now();
+    const backendSettings = settingsToBackend(settings);
+    const prepTime = performance.now() - prepStart;
+
     const fetchCtrl = new AbortController();
     const fetchTimeout = setTimeout(() => fetchCtrl.abort(), 60000);
     try {
+      const fetchStart = performance.now();
       const res = await fetch(`${API_BASE}/api/process`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(settingsToBackend(settings)),
+        body:    JSON.stringify(backendSettings),
         signal:  fetchCtrl.signal,
       });
       clearTimeout(fetchTimeout);
@@ -153,13 +170,47 @@ export function useProcessing({ onStart, onProgress, onComplete, onError }) {
           return;
         }
         let detail = res.statusText;
-        try { detail = (await res.json()).detail ?? detail; } catch (_) {}
+        try {
+          const body = await res.json();
+          const d = body.detail;
+          // Pydantic 422 returns detail as an array of error objects;
+          // flatten them into a readable string.
+          if (Array.isArray(d)) {
+            detail = d.map((e) => {
+              const loc = (e.loc || []).slice(1).join(' → ');
+              return loc ? `${loc}: ${e.msg}` : (e.msg || String(e));
+            }).join('; ');
+          } else if (typeof d === 'string') {
+            detail = d;
+          } else if (d != null) {
+            detail = JSON.stringify(d);
+          }
+        } catch (_) {}
         throw new Error(detail);
       }
 
       const data = await res.json();
+      const fetchTime = performance.now() - fetchStart;
+
+      const renderStart = performance.now();
       inFlightRef.current = false;
       onCompleteRef.current?.(data);
+      const renderTime = performance.now() - renderStart;
+
+      const totalRoundTrip = performance.now() - roundTripStart;
+      const backendEndpoint = data.timings?.total_endpoint || 0;
+      const networkOverhead = fetchTime - backendEndpoint;
+
+      console.log('%c=== PROCESSING PERFORMANCE REPORT ===', 'color: #33CED6; font-weight: bold');
+      console.log(`Settings prep:     ${prepTime.toFixed(1)} ms`);
+      console.log(`Fetch round-trip:  ${fetchTime.toFixed(1)} ms`);
+      console.log(`  (Backend total:  ${backendEndpoint.toFixed(1)} ms)`);
+      console.log(`  (Network + JSON: ${networkOverhead.toFixed(1)} ms)`);
+      console.log(`State + render:    ${renderTime.toFixed(1)} ms`);
+      console.log(`TOTAL:             ${totalRoundTrip.toFixed(1)} ms`);
+      if (data.timings) {
+        console.log('Backend breakdown:', data.timings);
+      }
 
       // If new settings arrived during processing, run them now
       if (pendingRef.current) {

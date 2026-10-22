@@ -42,6 +42,11 @@ export default function FileBar({ filePath, onFileLoad, loading = false }) {
     }
   }
 
+  function handleDragEnter(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
   function handleDragOver(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
@@ -57,12 +62,16 @@ export default function FileBar({ filePath, onFileLoad, loading = false }) {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) onFileLoad(file.path ?? file.name);
+    if (!file) return;
+    // File.path is stripped by contextIsolation; the preload captures it.
+    const realPath = window.electronAPI?.getLastDroppedFilePath?.();
+    onFileLoad(realPath || file);
   }
 
   return (
     <div
       className={`file-bar${dragging ? ' file-bar--drag' : ''}${loading ? ' file-bar--loading' : ''}`}
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -75,7 +84,6 @@ export default function FileBar({ filePath, onFileLoad, loading = false }) {
         <input
           className="file-bar-path"
           readOnly
-          dir="rtl"
           value={filePath ?? ''}
           placeholder={t('electron.filebar.placeholder')}
           title={filePath ?? ''}

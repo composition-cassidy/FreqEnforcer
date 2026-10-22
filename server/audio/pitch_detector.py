@@ -27,7 +27,7 @@ except ImportError:
 
 
 def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict:
-    import librosa
+    from server.audio.pitch_yin import pyin, yin
 
     audio_arr = np.asarray(audio, dtype=np.float32)
 
@@ -47,25 +47,28 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict
             "voiced_ratio": 0.0,
         }
 
+    hop_length = 512
+
     if bool(fast):
-        f0 = librosa.yin(
+        f0 = yin(
             audio_arr,
+            sr,
             fmin=50.0,
             fmax=500.0,
-            sr=sr,
             frame_length=2048,
+            hop_length=hop_length,
         )
-        times = librosa.times_like(f0, sr=sr)
+        times = np.arange(len(f0), dtype=np.float32) * hop_length / sr
 
         f0_arr = np.asarray(f0, dtype=np.float32)
-        times_arr = np.asarray(times, dtype=np.float32)
+        times_arr = times
 
-        voiced_mask = np.isfinite(f0_arr)
+        voiced_mask = np.isfinite(f0_arr) & (f0_arr > 0)
         voiced_ratio = float(np.sum(voiced_mask)) / float(f0_arr.size) if f0_arr.size else 0.0
 
         if np.any(voiced_mask):
-            median_f0 = float(np.nanmedian(f0_arr))
-            mean_f0 = float(np.nanmean(f0_arr))
+            median_f0 = float(np.nanmedian(f0_arr[voiced_mask]))
+            mean_f0 = float(np.nanmean(f0_arr[voiced_mask]))
         else:
             median_f0 = None
             mean_f0 = None
@@ -78,18 +81,19 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict
             "voiced_ratio": voiced_ratio,
         }
 
-    f0, voiced_flag, voiced_probs = librosa.pyin(
+    f0, voiced_flag, voiced_probs = pyin(
         audio_arr,
+        sr,
         fmin=50.0,
         fmax=500.0,
-        sr=sr,
         frame_length=2048,
+        hop_length=hop_length,
     )
 
-    times = librosa.times_like(f0, sr=sr)
+    times = np.arange(len(f0), dtype=np.float32) * hop_length / sr
 
     f0_arr = np.asarray(f0, dtype=np.float32)
-    times_arr = np.asarray(times, dtype=np.float32)
+    times_arr = times
 
     voiced_mask = np.isfinite(f0_arr)
 

@@ -200,7 +200,14 @@ export default function MultiSampleDialog({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || `HTTP ${res.status}`);
+        let detail = err.detail;
+        if (Array.isArray(detail)) {
+          detail = detail.map((e) => {
+            const loc = (e.loc || []).slice(1).join(' → ');
+            return loc ? `${loc}: ${e.msg}` : (e.msg || String(e));
+          }).join('; ');
+        }
+        throw new Error(detail || `HTTP ${res.status}`);
       }
 
       const reader = res.body.getReader();

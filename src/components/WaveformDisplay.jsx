@@ -223,6 +223,7 @@ export default function WaveformDisplay({
 
   // ── Main draw function ─────────────────────────────────────────────────
   drawRef.current = (overrideMidi = null) => {
+    const _drawStart = performance.now();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
@@ -488,6 +489,12 @@ export default function WaveformDisplay({
       ctx.lineTo(cursorX, H);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // ── Performance timing (only log if > 5ms) ───
+    const _drawTime = performance.now() - _drawStart;
+    if (_drawTime > 5) {
+      console.log(`[WaveformDisplay] draw: ${_drawTime.toFixed(1)} ms`);
     }
   };
 

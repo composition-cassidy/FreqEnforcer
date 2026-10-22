@@ -107,6 +107,7 @@ export function useAudioPlayer() {
    * and store in the appropriate ref.
    */
   const fetchAndStore = useCallback(async (which) => {
+    const fetchStart = performance.now();
     const res = await fetch(`${API_BASE}/api/get-audio`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -120,17 +121,25 @@ export function useAudioPlayer() {
     }
 
     const { audio_base64 } = await res.json();
+    const fetchTime = performance.now() - fetchStart;
     if (!audio_base64) {
       throw new Error(`get-audio (${which}): no audio_base64 in response`);
     }
 
     // Base64 → Uint8Array → Blob → URL
+    const decodeStart = performance.now();
     const binary = atob(audio_base64);
     const bytes  = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
     const blob = new Blob([bytes], { type: 'audio/wav' });
     const url  = URL.createObjectURL(blob);
+    const decodeTime = performance.now() - decodeStart;
+
+    console.log(`%c=== AUDIO FETCH (${which}) ===`, 'color: #4EDE83; font-weight: bold');
+    console.log(`  Fetch + JSON:    ${fetchTime.toFixed(1)} ms`);
+    console.log(`  Base64 decode:   ${decodeTime.toFixed(1)} ms`);
+    console.log(`  TOTAL:           ${(performance.now() - fetchStart).toFixed(1)} ms`);
 
     // Store URL (revoke old one first)
     if (which === 'original') {
@@ -154,14 +163,36 @@ export function useAudioPlayer() {
   const loadOriginal  = useCallback(() => fetchAndStore('original'),  [fetchAndStore]);
   const loadProcessed = useCallback(() => fetchAndStore('processed'), [fetchAndStore]);
 
+  /** Load processed audio directly from a temp filename (skips base64). */
+  const loadProcessedFromFile = useCallback((filename) => {
+    const loadStart = performance.now();
+    const url = `${API_BASE}/api/audio-file/${filename}`;
+
+    revokeUrl(processedUrlRef);
+    processedUrlRef.current = url;
+
+    if (activeBufferRef.current === 'processed') {
+      const el = getAudioEl();
+      el.src = url;
+      el.load();
+    }
+
+    console.log(`%c=== AUDIO LOAD (direct file) ===`, 'color: #4EDE83; font-weight: bold');
+    console.log(`  URL set in: ${(performance.now() - loadStart).toFixed(1)} ms`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Start or resume playback. */
   const play = useCallback(() => {
+    const playStart = performance.now();
     const el = getAudioEl();
     const url = getActiveUrl();
     if (!url) return; // nothing loaded
 
+    const wasCached = el.src === url;
+
     // If src doesn't match the active URL, switch
-    if (el.src !== url) {
+    if (!wasCached) {
       const savedTime = el.currentTime || 0;
       el.src = url;
       el.load();
@@ -172,6 +203,10 @@ export function useAudioPlayer() {
       isPlayingRef.current = true;
       setIsPlaying(true);
       startRaf();
+      const totalPlay = performance.now() - playStart;
+      console.log(`%c=== PLAYBACK START ===`, 'color: #ffb340; font-weight: bold');
+      console.log(`  Cached: ${wasCached}`);
+      console.log(`  Time to play: ${totalPlay.toFixed(1)} ms`);
     }).catch((err) => {
       console.warn('useAudioPlayer: play() rejected:', err.message);
     });
@@ -281,6 +316,7 @@ export function useAudioPlayer() {
     reset,
     loadOriginal,
     loadProcessed,
+    loadProcessedFromFile,
     switchBuffer,
     isPlaying,
     playbackPosition,

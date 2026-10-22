@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs   = require('fs');
@@ -7,6 +8,74 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow = null;
 let splashWindow = null;
+let backendProcess = null;
+
+// ── Backend process management ───────────────────────────────────────────
+function getBackendConfig() {
+  if (isDev) {
+    return { exe: 'python', args: ['server/main.py'], cwd: path.join(__dirname, '..') };
+  }
+
+  // Production: find the PyInstaller bundle
+  const primary = path.join(process.resourcesPath, 'backend', 'freqenforcer-backend.exe');
+  if (fs.existsSync(primary)) {
+    return { exe: primary, args: [], cwd: path.dirname(primary) };
+  }
+
+  // Fallback locations
+  const alternatives = [
+    path.join(process.resourcesPath, 'freqenforcer-backend', 'freqenforcer-backend.exe'),
+    path.join(path.dirname(app.getPath('exe')), 'backend', 'freqenforcer-backend.exe'),
+    path.join(path.dirname(app.getPath('exe')), 'resources', 'backend', 'freqenforcer-backend.exe'),
+  ];
+  for (const alt of alternatives) {
+    if (fs.existsSync(alt)) {
+      console.log(`Backend found at fallback: ${alt}`);
+      return { exe: alt, args: [], cwd: path.dirname(alt) };
+    }
+  }
+
+  console.error(`Backend not found. Searched:\n  ${primary}\n  ${alternatives.join('\n  ')}`);
+  return null;
+}
+
+function startBackend() {
+  const config = getBackendConfig();
+  if (!config) {
+    dialog.showErrorBox('FreqEnforcer', 'Backend executable not found. Please reinstall the application.');
+    return;
+  }
+
+  backendProcess = spawn(config.exe, config.args, {
+    cwd: config.cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+
+  backendProcess.stdout.on('data', (data) => {
+    console.log(`[backend] ${data}`);
+  });
+
+  backendProcess.stderr.on('data', (data) => {
+    console.error(`[backend] ${data}`);
+  });
+
+  backendProcess.on('error', (err) => {
+    console.error('Failed to start backend:', err);
+  });
+
+  backendProcess.on('exit', (code) => {
+    console.log(`[backend] exited with code ${code}`);
+    backendProcess = null;
+  });
+}
+
+function stopBackend() {
+  if (backendProcess) {
+    backendProcess.kill();
+    backendProcess = null;
+  }
+}
 
 // ── User-data paths ────────────────────────────────────────────────────────
 // (resolved after app is ready)
@@ -97,6 +166,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false, // File.path requires sandbox off; contextIsolation still protects the renderer
     },
   });
 
@@ -113,6 +183,11 @@ function createWindow() {
 
   mainWindow.on('maximize',   () => { mainWindow.webContents.send('maximize-change', true);  });
   mainWindow.on('unmaximize', () => { mainWindow.webContents.send('maximize-change', false); });
+
+  // F12 opens DevTools in the packaged app for debugging
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') mainWindow.webContents.toggleDevTools();
+  });
 }
 
 // ── App ready ─────────────────────────────────────────────────────────────
@@ -293,21 +368,42 @@ app.whenReady().then(async () => {
     catch { return null; }
   });
 
-  // ── Show splash immediately, then wait for Vite (dev only) ──────────
+  // ── Show splash immediately ──────────────────────────────────────────
   createSplashWindow();
 
+  // Start the Python backend
+  startBackend();
+
+  // Wait for backend to be ready
+  try {
+    await pollFor('http://127.0.0.1:8765/health');
+  } catch (err) {
+    console.error('Backend failed to start:', err.message);
+    dialog.showErrorBox('FreqEnforcer', 'Backend failed to start. Please reinstall or contact support.');
+    if (splashWindow) splashWindow.close();
+    stopBackend();
+    app.quit();
+    return;
+  }
+
   if (isDev) {
+    // Also wait for Vite dev server
     try {
       await pollFor('http://localhost:5174');
     } catch (err) {
       console.error(err.message);
       if (splashWindow) splashWindow.close();
+      stopBackend();
       app.quit();
       return;
     }
   }
 
   createWindow();
+});
+
+app.on('will-quit', () => {
+  stopBackend();
 });
 
 app.on('window-all-closed', () => { app.quit(); });

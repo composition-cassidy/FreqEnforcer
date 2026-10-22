@@ -1,6 +1,23 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+// Electron 29+ removed File.path.  The replacement is webUtils.getPathForFile()
+// which works in the preload context where the File object keeps its native ref.
+let _lastDroppedPath = null;
+document.addEventListener('drop', (e) => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file) {
+    try {
+      _lastDroppedPath = webUtils.getPathForFile(file);
+    } catch (_) {
+      _lastDroppedPath = null;
+    }
+  } else {
+    _lastDroppedPath = null;
+  }
+}, true);  // capture phase — fires before renderer handlers
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getLastDroppedFilePath: () => _lastDroppedPath,
   // ── Window controls ──────────────────────────────────────────────────
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),

@@ -75,8 +75,9 @@ def apply_cleanliness(
     n_harmonics: int = 30,
     preserve_unvoiced: bool = True,
     hf_rollback_percent: float = 0.0,
+    cached_f0: np.ndarray = None,
+    cached_voiced: np.ndarray = None,
 ) -> np.ndarray:
-    import librosa
     from scipy.ndimage import gaussian_filter1d
 
     """
@@ -125,19 +126,53 @@ def apply_cleanliness(
     n_fft = 2048
     hop_length = 512
 
-    S = librosa.stft(audio_arr.astype(np.float32, copy=False), n_fft=n_fft, hop_length=hop_length)
+    from scipy.signal import stft as scipy_stft, istft as scipy_istft
+
+    # Pre-pad by n_fft zeros so the last real samples are always covered by a
+    # full STFT window. Without this, padded=False drops the final partial
+    # window and the ISTFT output is short, forcing zero-padding that creates
+    # an abrupt click at the end of sustained notes.
+    audio_padded = np.pad(audio_arr.astype(np.float32, copy=False), (0, n_fft))
+    _f, _t, S = scipy_stft(audio_padded,
+                            fs=sr, nperseg=n_fft, noverlap=n_fft - hop_length,
+                            boundary=None, padded=False)
     magnitude = np.abs(S)
     phase = np.angle(S)
 
-    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    freqs = _f
 
-    f0, voiced_flag, _voiced_prob = librosa.pyin(
-        audio_arr.astype(np.float32, copy=False),
-        fmin=f0_floor,
-        fmax=f0_ceil,
-        sr=sr,
-        hop_length=hop_length,
-    )
+    if cached_f0 is not None:
+        # Use cached f0 from WORLD analysis — resample to STFT frame rate
+        n_frames = S.shape[1]
+        stft_hop_s = float(hop_length) / float(sr)
+        stft_times = np.arange(n_frames) * stft_hop_s
+
+        cached_hop_s = stft_times[-1] / max(1, len(cached_f0) - 1) if len(cached_f0) > 1 else stft_hop_s
+        cached_times = np.arange(len(cached_f0)) * cached_hop_s
+
+        from scipy.interpolate import interp1d
+        f0_interp = interp1d(cached_times, cached_f0, kind='nearest',
+                             fill_value='extrapolate', bounds_error=False)
+        f0 = f0_interp(stft_times)
+        f0 = np.where(np.isfinite(f0) & (f0 > 0), f0, 0.0)
+
+        if cached_voiced is not None:
+            voiced_interp = interp1d(cached_times[:len(cached_voiced)],
+                                     cached_voiced.astype(np.float64),
+                                     kind='nearest', fill_value=0, bounds_error=False)
+            voiced_flag = voiced_interp(stft_times) > 0.5
+        else:
+            voiced_flag = f0 > 0
+    else:
+        from server.audio.pitch_yin import pyin
+        f0, voiced_flag, _voiced_prob = pyin(
+            audio_arr.astype(np.float32, copy=False),
+            sr,
+            fmin=f0_floor,
+            fmax=f0_ceil,
+            frame_length=n_fft,
+            hop_length=hop_length,
+        )
 
     if f0 is None or len(f0) == 0:
         return audio_arr
@@ -199,7 +234,15 @@ def apply_cleanliness(
 
     S_filtered = filtered_magnitude * np.exp(1j * phase)
 
-    output = librosa.istft(S_filtered, hop_length=hop_length, length=int(audio_arr.shape[0]))
+    _, output = scipy_istft(S_filtered, fs=sr, nperseg=n_fft,
+                            noverlap=n_fft - hop_length, boundary=False)
+
+    # Trim or pad to match input length
+    target_len = int(audio_arr.shape[0])
+    if len(output) > target_len:
+        output = output[:target_len]
+    elif len(output) < target_len:
+        output = np.pad(output, (0, target_len - len(output)), mode='constant')
 
     return output.astype(audio_arr.dtype, copy=False)
 
@@ -310,7 +353,8 @@ def preview_cleanliness_mask(
     n_harmonics: int = 30,
     preserve_unvoiced: bool = True,
 ) -> tuple:
-    import librosa
+    from scipy.signal import stft as scipy_stft
+    from server.audio.pitch_yin import pyin
 
     """
     Generate the cleanliness mask for visualization without applying it.
@@ -331,15 +375,19 @@ def preview_cleanliness_mask(
     n_fft = 2048
     hop_length = 512
 
-    S = librosa.stft(audio_arr.astype(np.float32, copy=False), n_fft=n_fft, hop_length=hop_length)
-    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-    times = librosa.times_like(S, sr=sr, hop_length=hop_length)
+    audio_padded = np.pad(audio_arr.astype(np.float32, copy=False), (0, n_fft))
+    _f, _t, S = scipy_stft(audio_padded, fs=sr, nperseg=n_fft,
+                            noverlap=n_fft - hop_length,
+                            boundary=None, padded=False)
+    freqs = _f
+    times = _t
 
-    f0, voiced_flag, _ = librosa.pyin(
+    f0, voiced_flag, _ = pyin(
         audio_arr.astype(np.float32, copy=False),
+        sr,
         fmin=f0_floor,
         fmax=f0_ceil,
-        sr=sr,
+        frame_length=n_fft,
         hop_length=hop_length,
     )
 

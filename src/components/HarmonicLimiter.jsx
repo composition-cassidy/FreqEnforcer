@@ -74,6 +74,7 @@ export default function HarmonicLimiter({
   }
 
   drawRef.current = () => {
+    const _drawStart = performance.now();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
@@ -323,6 +324,12 @@ export default function HarmonicLimiter({
         M.left + plotW / 2,
         M.top  + plotH / 2 + (harmonicAnalysis?.pre ? 0 : 18),
       );
+    }
+
+    // ── Performance timing (only log if > 5ms) ───
+    const _drawTime = performance.now() - _drawStart;
+    if (_drawTime > 5) {
+      console.log(`[HarmonicLimiter] draw: ${_drawTime.toFixed(1)} ms`);
     }
   };
 

@@ -27,6 +27,7 @@ def apply_breathiness(
     hf_bias: float = 0.0,
     hf_crossover: float = 1500.0,
     hf_width: float = 3000.0,
+    world_cache: dict = None,
 ) -> np.ndarray:
     """Apply WORLD aperiodicity shaping for breathiness control.
 
@@ -65,9 +66,15 @@ def apply_breathiness(
 
     import pyworld as pw
 
-    f0, t = pw.harvest(x64, sr)
-    sp = pw.cheaptrick(x64, f0, t, sr)
-    ap = pw.d4c(x64, f0, t, sr)
+    if world_cache and world_cache.get('sp') is not None:
+        f0 = world_cache['f0'].copy()
+        t = world_cache['timeaxis'].copy()
+        sp = world_cache['sp'].copy()
+        ap = world_cache['ap'].copy()
+    else:
+        f0, t = pw.harvest(x64, sr)
+        sp = pw.cheaptrick(x64, f0, t, sr)
+        ap = pw.d4c(x64, f0, t, sr)
 
     freq_bins = int(sp.shape[1])
     freq_axis = np.linspace(0.0, float(sr) / 2.0, freq_bins, dtype=np.float64)
@@ -92,6 +99,7 @@ def autotune_to_note(
     preserve_formants: bool = True,
     voicing_mode: str = "force",
     dilation_frames: int = 3,
+    world_cache: dict = None,
 ) -> np.ndarray:
     import pyworld as pw
 
@@ -125,9 +133,12 @@ def autotune_to_note(
     target_freq = float(note_name_to_freq(target_note))
 
     # Extract f0, spectral envelope, and aperiodicity
-    # dio is the pitch extractor, stonemask refines it
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)  # refine f0
+    if world_cache and world_cache.get('f0') is not None:
+        f0 = world_cache['f0'].copy()
+        time_axis = world_cache['timeaxis']
+    else:
+        f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
+        f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
 
     voiced_mask = f0 > 0
     if voicing_mode == "strict":
@@ -201,6 +212,7 @@ def autotune_soft_to_note(
     preserve_vibrato: float = 1.0,
     voicing_mode: str = "strict",
     dilation_frames: int = 3,
+    world_cache: dict = None,
 ) -> np.ndarray:
     import pyworld as pw
 
@@ -218,8 +230,12 @@ def autotune_soft_to_note(
     audio_arr = audio_arr.astype(np.float64, copy=False)
     target_freq = float(note_name_to_freq(target_note))
 
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
+    if world_cache and world_cache.get('f0') is not None:
+        f0 = world_cache['f0'].copy()
+        time_axis = world_cache['timeaxis']
+    else:
+        f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
+        f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
 
     voiced_mask = np.asarray(f0) > 0
     if voicing_mode == "strict":
@@ -315,6 +331,7 @@ def autotune_world_vt(
     retune_speed_ms: float = 40.0,
     preserve_vibrato: float = 1.0,
     voicing_mode: str = "strict",
+    world_cache: dict = None,
     dilation_frames: int = 3,
     use_hnm: bool = False,
 ) -> np.ndarray:
@@ -354,8 +371,12 @@ def autotune_world_vt(
     audio_arr = audio_arr.astype(np.float64, copy=False)
     target_freq = float(note_name_to_freq(target_note))
 
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
+    if world_cache and world_cache.get('f0') is not None:
+        f0 = world_cache['f0'].copy()
+        time_axis = world_cache['timeaxis']
+    else:
+        f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
+        f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
 
     voiced_mask = np.asarray(f0) > 0
     if voicing_mode == "strict":
@@ -1629,6 +1650,7 @@ def autotune_with_formant_shift(
     formant_shift_cents: int = 0,
     voicing_mode: str = "force",
     dilation_frames: int = 3,
+    world_cache: dict = None,
 ) -> np.ndarray:
     import pyworld as pw
 
@@ -1662,8 +1684,12 @@ def autotune_with_formant_shift(
     target_freq = float(note_name_to_freq(target_note))
 
     # Extract components
-    f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
-    f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
+    if world_cache and world_cache.get('f0') is not None:
+        f0 = world_cache['f0'].copy()
+        time_axis = world_cache['timeaxis']
+    else:
+        f0, time_axis = pw.dio(audio_arr, sr, f0_floor=50.0, f0_ceil=500.0)
+        f0 = pw.stonemask(audio_arr, f0, time_axis, sr)
 
     voiced_mask = f0 > 0
     if voicing_mode == "strict":

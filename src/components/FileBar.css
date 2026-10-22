@@ -62,6 +62,10 @@
   text-overflow: ellipsis;
   outline: none;
   cursor: default;
+  /* Show the tail of the path (filename) by scrolling from the right,
+     but keep LTR text rendering so dots/extensions are not reversed. */
+  direction: rtl;
+  unicode-bidi: plaintext;
 }
 
 .file-bar--drag .file-bar-path {
@@ -69,10 +73,8 @@
   color: var(--accent);
 }
 
-/* rtl on the input makes the text right-justify so the filename
-   (rightmost segment) is always visible; the placeholder is ltr so
-   it reads naturally when no file is loaded */
-.file-bar-path[dir="rtl"]::placeholder {
+/* Placeholder reads left-to-right naturally. */
+.file-bar-path::placeholder {
   direction: ltr;
   text-align: left;
   unicode-bidi: plaintext;

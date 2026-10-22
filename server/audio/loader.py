@@ -38,8 +38,8 @@ def load_audio(filepath: str) -> tuple[np.ndarray, int, int]:
 
     if original_sr != _INTERNAL_SR:
         try:
-            import librosa
-            audio = librosa.resample(y=audio, orig_sr=original_sr, target_sr=_INTERNAL_SR)
+            import soxr
+            audio = soxr.resample(audio, original_sr, _INTERNAL_SR)
         except Exception as e:
             raise ValueError(f"Failed to resample audio: {path}") from e
 

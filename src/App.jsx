@@ -144,6 +144,7 @@ function AppInner() {
   // ── Backend health check ───────────────────────────────────────────────
   // 'checking' on first load, 'ok' once backend responds, 'error' if unreachable
   const [backendStatus, setBackendStatus] = useState('checking');
+  const pendingDropRef = useRef(null); // file dropped while backend is starting
 
   const checkBackendHealth = useCallback(async () => {
     try {
@@ -170,10 +171,20 @@ function AppInner() {
 
   useEffect(() => { loadSavedTheme(); }, []);
 
+  // Auto-load any file that was dropped while the backend was still starting
+  useEffect(() => {
+    if (backendStatus === 'ok' && pendingDropRef.current) {
+      const pending = pendingDropRef.current;
+      pendingDropRef.current = null;
+      loadAudio(pending);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendStatus]);
+
   // ── Audio player ───────────────────────────────────────────────────────
   const {
     play, stop, reset,
-    loadOriginal, loadProcessed, switchBuffer,
+    loadOriginal, loadProcessed, loadProcessedFromFile, switchBuffer,
     isPlaying: audioIsPlaying,
     playbackPosition,
     duration: audioDuration,
@@ -284,11 +295,16 @@ function AppInner() {
     processingCompleteTimer.current = setTimeout(() => {
       setViewState((v) => ({ ...v, isProcessing: false, processingProgress: 0 }));
     }, 200);
-    // Fetch processed audio buffer in background; switch player when ready
-    loadProcessed()
-      .then(() => switchBuffer('processed'))
-      .catch((e) => console.warn('useAudioPlayer: loadProcessed failed', e));
-  }, [loadProcessed, switchBuffer]);
+    // Load processed audio: prefer direct file URL (skips base64), fall back to fetch
+    if (data.audio_temp_filename) {
+      loadProcessedFromFile(data.audio_temp_filename);
+      switchBuffer('processed');
+    } else {
+      loadProcessed()
+        .then(() => switchBuffer('processed'))
+        .catch((e) => console.warn('useAudioPlayer: loadProcessed failed', e));
+    }
+  }, [loadProcessed, loadProcessedFromFile, switchBuffer]);
 
   const handleProcessError = useCallback((message) => {
     clearTimeout(processingCompleteTimer.current);
@@ -395,7 +411,13 @@ function AppInner() {
   }, [settings.targetNote, settings.octave]);
 
   // ── loadAudio ──────────────────────────────────────────────────────────
-  const loadAudio = useCallback(async (filePath) => {
+  // Accepts either a string path (from Browse dialog) or a File object
+  // (from drag-and-drop, where Electron 32+ doesn't expose native paths).
+  const loadAudio = useCallback(async (fileOrPath) => {
+    const isFile = typeof fileOrPath !== 'string' && fileOrPath != null && typeof fileOrPath.name === 'string' && typeof fileOrPath.size === 'number';
+    const displayPath = isFile ? fileOrPath.name : fileOrPath;
+    console.log('[loadAudio] type:', typeof fileOrPath, '| isFile:', isFile, '| constructor:', fileOrPath?.constructor?.name, '| name:', fileOrPath?.name, '| size:', fileOrPath?.size);
+
     if (loadAbortRef.current) loadAbortRef.current.abort();
     const abort = new AbortController();
     loadAbortRef.current = abort;
@@ -411,7 +433,7 @@ function AppInner() {
     stop();
     switchBuffer('original');
 
-    setAudioState((s) => ({ ...s, loading: true, loaded: false, filePath }));
+    setAudioState((s) => ({ ...s, loading: true, loaded: false, filePath: displayPath }));
     setViewState((v) => ({ ...v, showProcessed: false }));
     isFirstSettings.current = true;
 
@@ -420,16 +442,44 @@ function AppInner() {
     }, 15000);
 
     try {
-      const res = await fetch(`${API_BASE}/api/load-audio`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ file_path: filePath }),
-        signal:  abort.signal,
-      });
+      const _loadStart = performance.now();
+      let res;
+      if (isFile) {
+        // Drag-and-drop: upload file content to the backend
+        const formData = new FormData();
+        formData.append('file', fileOrPath);
+        res = await fetch(`${API_BASE}/api/load-audio-upload`, {
+          method: 'POST',
+          body:   formData,
+          signal: abort.signal,
+        });
+      } else {
+        // Browse dialog: send the native path
+        res = await fetch(`${API_BASE}/api/load-audio`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ file_path: fileOrPath }),
+          signal:  abort.signal,
+        });
+      }
+      const _fetchTime = performance.now() - _loadStart;
 
       if (!res.ok) {
         let detail = res.statusText;
-        try { detail = (await res.json()).detail ?? detail; } catch (_) {}
+        try {
+          const body = await res.json();
+          const d = body.detail;
+          if (Array.isArray(d)) {
+            detail = d.map((e) => {
+              const loc = (e.loc || []).slice(1).join(' → ');
+              return loc ? `${loc}: ${e.msg}` : (e.msg || String(e));
+            }).join('; ');
+          } else if (typeof d === 'string') {
+            detail = d;
+          } else if (d != null) {
+            detail = JSON.stringify(d);
+          }
+        } catch (_) {}
         throw new Error(detail);
       }
 
@@ -437,6 +487,13 @@ function AppInner() {
       if (loadToken !== loadTokenRef.current) return;
 
       const data = await res.json();
+      const _totalLoadTime = performance.now() - _loadStart;
+      console.log('%c=== FILE LOAD PERFORMANCE ===', 'color: #33CED6; font-weight: bold');
+      console.log(`  Fetch round-trip: ${_fetchTime.toFixed(1)} ms`);
+      console.log(`  Total (w/ JSON):  ${_totalLoadTime.toFixed(1)} ms`);
+      if (data.timings) {
+        console.log('  Backend breakdown:', data.timings);
+      }
 
       const parsed = parseNoteName(data.detected_pitch?.note_name);
       if (parsed) {
@@ -455,10 +512,12 @@ function AppInner() {
         }
       }
 
+      const resolvedPath = displayPath;
+
       const newAudioState = {
         loading:           false,
         loaded:            true,
-        filePath,
+        filePath:          resolvedPath,
         originalPeaks:     data.waveform_peaks   ?? null,
         processedPeaks:    null,
         processedPeakDb:   null,
@@ -480,7 +539,7 @@ function AppInner() {
       // Fetch original audio buffer for playback (fire and forget)
       loadOriginal().catch((e) => console.warn('useAudioPlayer: loadOriginal failed', e));
 
-      showToast(t('electron.toast.loaded', { name: basename(filePath) }), 'success', 3000);
+      showToast(t('electron.toast.loaded', { name: basename(displayPath) }), 'success', 3000);
     } catch (err) {
       if (err.name === 'AbortError') return;
       if (loadToken !== loadTokenRef.current) return; // superseded by a newer load
@@ -518,11 +577,16 @@ function AppInner() {
   }, [animateToMidi]);
 
   // ── App-level handlers ─────────────────────────────────────────────────
-  function handleFileLoad(filePath) {
-    if (filePath) loadAudio(filePath);
+  function handleFileLoad(fileOrPath) {
+    if (fileOrPath) loadAudio(fileOrPath);
   }
 
   // ── Full-window drag-and-drop ───────────────────────────────────────────
+  function handleAppDragEnter(e) {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
   function handleAppDragOver(e) {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
@@ -537,7 +601,15 @@ function AppInner() {
     e.preventDefault();
     setDraggingFile(false);
     const file = e.dataTransfer.files[0];
-    if (file) handleFileLoad(file.path ?? file.name);
+    if (file) {
+      const realPath = window.electronAPI?.getLastDroppedFilePath?.();
+      const fileOrPath = realPath || file;
+      if (backendStatus === 'ok') {
+        handleFileLoad(fileOrPath);
+      } else {
+        pendingDropRef.current = fileOrPath;
+      }
+    }
   }
 
   function handleNewSample() {
@@ -562,7 +634,14 @@ function AppInner() {
   }
 
   function handleRefreshSample() {
-    if (audioState.filePath) loadAudio(audioState.filePath);
+    if (!audioState.filePath) return;
+    // Reset all audio settings to defaults before re-loading the sample
+    setSettings((s) => ({
+      ...DEFAULT_SETTINGS,
+      // Keep the user's notation preference
+      notation: s.notation,
+    }));
+    loadAudio(audioState.filePath);
   }
 
   // ── Keyboard shortcut helpers ─────────────────────────────────────────
@@ -884,7 +963,11 @@ function AppInner() {
   // Backend error / startup check screens
   if (backendStatus === 'checking') {
     return (
-      <div className="backend-status-screen">
+      <div className="backend-status-screen"
+        onDragEnter={handleAppDragEnter}
+        onDragOver={handleAppDragOver}
+        onDrop={handleAppDrop}
+      >
         <span className="backend-status-screen__spinner" />
         <span className="backend-status-screen__text">
           {t('electron.toast.backend_starting')}
@@ -895,7 +978,11 @@ function AppInner() {
 
   if (backendStatus === 'error') {
     return (
-      <div className="backend-status-screen backend-status-screen--error">
+      <div className="backend-status-screen backend-status-screen--error"
+        onDragEnter={handleAppDragEnter}
+        onDragOver={handleAppDragOver}
+        onDrop={handleAppDrop}
+      >
         <div className="backend-status-screen__icon">&#x26A0;</div>
         <div className="backend-status-screen__title">
           {t('electron.toast.backend_failed')}
@@ -917,6 +1004,7 @@ function AppInner() {
   return (
     <div
       className="app-root"
+      onDragEnter={handleAppDragEnter}
       onDragOver={handleAppDragOver}
       onDragLeave={handleAppDragLeave}
       onDrop={handleAppDrop}
