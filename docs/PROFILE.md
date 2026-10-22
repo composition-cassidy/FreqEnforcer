@@ -160,6 +160,34 @@ target. Only `synthesize` depends on the note. From the per-function split, abou
   `cos()` per frame. A native kernel would help most here, but an algorithmic
   numpy change gets most of the gain.
 
+## After the backend cleanup (same machine, 2026-10-22)
+
+Measured after commits a7c6176..8d28656 (librosa removal, dynamic port,
+modes refactor, parallel multisample, repo hygiene). DSP output is unchanged:
+all golden cases are bit-identical.
+
+| Metric | Before | After |
+|---|---|---|
+| Backend bundle, `npm run build:backend` | **broken** (fails: `--add-data` resolved against `--specpath`); 434.7 MB / 1,900 files with the paths fixed (librosa + numba + llvmlite + PyQt6 + sklearn pulled in by `--collect-all librosa`) | 191.8 MB / 904 files (`scripts/build_backend.py`) |
+| Backend bundle, `scripts/build.bat` (shipped) | 187.7 MB / 267 files (Mar 30 build, already librosa-free) | 191.8 MB / 904 files (same script now; +4 MB / +637 small files are packages installed since March, e.g. tzdata, watchfiles) |
+| Installer / portable zip | 153.4 MB / 210.3 MB | 156.2 MB / 213.4 MB |
+| Cold start, exe, warm-cache median of 5 | 0.90 s | 0.88 s |
+| Cold start, exe, first launch after a fresh build | 5.6–5.8 s (new binary is scanned on first run) | 5.2 s (same effect) |
+| Cold start, `python server/main.py` | 1.60 s | 1.60 s |
+| 24-note multisample via HTTP, frozen exe | 12.24 s (serial) | **2.94 s** (23 workers) |
+| 24-note multisample via HTTP, `python server/main.py` | 7.08 s | 4.42 s |
+| 24-note multisample from the packaged app's renderer | – | 2.93 s |
+
+Notes:
+- Removing librosa does not change cold start. It was never imported at
+  startup, so the win is bundle size only, on the npm build path.
+- Multisample speed-up is bounded by pool start-up. Workers are spawned one at
+  a time on Windows (~0.25 s each) and each imports numpy/scipy/pyworld, so
+  24 notes at ~0.3 s/note finish in ~3 s on 24 threads.
+- The serial frozen exe (12.2 s) was slower than serial `python` (7.1 s) for
+  the same work. Not investigated; it doesn't matter with the pool, but it
+  suggests the bundled numpy/BLAS threading behaves differently.
+
 ## Verdict
 
 1. **WORLD is where the time goes.** pyworld's C++ (mostly `d4c`) is 87–100 % of
