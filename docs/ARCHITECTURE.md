@@ -74,9 +74,9 @@ Typical session:
 | Method | Path | Request | Response / effect | Used by frontend |
 |---|---|---|---|---|
 | GET | `/health` | – | `{status, version}` | yes (splash/startup) |
-| POST | `/api/load-audio` | `{file_path}` (≤100 MB, must exist) | duration, sr, detected_pitch, waveform_peaks, peak/rms dB, timings; resets state | yes |
+| POST | `/api/load-audio` | `{file_path}` (≤100 MB, must exist) | duration, sr, detected_pitch (note, cents, Hz, `confidence`), `f0_contour` `{times, hz}`, waveform_peaks, peak/rms dB, timings; resets state | yes |
 | POST | `/api/load-audio-upload` | multipart `file` (.wav/.mp3/.flac/.ogg/.aiff) | same as above + `uploaded_path` (temp file kept) | yes (drag-drop) |
-| POST | `/api/process` | `ProcessRequest` (target_note, pitch_mode, pitch_amount, retune_speed_ms, preserve_vibrato, preserve_formants, formant_shift_cents, formant_shift_beta, stretch_factor, stretch_method, clean_lowcut_percent, cleanliness_percent, clean_hf_rollback_percent, breathiness, hf_bias, harmonic_limiter_enabled, harmonic_ceiling_offsets_db, harmonic_knee_db, harmonic_release_ms, normalize) | peaks, peak/rms dB, harmonic_analysis, duration, `audio_temp_path`/`_filename`, timings; 409 if superseded | yes |
+| POST | `/api/process` | `ProcessRequest` (target_note, pitch_mode, pitch_amount, retune_speed_ms, preserve_vibrato, preserve_formants, formant_shift_cents, formant_shift_beta, stretch_factor, stretch_method, clean_lowcut_percent, cleanliness_percent, clean_hf_rollback_percent, breathiness, hf_bias, harmonic_limiter_enabled, harmonic_ceiling_offsets_db, harmonic_knee_db, harmonic_release_ms, normalize, optional `voicing_mode`) | peaks, peak/rms dB, harmonic_analysis, `f0_contour` of the output (decimated YIN, display only), duration, `audio_temp_path`/`_filename`, timings; 409 if superseded | yes |
 | GET | `/api/process-progress` | – | SSE `{progress, stage}` (shared global queue, never closes) | yes |
 | POST | `/api/get-audio` | `{which: original\|processed}` | base64 PCM16 WAV | yes (original) |
 | GET | `/api/audio-file/{filename}` | only `fe_processed_*` / `fe_upload_*` in temp dir | WAV file | yes |
@@ -85,7 +85,7 @@ Typical session:
 | POST | `/api/crossfade-loop` | `{template_periods, min_loop_periods, crossfade_periods, f0_hz?}` | loop_start/end; replaces processed_audio | yes |
 | POST | `/api/render-multisample` | note range + loop options + all ProcessRequest fields + `output_dir` | SSE progress → `{complete, output_dir, sfz_path, notes_rendered}` | yes |
 | GET | `/api/stretch-methods` | – | static list of 7 stretch methods | **no** (frontend hard-codes its own list) |
-| POST | `/api/warmup` | – | runs pitch detect, WORLD, WSOLA and cleanliness on 0.25 s of sine | **no** |
+| POST | `/api/warmup` | – | runs pitch detect, WORLD, WSOLA and cleanliness on 0.25 s of sine | yes (Preferences › warm-up, default on) |
 
 ## Pitch modes
 
@@ -116,7 +116,8 @@ vibrato residual re-added (`preserve_vibrato`) and `pitch_amount` blending.
 | `stft_pitchshift` | `autotune_stft_pitchshift` | in-house pYIN, zero-padded STFT | `stftpitchshift` vocoder encode/decode, Lanczos-3 resample, cepstral lifter, V/UV crossfade | n/a | stftpitchshift, numpy |
 
 Voicing modes (`strict` / `force` / `dilate`) exist only on the four WORLD
-functions: `strict` keeps unvoiced frames unvoiced, `force` makes every frame
+functions and are selectable per request through the optional `voicing_mode`
+field (None keeps the per-mode default listed in the table): `strict` keeps unvoiced frames unvoiced, `force` makes every frame
 voiced (F0 interpolated across gaps), `dilate` grows the voiced mask by
 `dilation_frames` (3).
 
@@ -194,8 +195,9 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
     now).
 
 ### Unused or unreachable
-13. `voicing_mode` is never exposed to the frontend; `dilate` and `strict`
-    (for world_hard) are unreachable from the UI.
+13. *Resolved:* `voicing_mode` is an optional field on `ProcessRequest` /
+    `RenderMultisampleRequest` (None = the mode's historical default) and the
+    UI's Voicing control sets it.
 14. `autotune_to_note(preserve_formants=False)` branch is unreachable: the
     route sends `preserve_formants=False` to `autotune_with_formant_shift`.
 15. `sinusoidal.py` (1270 lines): only `estimate_spectral_envelope` is used.
@@ -207,7 +209,7 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
     "high shelf removed" comment) and `cleanliness.preview_cleanliness_mask` are unused.
 18. `loader.set_wav_loop_points`, `pitch_detector.get_target_frequency`, and
     `server/utils/harmonic_cli.py` are unused.
-19. `/api/stretch-methods` and `/api/warmup` are not called by the frontend.
+19. `/api/stretch-methods` is not called by the frontend (it keeps its own list in `src/config/settings.js`); `/api/warmup` now is.
 20. The "docstring" in `apply_cleanliness` comes after an import statement, so
     it is a dead string expression, not a docstring. (The same problem in
     `autotune_to_note` and `autotune_with_formant_shift` was fixed when they

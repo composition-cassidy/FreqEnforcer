@@ -1,8 +1,6 @@
-# FreqEnforcer v2.0.0 — Known Issues
+# FreqEnforcer v2.0.1 — Known Issues
 
 ## Functional Issues
-
-- [Severity: Low] **Undo/Redo not implemented** — Ctrl+Z and Ctrl+Shift+Z are reserved but do nothing. Changing a setting cannot be reversed except by manually adjusting the control back.
 
 - [Severity: Low] **Cleanliness DSP intentionally differs from PyQt6 v1** — The cleanliness system was redesigned for v2. The original high-shelf gain + Hz-based low-cut has been replaced with a percentage-based smart low-cut and HF rollback system. Output from cleanliness processing will not be sample-identical to the PyQt6 version; this is by design.
 
@@ -18,15 +16,11 @@
 
 ## Visual Issues
 
-- [Severity: Low] **Harmonic limiter spectrum may show stale nodes briefly** — After loading a new file, the harmonic limiter spectrum can briefly display the previous file's harmonic nodes until the first processing pass completes.
+- [Severity: Low] **Corrected pitch curve is display-only** — The corrected-pitch overlay comes from a cheap 2× decimated YIN pass over the processed output (`f0_contour` in `/api/process`), not from the DSP's own F0. Octave slips in that readout do not mean the output is wrong.
 
 - [Severity: Low] **Waveform canvas does not anti-alias on very low-resolution displays** — On sub-1080p screens, the waveform blob edges may appear slightly jagged.
 
-- [Severity: Low] **Theme editor color picker requires exact hex input for precise colors** — The native color picker provided by the browser may vary slightly in precision across operating systems.
-
 ## Platform-Specific
-
-- [Windows] **DPI scaling above 150%** — At very high DPI scaling (175–200%), some fixed-size canvas elements (harmonic limiter, waveform) may appear smaller than intended. The app is optimized for 100–125% DPI.
 
 - [Windows] **File paths with non-ASCII characters** — Unicode file paths (Japanese, Russian, Arabic, etc.) are generally supported but have not been exhaustively tested. If a load fails, try moving the file to a path with ASCII characters only.
 
