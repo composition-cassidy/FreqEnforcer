@@ -7,6 +7,7 @@ The bound port is always announced on stdout as ``FREQENFORCER_PORT=<n>``.
 """
 
 import argparse
+import multiprocessing
 import socket
 import sys
 from contextlib import asynccontextmanager
@@ -79,6 +80,9 @@ def _bind(port: int) -> socket.socket:
 
 
 if __name__ == "__main__":
+    # Multisample rendering uses a process pool; in the frozen exe the worker
+    # processes re-launch this binary and must be diverted here.
+    multiprocessing.freeze_support()
     requested = _parse_port(sys.argv[1:])
     try:
         sock = _bind(requested)

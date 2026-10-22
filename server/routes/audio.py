@@ -82,7 +82,9 @@ def _cleanup_last_temp():
         state._last_temp_path = None
 
 
-def _push_progress(loop: asyncio.AbstractEventLoop, progress: float, stage: str):
+def _push_progress(loop: Optional[asyncio.AbstractEventLoop], progress: float, stage: str):
+    if loop is None:  # no listener, e.g. inside a multisample worker process
+        return
     payload = {"progress": progress, "stage": stage}
     asyncio.run_coroutine_threadsafe(_progress_queue.put(payload), loop)
 
@@ -91,29 +93,12 @@ def _push_progress(loop: asyncio.AbstractEventLoop, progress: float, stage: str)
 # DSP pipeline (mirrors ProcessingThread.run exactly)
 # ---------------------------------------------------------------------------
 
-def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
-                  loop: asyncio.AbstractEventLoop) -> np.ndarray:
-    from server.audio.autotuner import apply_breathiness
-    from server.audio.modes import MODES, render_pitch_mode
-    from server.audio.normalizer import normalize_audio
-    from server.audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut, compute_smart_lowcut
-    from server.audio.time_stretch import STRETCHERS
-    from server.audio.harmonic_limiter import (
-        analyze_harmonics,
-        apply_harmonic_limiting,
-        harmonic_f0_from_settings,
-    )
+def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) -> Optional[dict]:
+    """WORLD analysis shared by pitch correction + breathiness (step 0 of the
+    pipeline).  Reuses state.world_cache when it belongs to this audio;
+    returns None when the settings don't need WORLD."""
+    from server.audio.modes import MODES
 
-    timings = {}
-    pipeline_start = time.perf_counter()
-
-    def progress(p: float, stage: str):
-        _push_progress(loop, p, stage)
-
-    result = audio.copy()
-
-    # 0. Pre-compute WORLD analysis (shared by pitch correction + breathiness)
-    _t = time.perf_counter()
     pitch_mode = str(settings.get("pitch_mode", "world_hard"))
     needs_world = pitch_mode in MODES and MODES[pitch_mode].USES_WORLD_CACHE
     needs_breathiness = (float(settings.get("breathiness", 1.0)) != 1.0)
@@ -144,6 +129,33 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
                 'sr': sr,
             }
             state.world_cache = world_cache
+    return world_cache
+
+
+def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
+                  loop: Optional[asyncio.AbstractEventLoop]) -> np.ndarray:
+    from server.audio.autotuner import apply_breathiness
+    from server.audio.modes import render_pitch_mode
+    from server.audio.normalizer import normalize_audio
+    from server.audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut, compute_smart_lowcut
+    from server.audio.time_stretch import STRETCHERS
+    from server.audio.harmonic_limiter import (
+        analyze_harmonics,
+        apply_harmonic_limiting,
+        harmonic_f0_from_settings,
+    )
+
+    timings = {}
+    pipeline_start = time.perf_counter()
+
+    def progress(p: float, stage: str):
+        _push_progress(loop, p, stage)
+
+    result = audio.copy()
+    pitch_mode = str(settings.get("pitch_mode", "world_hard"))
+
+    # 0. Pre-compute WORLD analysis (shared by pitch correction + breathiness)
+    world_cache = _world_cache_for(audio, sr, settings, timings)
 
     # 1. Pitch correction
     _t = time.perf_counter()
@@ -871,103 +883,62 @@ async def render_multisample(req: RenderMultisampleRequest):
     loop = asyncio.get_event_loop()
 
     def run_render():
+        from server.audio.multisample import RenderCancelled, RenderOptions, render_note_range
+        from server.audio.sfz_writer import write_sfz
+
+        def emit(payload: dict):
+            asyncio.run_coroutine_threadsafe(progress_q.put(payload), loop)
+
+        midi_notes = list(range(low_midi, high_midi + 1))
+        total = len(midi_notes)
+
+        def on_note_done(zone: dict, done: int, total_: int):
+            emit({
+                "progress": round(done / total_, 4),
+                "current_note": zone["note_name"],
+                "notes_done": done,
+                "notes_total": total_,
+            })
+            # Mirror to /process-progress so its listeners see multisample activity too
+            _push_progress(loop, done / total_, f"Multisample {zone['note_name']} ({done}/{total_})")
+
         try:
-            from server.audio.loop_crossfade import process_with_loop
-            from server.audio.loader import save_audio, set_wav_root_note
-            from server.audio.sfz_writer import write_sfz, note_name_for_filename
+            emit({"progress": 0.0, "current_note": "", "notes_done": 0, "notes_total": total})
+            world_cache = _world_cache_for(source_audio, sr, settings_base, {})
+            results = render_note_range(
+                source_audio, sr, midi_notes, settings_base,
+                RenderOptions(
+                    output_dir=output_dir,
+                    base_name=base_name,
+                    enable_loop=req.enable_loop,
+                    template_periods=req.template_periods,
+                    min_loop_periods=req.min_loop_periods,
+                    crossfade_periods=req.crossfade_periods,
+                    start_trim_ms=req.start_trim_ms,
+                ),
+                detected_pitch=state.detected_pitch,
+                world_cache=world_cache,
+                run_pipeline_inprocess=lambda a, s, st: _run_pipeline(a, s, st, token, loop)[0],
+                on_note_done=on_note_done,
+                is_cancelled=lambda: not state.is_current_token(token),
+            )
 
-            import os
-            os.makedirs(output_dir, exist_ok=True)
-
-            note_names_display = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-            total = high_midi - low_midi + 1
-            results = []
-
-            for i, midi_note in enumerate(range(low_midi, high_midi + 1)):
-                if not state.is_current_token(token):
-                    asyncio.run_coroutine_threadsafe(
-                        progress_q.put({"cancelled": True}), loop
-                    )
-                    return
-
-                note_name = note_name_for_filename(midi_note)
-                # Pipeline needs '#' style names for pitch detection
-                target_note_str = note_names_display[midi_note % 12] + str(midi_note // 12 - 1)
-
-                # Send progress before processing this note
-                asyncio.run_coroutine_threadsafe(
-                    progress_q.put({
-                        "progress": round(i / total, 4),
-                        "current_note": note_name,
-                        "notes_done": i,
-                        "notes_total": total,
-                    }),
-                    loop,
-                )
-
-                note_settings = dict(settings_base)
-                note_settings["target_note"] = target_note_str
-
-                # Run DSP pipeline (internal sub-progress goes to main queue, ignored)
-                processed, _, _timings = _run_pipeline(
-                    source_audio.copy(), sr, note_settings, token, loop
-                )
-
-                if req.start_trim_ms > 0:
-                    trim_samples = int(req.start_trim_ms / 1000.0 * sr)
-                    if trim_samples < len(processed):
-                        processed = processed[trim_samples:]
-
-                loop_start = None
-                loop_end = None
-                if req.enable_loop:
-                    # Compute target f0 for this MIDI note
-                    target_f0 = 440.0 * (2 ** ((midi_note - 69) / 12))
-                    processed, loop_start, loop_end = process_with_loop(
-                        processed, sr,
-                        f0_hz=target_f0,
-                        template_periods=req.template_periods,
-                        min_loop_periods=req.min_loop_periods,
-                        crossfade_periods=req.crossfade_periods,
-                    )
-
-                filename = f"{base_name}_{note_name}.wav"
-                filepath = os.path.join(output_dir, filename)
-
-                save_audio(filepath, processed, sr)
-                set_wav_root_note(filepath, midi_note, sr, loop_start, loop_end)
-
-                results.append({
-                    "midi": midi_note,
-                    "note_name": note_name,
-                    "path": filepath,
-                    "filename": filename,
-                    "loop_start": loop_start,
-                    "loop_end": loop_end,
-                    "sample_count": len(processed),
-                })
-
-            # Generate SFZ if requested
             generated_sfz_path = None
             if req.generate_sfz and results:
                 write_sfz(sfz_path, base_name, results)
                 generated_sfz_path = sfz_path
 
-            asyncio.run_coroutine_threadsafe(
-                progress_q.put({
-                    "complete": True,
-                    "output_dir": output_dir,
-                    "sfz_path": generated_sfz_path,
-                    "notes_rendered": len(results),
-                }),
-                loop,
-            )
+            emit({
+                "complete": True,
+                "output_dir": output_dir,
+                "sfz_path": generated_sfz_path,
+                "notes_rendered": len(results),
+            })
 
+        except RenderCancelled:
+            emit({"cancelled": True})
         except Exception as e:
-            asyncio.run_coroutine_threadsafe(
-                progress_q.put({"error": str(e)}),
-                loop,
-            )
+            emit({"error": str(e)})
 
     threading.Thread(target=run_render, daemon=True).start()
 

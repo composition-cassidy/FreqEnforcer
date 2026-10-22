@@ -53,8 +53,21 @@ Typical session:
    `/api/quick-export` (PCM16 + `smpl` chunk with root note and loop points via
    `loader.set_wav_root_note`).
 4. **Multisample**: `POST /api/render-multisample` streams SSE while a daemon
-   thread runs `_run_pipeline` + optional `process_with_loop` + `save_audio` per
-   MIDI note, then `sfz_writer.write_sfz`.
+   thread calls `multisample.render_note_range`. That function renders notes
+   in a `ProcessPoolExecutor` with `cpu_count - 1` workers, capped at the
+   number of notes. The parent computes the WORLD F0 cache once
+   (`_world_cache_for`) and hands each worker the source audio, settings and
+   an F0-only cache through the pool initializer. Each worker runs
+   `_run_pipeline` + optional `process_with_loop` + `save_audio` +
+   `set_wav_root_note` per note. Progress events
+   (`progress`/`current_note`/`notes_done`/`notes_total`) go out as notes
+   finish and are mirrored to `/process-progress`; then `sfz_writer.write_sfz`
+   runs. Workers exit when the backend process dies, and Electron kills the
+   whole backend process tree on quit. A new `/process` call supersedes the
+   token: pending notes are dropped and the stream ends with `cancelled`.
+   `server/main.py` calls `multiprocessing.freeze_support()` so the frozen exe
+   can start workers. `tests/test_multisample.py` checks that parallel output
+   is byte-identical to the in-process path and to the `pipe_loop` golden.
 
 ## Endpoints
 
@@ -164,9 +177,9 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
    `stretch_positive` and `clean_range`, which the multisample request does not.
 8. `/load-audio` and `/load-audio-upload` duplicate the state-reset and
    response-building block.
-9. `server/audio/multisample.py::render_note_range` reimplements the
-   multisample loop that the `/render-multisample` endpoint has inline. The
-   module is never imported (the endpoint uses its own copy).
+9. *Resolved:* `multisample.py::render_note_range` used to duplicate the
+   endpoint's inline loop. It is now the one implementation, a parallel
+   renderer (below), and the endpoint calls it.
 10. Peak/RMS dB helpers exist twice: `routes/audio.py::_peak_db/_rms_db` and
     `normalizer.get_peak_db/get_rms_db` (the latter unused).
 11. Two STFT implementations: `harmonic_limiter._centered_stft/_centered_istft`
@@ -210,8 +223,9 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
     drop it.
 23. `/api/warmup` comment says "librosa (pitch detection)"; it is in-house pYIN now.
 24. `_progress_queue` is a module-level unbounded `asyncio.Queue` shared by all
-    clients. Multisample renders push their per-note pipeline progress into it,
-    and the items pile up when no `/process-progress` listener is connected.
+    clients. Items pile up when no `/process-progress` listener is connected.
+    Multisample now pushes one event per finished note instead of every
+    pipeline stage of every note; worker processes push nothing.
 
 ### Behavioural oddities noticed while baselining (not changed)
 - `hnm_synth.py` uses unseeded `np.random`, so `world_hnm` output differs on

@@ -115,7 +115,12 @@ function startBackend(timeout = 60000) {
 
 function stopBackend() {
   if (backendProcess) {
-    backendProcess.kill();
+    if (process.platform === 'win32' && backendProcess.pid) {
+      // Kill the whole tree: the backend may have multisample worker processes.
+      spawn('taskkill', ['/pid', String(backendProcess.pid), '/T', '/F'], { windowsHide: true });
+    } else {
+      backendProcess.kill();
+    }
     backendProcess = null;
   }
 }
