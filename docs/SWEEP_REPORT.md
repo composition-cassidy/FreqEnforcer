@@ -8,12 +8,12 @@ python tests/sweep/report.py                    # rebuild this report from tests
 python -m pytest tests/test_pipeline_combos.py  # the 30 previous-worst combinations + cache collision
 ```
 
-- Latest run: git `9a4f14b`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 15.25 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
+- Latest run: git `778e03e`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 15.82 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
 - librosa imported in any process: no
 
 ## Pass rate after each change
 
-One row per full sweep (`tests/sweep/history.json`). *raw* = renders with no failed metric. *post-pitch* = renders with no failure caused after the pitch stage: failures inherited from the pitch-only render, and f0/inharm failures where the pitch stage already missed the note, are excluded. *excl. intended* also allows breathiness > 1 failing the inharmonic rule, which is what that setting is for.
+One row per full sweep (`tests/sweep/history.json`). *raw* = renders with no failed metric. *post-pitch* = renders with no failure caused after the pitch stage: failures inherited from the pitch-only render, and f0/inharm failures where the pitch stage already missed the note, are excluded. *excl. intended* also allows breathiness > 1 failing the inharmonic rule, which is what that setting is for. *commit* is HEAD when the sweep ran; *(dirty)* means the change was measured uncommitted on top of it and committed together with its row.
 
 | run | commit | date | renders | raw | post-pitch | post-pitch excl. intended | post-pitch failures | top post-pitch causes |
 |---|---|---|---|---|---|---|---|---|
@@ -22,6 +22,7 @@ One row per full sweep (`tests/sweep/history.json`). *raw* = renders with no fai
 | **change2: cleanliness mask** | `fa5702c` (dirty) | 2026-10-22 21:49 | 10428 | 11.5 % | 47.6 % | 76.9 % | 8029 | breath_intended 4928, breath 2873, clean 554, lowcut 25 |
 | **change3: breathiness in WORLD modes** | `26f7941` (dirty) | 2026-10-22 22:19 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
 | **change4: full-buffer cache key** | `9a4f14b` (dirty) | 2026-10-22 22:45 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
+| **change5: permanent combo tests** | `778e03e` | 2026-10-22 23:03 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
 
 ## Before / after (pre-fix vs latest run)
 
@@ -79,8 +80,8 @@ Post-pitch failures by cause. The pre-fix harness named bugs through counterfact
 | clean |  | 327 | cleanliness stage (failure clears with cleanliness off) |
 | E2 | 55 |  | cleanliness's own pyin f0 wrong (50-500 Hz range) |
 | lowcut_design | 35 |  | smart low cut with correct f0 |
-| lowcut |  | 21 | smart low cut stage (clears with low cut off) |
 | B3 | 21 |  | smart low cut keyed to the original f0 (state.detected_pitch) |
+| lowcut |  | 21 | smart low cut stage (clears with low cut off) |
 | breath |  | 19 | breathiness < 1 (clears with breathiness 1) |
 
 The 30 worst pre-fix combinations by post-pitch severity (these are the permanent cases in `tests/test_pipeline_combos.py`), before → after:

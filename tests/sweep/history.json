@@ -109,5 +109,26 @@
    "lowcut": 21,
    "breath": 19
   }
+ },
+ {
+  "tag": "change5: permanent combo tests",
+  "date": "2026-10-22 23:03",
+  "git_head": "778e03e",
+  "server_or_ui_dirty": false,
+  "elapsed_min": 15.82,
+  "n": 10428,
+  "raw": 2525,
+  "post": 8787,
+  "post_ex": 10096,
+  "raw_pct": 24.213655542769466,
+  "post_pct": 84.26352128883775,
+  "post_ex_pct": 96.8162639048715,
+  "post_failures": 1803,
+  "post_failures_by_cause": {
+   "breath_intended": 1459,
+   "clean": 327,
+   "lowcut": 21,
+   "breath": 19
+  }
  }
 ]

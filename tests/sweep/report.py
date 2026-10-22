@@ -184,7 +184,8 @@ def sec_history(hist) -> str:
             "*post-pitch* = renders with no failure caused after the pitch stage: failures inherited from the "
             "pitch-only render, and f0/inharm failures where the pitch stage already missed the note, are "
             "excluded. *excl. intended* also allows breathiness > 1 failing the inharmonic rule, which is "
-            "what that setting is for.\n\n"
+            "what that setting is for. *commit* is HEAD when the sweep ran; *(dirty)* means the change was "
+            "measured uncommitted on top of it and committed together with its row.\n\n"
             + table(["run", "commit", "date", "renders", "raw", "post-pitch", "post-pitch excl. intended",
                      "post-pitch failures", "top post-pitch causes"], body))
 
