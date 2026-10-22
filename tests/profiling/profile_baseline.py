@@ -43,7 +43,8 @@ import numpy as np  # noqa: E402
 
 PORT = 8765
 BASE = f"http://127.0.0.1:{PORT}"
-EXE = ROOT / "build-backend" / "freqenforcer-backend" / "freqenforcer-backend.exe"
+EXE = Path(os.environ.get("FE_BACKEND_EXE",
+                          ROOT / "build-backend" / "freqenforcer-backend" / "freqenforcer-backend.exe"))
 FIXTURE = "test_10s_C4.wav"
 TARGET = "F4"  # +5 semitones from the C4 fixtures
 

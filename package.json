@@ -12,7 +12,7 @@
     "dev:server": "python server/main.py",
     "dev:electron": "npx electron electron/main.js",
     "build": "npx vite build",
-    "build:backend": "cd server && python -m PyInstaller --noconfirm --clean --name freqenforcer-backend --distpath ../build-backend --specpath ../build-temp --add-data \"audio;audio\" --add-data \"utils;utils\" --hidden-import soundfile --hidden-import librosa --hidden-import pyworld --hidden-import scipy.signal --hidden-import scipy.ndimage --hidden-import scipy.interpolate --collect-all soundfile --collect-all librosa main.py",
+    "build:backend": "python scripts/build_backend.py",
     "build:electron": "npx electron-builder --win dir",
     "build:installer": "cd installer && npm install && npx electron-builder --win portable",
     "build:all": "scripts\\build.bat"
