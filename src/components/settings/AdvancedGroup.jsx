@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import Group from './Group';
 import Slider from '../controls/Slider';
 import Check from '../controls/Check';
+import Dwell from '../controls/Dwell';
 import { DEFAULT_SETTINGS as D, countActiveAdvanced } from '../../config/settings';
 
 const pct = (v) => `${Math.round(v)} %`;
@@ -26,8 +27,9 @@ export default function AdvancedGroup({ settings, onChange, drag, loop, onFindLo
         onChange={(v) => onChange({ hf_bias: v })} disabled={Math.abs(s.breathiness - 1) < 1e-6} {...drag} />
 
       <div className="sub">{t('advanced.limiter')}</div>
-      <Check label={t('advanced.enable')} checked={s.harmonic_limiter_enabled} defaultValue={D.harmonic_limiter_enabled} onChange={(v) => onChange({ harmonic_limiter_enabled: v })} />
-      <div className="help">{t('advanced.limiter_help')}</div>
+      <Dwell hint={t('advanced.limiter_help')}>
+        <Check label={t('advanced.enable')} checked={s.harmonic_limiter_enabled} defaultValue={D.harmonic_limiter_enabled} onChange={(v) => onChange({ harmonic_limiter_enabled: v })} />
+      </Dwell>
       <Slider label={t('advanced.compression')} value={s.harmonic_amount} min={0} max={100} defaultValue={D.harmonic_amount} format={pct}
         onChange={(v) => onChange({ harmonic_amount: v })} disabled={!s.harmonic_limiter_enabled} {...drag} />
 

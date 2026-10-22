@@ -67,3 +67,13 @@
 
 .help { color: var(--fg-3); font-size: var(--fs-11); line-height: 1.35; }
 .help kbd { font-family: var(--font-mono); }
+
+/* dwell caption: hidden until the pointer rests on the control (or it has keyboard focus) */
+.dwell { position: relative; display: flex; flex-direction: column; gap: var(--s2); }
+.dwell__tip {
+  position: absolute; left: 0; right: 0; top: calc(100% + var(--s1)); z-index: 5;
+  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  padding: var(--s1) var(--s2); color: var(--fg-2); font-size: var(--fs-11); line-height: 1.35;
+  visibility: hidden; opacity: 0; transition: opacity 80ms linear, visibility 0s 80ms; pointer-events: none;
+}
+.dwell--show .dwell__tip { visibility: visible; opacity: 1; transition-delay: 0s; }

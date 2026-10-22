@@ -4,6 +4,7 @@ import Group from '../settings/Group';
 import Select from '../controls/Select';
 import Slider from '../controls/Slider';
 import Check from '../controls/Check';
+import Dwell from '../controls/Dwell';
 import { API_BASE } from '../../config/api';
 import { settingsToBackend } from '../../hooks/useProcessing';
 import { readErrorDetail } from '../../utils/errors';
@@ -107,15 +108,18 @@ export default function MultisampleSheet({ settings, audio, notation, onBack, on
         </div>
       </Group>
       <Group title={t('ms.per_note')}>
-        <Check label={t('ms.loop')} checked={enableLoop} defaultValue onChange={setEnableLoop} disabled={rendering} />
-        <div className="help">{t('ms.loop_help')}</div>
+        <Dwell hint={t('ms.loop_help')}>
+          <Check label={t('ms.loop')} checked={enableLoop} defaultValue onChange={setEnableLoop} disabled={rendering} />
+        </Dwell>
         <Check label={t('ms.start_trim')} checked={trimOn} defaultValue={false} onChange={setTrimOn} disabled={rendering} />
         <Slider label={t('ms.trim')} value={trimMs} min={0} max={500} defaultValue={0} format={(v) => `${Math.round(v)} ms`} onChange={setTrimMs} disabled={!trimOn || rendering} />
         <Check label={t('ms.sfz')} checked={sfz} defaultValue onChange={setSfz} disabled={rendering} />
       </Group>
       <Group title={t('ms.output')}>
-        <div className="pathbox" title={outputDir || t('ms.output_auto')}>{outputDir || t('ms.output_auto')}</div>
-        <div className="row"><span className="help">{t('ms.output_help')}</span><button type="button" className="btn" onClick={pickFolder} disabled={rendering}>{t('ms.change_folder')}</button></div>
+        <Dwell hint={t('ms.output_help')}>
+          <div className="pathbox" title={outputDir || t('ms.output_auto')}>{outputDir || t('ms.output_auto')}</div>
+        </Dwell>
+        <div className="row"><span /><button type="button" className="btn" onClick={pickFolder} disabled={rendering}>{t('ms.change_folder')}</button></div>
       </Group>
       {run.status !== 'idle' && (
         <Group title={t('ms.progress')}>

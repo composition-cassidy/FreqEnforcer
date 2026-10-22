@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Group from './Group';
 import NoteGrid from '../controls/NoteGrid';
+import Dwell from '../controls/Dwell';
 import { formatHz, noteNameToPC, noteToFreq, parseNoteName, pcName, toMidi } from '../../utils/note_utils';
 
 /** Target note picker with Hz readout and distance from the detected pitch. */
@@ -19,7 +20,9 @@ export default function TargetGroup({ settings, detected, notation, onChange }) 
 
   return (
     <Group title={t('target.title')}>
-      <NoteGrid note={settings.targetNote} octave={settings.octave} notation={notation} defaultNote={det} onChange={onChange} />
+      <Dwell hint={t('target.hint')}>
+        <NoteGrid note={settings.targetNote} octave={settings.octave} notation={notation} defaultNote={det} onChange={onChange} />
+      </Dwell>
       <div className="target-readout">
         <span className="target-readout__big">
           {pcName(noteNameToPC(settings.targetNote), notation)}<sub>{settings.octave}</sub>
@@ -27,7 +30,6 @@ export default function TargetGroup({ settings, detected, notation, onChange }) 
         </span>
         {delta && <span className="target-readout__delta">{delta}</span>}
       </div>
-      <div className="help">{t('target.hint')}</div>
     </Group>
   );
 }

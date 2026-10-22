@@ -9,6 +9,7 @@ const SHORTCUTS = [
   ['Space', 'play'], ['A', 'ab'], ['Ctrl+E', 'export'], ['Ctrl+Shift+E', 'quick_export'],
   ['Ctrl+Z', 'undo'], ['Ctrl+Shift+Z', 'redo'], ['1–7', 'mode'], ['Ctrl+↑ / ↓', 'semitone'],
   ['Ctrl+Shift+↑ / ↓', 'octave'], ['Ctrl+O', 'open'], ['Ctrl+M', 'multisample'], ['Ctrl+,', 'preferences'],
+  ['Double-click', 'reset'], ['Hover', 'hint'],
 ];
 
 function Pref({ label, desc, children }) {

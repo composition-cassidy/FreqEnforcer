@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Group from './Group';
 import Segmented from '../controls/Segmented';
+import Dwell from '../controls/Dwell';
 import { VOICING_MODES, modeCaps } from '../../config/settings';
 
 /**
@@ -14,12 +15,13 @@ export default function VoicingGroup({ settings, onChange }) {
   const effective = settings.voicing_mode ?? def;
   return (
     <Group title={t('voicing.title')} right={def ? t('voicing.default', { mode: t(`voicing.${def}`) }) : t('voicing.world_only')} disabled={!def}>
-      <Segmented
-        full ariaLabel={t('voicing.title')} value={effective} defaultValue={def} disabled={!def}
-        options={VOICING_MODES.map((v) => ({ value: v, label: t(`voicing.${v}`) }))}
-        onChange={(v) => onChange({ voicing_mode: v === def ? null : v })}
-      />
-      <div className="help">{t('voicing.help')}</div>
+      <Dwell hint={t('voicing.help')}>
+        <Segmented
+          full ariaLabel={t('voicing.title')} value={effective} defaultValue={def} disabled={!def}
+          options={VOICING_MODES.map((v) => ({ value: v, label: t(`voicing.${v}`) }))}
+          onChange={(v) => onChange({ voicing_mode: v === def ? null : v })}
+        />
+      </Dwell>
     </Group>
   );
 }

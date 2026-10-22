@@ -3,6 +3,7 @@ import Group from './Group';
 import Select from '../controls/Select';
 import Slider from '../controls/Slider';
 import Check from '../controls/Check';
+import Dwell from '../controls/Dwell';
 import { DEFAULT_SETTINGS as D, PITCH_MODE_GROUPS, modeCaps } from '../../config/settings';
 
 const pct = (v) => `${Math.round(v)} %`;
@@ -19,8 +20,9 @@ export default function ModeGroup({ settings, onChange, drag }) {
 
   return (
     <Group title={t('mode.title')} right="1–7">
-      <Select ariaLabel={t('mode.title')} value={settings.pitch_mode} defaultValue={D.pitch_mode} groups={groups} onChange={(v) => onChange({ pitch_mode: v })} />
-      <div className="help">{t(`settings.pitch_mode.${settings.pitch_mode}.info`)}</div>
+      <Dwell hint={t(`settings.pitch_mode.${settings.pitch_mode}.info`)}>
+        <Select ariaLabel={t('mode.title')} value={settings.pitch_mode} defaultValue={D.pitch_mode} groups={groups} onChange={(v) => onChange({ pitch_mode: v })} />
+      </Dwell>
 
       {caps.soft && (
         <>

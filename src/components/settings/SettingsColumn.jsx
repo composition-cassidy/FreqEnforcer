@@ -23,9 +23,6 @@ export default function SettingsColumn({ sheet, onSheet, settings, onChange, dra
           <VoicingGroup settings={settings} onChange={onChange} />
           <StretchGroup settings={settings} onChange={onChange} drag={drag} />
           <AdvancedGroup settings={settings} onChange={onChange} drag={drag} loop={loop} onFindLoop={onFindLoop} busy={busy} />
-          <div className="group" style={{ border: 0 }}><div className="group__body" style={{ paddingTop: 'var(--s3)' }}>
-            <div className="help">{t('controls.reset_hint')}</div>
-          </div></div>
         </section>
       )}
       {sheet === 'multisample' && (

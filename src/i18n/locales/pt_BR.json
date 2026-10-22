@@ -173,9 +173,6 @@
     "no_loop": "sem pontos de loop",
     "find_loop": "Buscar loop"
   },
-  "controls": {
-    "reset_hint": "Clique duplo em qualquer controle para redefini-lo. ● marca um valor diferente do padrão."
-  },
   "footer": {
     "play": "Reproduzir",
     "stop": "Parar",
@@ -249,7 +246,9 @@
     "octave": "Alvo ± oitava",
     "open": "Abrir amostra",
     "multisample": "Multiamostra",
-    "preferences": "Preferências"
+    "preferences": "Preferências",
+    "reset": "Redefinir um controle para o padrão",
+    "hint": "Deixe o ponteiro sobre um controle para ler sua descrição"
   },
   "toast": {
     "dismiss": "Fechar",

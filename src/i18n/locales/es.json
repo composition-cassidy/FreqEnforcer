@@ -173,9 +173,6 @@
     "no_loop": "sin puntos de bucle",
     "find_loop": "Buscar bucle"
   },
-  "controls": {
-    "reset_hint": "Doble clic en cualquier control para restablecerlo. ● marca un valor no predeterminado."
-  },
   "footer": {
     "play": "Reproducir",
     "stop": "Detener",
@@ -249,7 +246,9 @@
     "octave": "Objetivo ± octava",
     "open": "Abrir muestra",
     "multisample": "Multimuestra",
-    "preferences": "Preferencias"
+    "preferences": "Preferencias",
+    "reset": "Restablecer un control a su valor predeterminado",
+    "hint": "Deja el puntero sobre un control para leer su descripción"
   },
   "toast": {
     "dismiss": "Cerrar",

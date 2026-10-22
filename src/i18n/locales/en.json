@@ -173,9 +173,6 @@
     "no_loop": "no loop points",
     "find_loop": "Find loop"
   },
-  "controls": {
-    "reset_hint": "Double-click any control to reset it. ● marks a non-default value."
-  },
   "footer": {
     "play": "Play",
     "stop": "Stop",
@@ -249,7 +246,9 @@
     "octave": "Target ± octave",
     "open": "Open sample",
     "multisample": "Multisample",
-    "preferences": "Preferences"
+    "preferences": "Preferences",
+    "reset": "Reset a control to its default",
+    "hint": "Rest on a control to read its caption"
   },
   "toast": {
     "dismiss": "Dismiss",
