@@ -59,5 +59,32 @@
    "fails": []
   },
   "max_abs_diff": 734.1238819740712
+ },
+ {
+  "change": "change3",
+  "case": "test_2s_C4-pipe_breath-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_breath__na__F4.wav",
+  "reason": "breathiness shapes the WORLD mode's own aperiodicity before its single synthesis (was a second harvest/cheaptrick/d4c/synthesize pass on the output)",
+  "before": {
+   "peak_dbfs": -0.542811816680352,
+   "rms_change_db": 0.24497429244082092,
+   "f0_cents": 0.45414592482064686,
+   "inharm_worse_db": 4.010955237357859,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": 0.801787314406079,
+   "fails": []
+  },
+  "after": {
+   "peak_dbfs": -1.4449047671927029,
+   "rms_change_db": -0.5632797374256633,
+   "f0_cents": 0.054962924924038,
+   "inharm_worse_db": 3.520781860747732,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.0025662364810639104,
+   "fails": []
+  },
+  "max_abs_diff": 0.8285593747828429
  }
 ]

@@ -89,6 +89,46 @@ def voiced_masks(f0: np.ndarray, voicing_mode: str, dilation_frames: int):
     return voiced_mask, new_voiced_mask
 
 
+_EFFECTIVE_FLOOR = 1e-6
+
+
+def shape_aperiodicity(ap: np.ndarray, sr: int, amount: float = 1.0, hf_bias: float = 0.0,
+                       hf_crossover: float = 1500.0, hf_width: float = 3000.0) -> np.ndarray:
+    """Breathiness: reshape a D4C aperiodicity matrix before synthesis.
+
+    amount:  0 = fully periodic, 1 = unchanged, 5 = very breathy
+    hf_bias: 0 = uniform, 1 = only above hf_crossover (ramping over hf_width)
+
+    Per bin the exponent is 1 / effective with
+    effective = 1 + (amount - 1) * bias, so ap ** (1 / effective) rises
+    toward 1 (noise) for amount > 1 and falls toward 0 for amount < 1.  Where
+    effective reaches 0 (amount 0, fully biased bins) the limit ap -> 0 is
+    used directly instead of dividing by zero.  amount == 1 returns *ap*
+    itself, so default settings leave the synthesis bit-identical.
+    """
+    amount_f = float(amount)
+    if not np.isfinite(amount_f):
+        amount_f = 1.0
+    amount_f = float(np.clip(amount_f, 0.0, 5.0))
+    if amount_f == 1.0:
+        return ap
+    bias_f = float(hf_bias)
+    if not np.isfinite(bias_f):
+        bias_f = 0.0
+    bias_f = float(np.clip(bias_f, 0.0, 1.0))
+
+    ap = np.asarray(ap, dtype=np.float64)
+    freq_axis = np.linspace(0.0, float(sr) / 2.0, ap.shape[1], dtype=np.float64)
+    ramp = np.clip((freq_axis - float(hf_crossover)) / max(1.0, float(hf_width)), 0.0, 1.0)
+    bias = (1.0 - bias_f) + ramp * bias_f
+    effective = 1.0 + (amount_f - 1.0) * bias
+    periodic = effective < _EFFECTIVE_FLOOR
+    exponent = 1.0 / np.where(periodic, 1.0, effective)
+    shaped = np.power(np.clip(ap, 0.0, 1.0), exponent[np.newaxis, :])
+    shaped[:, periodic] = 0.0
+    return np.clip(shaped, 0.0, 1.0)
+
+
 def fill_unvoiced_f0(f0: np.ndarray, voiced_mask: np.ndarray, target_freq: float) -> np.ndarray:
     """Interpolate F0 across unvoiced gaps; all-unvoiced input becomes *target_freq*."""
     if np.any(voiced_mask):

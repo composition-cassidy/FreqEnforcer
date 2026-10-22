@@ -8,6 +8,7 @@ from server.audio.modes._dsp import _repair_world_artifacts, _shift_spectral_env
 from server.audio.modes._retune import clamp_unit, retune_log2
 from server.audio.modes._world import (
     fill_unvoiced_f0,
+    shape_aperiodicity,
     validate_world_input,
     voiced_masks,
     world_envelopes,
@@ -66,10 +67,13 @@ def autotune_soft_to_note(
     dilation_frames: int = 3,
     world_cache: dict = None,
     return_f0: bool = False,
+    breathiness: float = 1.0,
+    hf_bias: float = 0.0,
 ):
     """Soft-retuned WORLD resynthesis. With return_f0, returns
     (audio, synthesised F0, time axis in s); F0 is None when no frame had a
-    usable F0 and the audio is passed through."""
+    usable F0 and the audio is passed through.  breathiness / hf_bias shape
+    the aperiodicity before synthesis (shape_aperiodicity)."""
     import pyworld as pw
 
     audio_arr = validate_world_input(audio, sr)
@@ -92,6 +96,7 @@ def autotune_soft_to_note(
         formant_ratio = 2 ** (float(int(formant_shift_cents)) / 1200.0)
         new_sp = np.array([_shift_spectral_envelope(frame, formant_ratio) for frame in new_sp])
 
+    ap = shape_aperiodicity(ap, sr, breathiness, hf_bias)
     output = pw.synthesize(new_f0, new_sp, ap, sr)
     output = _repair_world_artifacts(output, sr,
                                      world_f0=new_f0, world_time_axis=time_axis)
@@ -111,4 +116,6 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
         return_f0=True,
+        breathiness=float(settings.get("breathiness", 1.0)),
+        hf_bias=float(settings.get("hf_bias", 0.0)),
     )

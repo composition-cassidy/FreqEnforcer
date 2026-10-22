@@ -3,7 +3,7 @@ import Group from './Group';
 import Slider from '../controls/Slider';
 import Check from '../controls/Check';
 import Dwell from '../controls/Dwell';
-import { DEFAULT_SETTINGS as D, countActiveAdvanced } from '../../config/settings';
+import { DEFAULT_SETTINGS as D, countActiveAdvanced, modeCaps } from '../../config/settings';
 
 const pct = (v) => `${Math.round(v)} %`;
 const per = (v) => `${Math.round(v)} per`;
@@ -13,6 +13,7 @@ export default function AdvancedGroup({ settings, onChange, drag, loop, onFindLo
   const { t } = useTranslation();
   const n = countActiveAdvanced(settings);
   const s = settings;
+  const breath = modeCaps(s.pitch_mode).breath;
   return (
     <Group title={t('advanced.title')} right={n ? t('advanced.active', { count: n }) : null} collapsible defaultOpen={false}>
       <div className="sub">{t('advanced.cleanliness')}</div>
@@ -21,10 +22,11 @@ export default function AdvancedGroup({ settings, onChange, drag, loop, onFindLo
       <Slider label={t('advanced.hf_rollback')} value={s.clean_hf_rollback_percent} min={0} max={100} defaultValue={D.clean_hf_rollback_percent} format={pct} onChange={(v) => onChange({ clean_hf_rollback_percent: v })} {...drag} />
 
       <div className="sub">{t('advanced.breath')}</div>
+      {!breath && <div className="sub-note">{t('advanced.breath_world_only')}</div>}
       <Slider label={t('advanced.breathiness')} value={s.breathiness} min={0} max={5} step={0.01} defaultValue={D.breathiness} snap={1} snapZone={0.05}
-        format={(v) => `${v.toFixed(2)} ×`} onChange={(v) => onChange({ breathiness: v })} {...drag} />
+        format={(v) => `${v.toFixed(2)} ×`} onChange={(v) => onChange({ breathiness: v })} disabled={!breath} {...drag} />
       <Slider label={t('advanced.hf_bias')} value={s.hf_bias} min={0} max={1} step={0.01} defaultValue={D.hf_bias} format={(v) => v.toFixed(2)}
-        onChange={(v) => onChange({ hf_bias: v })} disabled={Math.abs(s.breathiness - 1) < 1e-6} {...drag} />
+        onChange={(v) => onChange({ hf_bias: v })} disabled={!breath || Math.abs(s.breathiness - 1) < 1e-6} {...drag} />
 
       <div className="sub">{t('advanced.limiter')}</div>
       <Dwell hint={t('advanced.limiter_help')}>

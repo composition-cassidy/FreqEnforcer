@@ -13,7 +13,12 @@ Each mode lives in its own module with the same interface:
                             input timeline (times in s).  f0/times are None
                             when the mode passed the audio through.
 
-Shared helpers: _world (WORLD analysis + voicing strict/force/dilate),
+Breathiness (settings breathiness / hf_bias) is aperiodicity shaping inside
+the WORLD modes, applied before their one synthesis call; the PSOLA and STFT
+modes have no aperiodicity to shape and ignore it.
+
+Shared helpers: _world (WORLD analysis + voicing strict/force/dilate,
+breathiness via shape_aperiodicity),
 _retune (soft-retune F0 trajectory), _dsp (spectral helpers).
 """
 

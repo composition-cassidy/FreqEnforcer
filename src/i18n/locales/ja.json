@@ -162,6 +162,7 @@
     "breath": "ブレス",
     "breathiness": "ブレス感",
     "hf_bias": "高域バイアス",
+    "breath_world_only": "ブレスは WORLD の非周期成分を調整するため、WORLD モードでのみ使えます。",
     "limiter": "倍音リミッター",
     "enable": "有効",
     "limiter_help": "波形の下にシーリングエディタを開きます。",

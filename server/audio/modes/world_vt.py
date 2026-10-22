@@ -14,6 +14,7 @@ from server.audio.modes._dsp import (
 )
 from server.audio.modes._world import (
     fill_unvoiced_f0,
+    shape_aperiodicity,
     validate_world_input,
     voiced_masks,
     world_envelopes,
@@ -40,6 +41,8 @@ def autotune_world_vt(
     dilation_frames: int = 3,
     use_hnm: bool = False,
     return_f0: bool = False,
+    breathiness: float = 1.0,
+    hf_bias: float = 0.0,
 ):
     """
     WORLD vocoder with pitch-adaptive vocal tract modeling.
@@ -63,6 +66,8 @@ def autotune_world_vt(
 
     return_f0: also return the synthesised F0 contour and its time axis (s);
         F0 is None when the audio is passed through.
+    breathiness, hf_bias: aperiodicity shaping before synthesis
+        (shape_aperiodicity), for both the WORLD and the HNM synthesiser.
     """
     import pyworld as pw
 
@@ -104,6 +109,7 @@ def autotune_world_vt(
     else:
         new_sp = sp
 
+    ap = shape_aperiodicity(ap, sr, breathiness, hf_bias)
     if use_hnm:
         from server.audio.hnm_synth import hnm_synthesize
         output = hnm_synthesize(new_f0, new_sp, ap, sr)
@@ -132,4 +138,6 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
         return_f0=True,
+        breathiness=float(settings.get("breathiness", 1.0)),
+        hf_bias=float(settings.get("hf_bias", 0.0)),
     )

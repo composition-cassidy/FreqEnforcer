@@ -162,6 +162,7 @@
     "breath": "Breath",
     "breathiness": "Breathiness",
     "hf_bias": "HF bias",
+    "breath_world_only": "Breath shapes WORLD's aperiodicity, so it needs a WORLD mode.",
     "limiter": "Harmonic limiter",
     "enable": "Enable",
     "limiter_help": "Opens the ceiling editor under the waveform.",

@@ -162,6 +162,7 @@
     "breath": "Aire",
     "breathiness": "Aire",
     "hf_bias": "Sesgo HF",
+    "breath_world_only": "El aire modifica la aperiodicidad de WORLD; requiere un modo WORLD.",
     "limiter": "Limitador armónico",
     "enable": "Activar",
     "limiter_help": "Abre el editor de techos bajo la forma de onda.",

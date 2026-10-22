@@ -25,4 +25,6 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
         return_f0=True,
+        breathiness=float(settings.get("breathiness", 1.0)),
+        hf_bias=float(settings.get("hf_bias", 0.0)),
     )

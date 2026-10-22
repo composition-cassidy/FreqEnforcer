@@ -162,6 +162,7 @@
     "breath": "Ar",
     "breathiness": "Soprosidade",
     "hf_bias": "Viés HF",
+    "breath_world_only": "O ar ajusta a aperiodicidade do WORLD; requer um modo WORLD.",
     "limiter": "Limitador harmônico",
     "enable": "Ativar",
     "limiter_help": "Abre o editor de tetos abaixo da forma de onda.",

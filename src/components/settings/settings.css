@@ -24,6 +24,7 @@
 .group--open .group__head::before { transform: rotate(90deg); }
 .sub { font-size: var(--fs-10); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin-top: var(--s2); }
 .sub:first-child { margin-top: 0; }
+.sub-note { font-size: var(--fs-11); color: var(--fg-2); }
 
 .target-readout { display: grid; grid-template-columns: 1fr auto; align-items: baseline; }
 .target-readout__big { font-family: var(--font-mono); font-size: var(--fs-22); font-weight: 600; line-height: 1; }

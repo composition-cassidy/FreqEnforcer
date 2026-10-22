@@ -133,7 +133,6 @@ def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) 
 
 def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
                   loop: Optional[asyncio.AbstractEventLoop]) -> np.ndarray:
-    from server.audio.autotuner import apply_breathiness
     from server.audio.modes import render_pitch_mode
     from server.audio.normalizer import normalize_audio
     from server.audio.cleanliness import (
@@ -158,10 +157,11 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     result = audio.copy()
     pitch_mode = str(settings.get("pitch_mode", "world_hard"))
 
-    # 0. Pre-compute WORLD analysis (shared by pitch correction + breathiness)
+    # 0. WORLD analysis of the input for the WORLD pitch modes
     world_cache = _world_cache_for(audio, sr, settings, timings)
 
-    # 1. Pitch correction
+    # 1. Pitch correction (WORLD modes also apply breathiness here, before
+    #    their single synthesis; other modes ignore it)
     _t = time.perf_counter()
     progress(0.05, "Autotuning...")
 
@@ -224,22 +224,6 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
         )
     # Note: high shelf removed — replaced by HF rollback inside apply_cleanliness
     timings['cleanliness'] = round((time.perf_counter() - _t) * 1000, 1)
-
-    # 6. Breathiness
-    _t = time.perf_counter()
-    breathiness = float(settings.get("breathiness", 1.0))
-    hf_bias = float(settings.get("hf_bias", 0.0))
-    if np.isfinite(breathiness) and np.isfinite(hf_bias) and breathiness != 1.0:
-        progress(0.70, "Applying breathiness...")
-        result = apply_breathiness(
-            result,
-            int(sr),
-            amount=float(breathiness),
-            hf_bias=float(hf_bias),
-            world_cache=None,  # must re-analyse the pitch-corrected/stretched audio
-        )
-
-    timings['breathiness'] = round((time.perf_counter() - _t) * 1000, 1)
 
     if not state.is_current_token(token):
         return result, {}, timings

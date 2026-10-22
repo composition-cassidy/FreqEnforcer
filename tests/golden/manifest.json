@@ -3,7 +3,7 @@
   "env": {
     "python": "3.14.2",
     "platform": "Windows-11-10.0.26200-SP0",
-    "git_head": "fa5702c336d98ed9b3fde42ae47d0aa11caa075e",
+    "git_head": "26f79412d5ba62d84c7824fb9ff83afeba48472c",
     "server_dirty": true,
     "packages": {
       "numpy": "2.3.5",
@@ -2810,13 +2810,13 @@
       "target_note": "F4",
       "sr": 44100,
       "n_samples": 88420,
-      "sha256": "6fb560a0a6df15909cce233e04b8a9578fc530e7b42cb72b965fc620d1b24c8d",
-      "rms": 0.41796466835349655,
-      "peak": 0.939419150352478,
-      "detected_f0": 349.288,
+      "sha256": "7a27912481feec9c4dedfc4b026a52b36e662ae45a8aa6a450a4b92bdc414571",
+      "rms": 0.38124692804469945,
+      "peak": 0.8467491269111633,
+      "detected_f0": 349.277,
       "detected_note": "F4",
       "detected_cents": 0,
-      "render_s": 0.942
+      "render_s": 0.98
     },
     {
       "id": "test_2s_C4-pipe_clean-na-F4",

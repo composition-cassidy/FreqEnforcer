@@ -8,7 +8,7 @@ python tests/sweep/report.py                    # rebuild this report from tests
 python -m pytest tests/test_pipeline_combos.py  # the 30 previous-worst combinations + cache collision
 ```
 
-- Latest run: git `fa5702c`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 21.9 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
+- Latest run: git `26f7941`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 20.54 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
 - librosa imported in any process: no
 
 ## Pass rate after each change
@@ -20,6 +20,7 @@ One row per full sweep (`tests/sweep/history.json`). *raw* = renders with no fai
 | **prefix** | `a34b4fd` | frozen | 10428 | 6.1 % | 30.2 % | 43.6 % | 12189 | breath_intended 3886, B1 3600, B4 2603, breath_resynth 1686 |
 | **change1: output F0 contour** | `b32a998` (dirty) | 2026-10-22 21:19 | 10428 | 4.4 % | 18.6 % | 30.8 % | 13893 | clean 8032, breath_intended 5397, breath 3399, lowcut 87 |
 | **change2: cleanliness mask** | `fa5702c` (dirty) | 2026-10-22 21:49 | 10428 | 11.5 % | 47.6 % | 76.9 % | 8029 | breath_intended 4928, breath 2873, clean 554, lowcut 25 |
+| **change3: breathiness in WORLD modes** | `26f7941` (dirty) | 2026-10-22 22:19 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
 
 ## Before / after (pre-fix vs latest run)
 
@@ -28,58 +29,58 @@ Failed metrics (counted per render):
 | metric | all, before | all, after | post-pitch, before | post-pitch, after |
 |---|---|---|---|---|
 | length | 859 | 859 | 0 | 0 |
-| peak | 4055 | 3509 | 2519 | 1900 |
-| f0 | 4587 | 2540 | 2420 | 467 |
-| inharm | 6664 | 5920 | 3261 | 2574 |
-| tail | 6307 | 6092 | 3577 | 2990 |
-| rms | 450 | 137 | 412 | 98 |
+| peak | 4055 | 2188 | 2519 | 84 |
+| f0 | 4587 | 2004 | 2420 | 79 |
+| inharm | 6664 | 4831 | 3261 | 1304 |
+| tail | 6307 | 4182 | 3577 | 213 |
+| rms | 450 | 173 | 412 | 123 |
 
-Renders passing: raw **6.1 % → 11.5 %**, post-pitch **30.2 % → 47.6 %**, post-pitch excl. intended **43.6 % → 76.9 %**.
+Renders passing: raw **6.1 % → 24.2 %**, post-pitch **30.2 % → 84.3 %**, post-pitch excl. intended **43.6 % → 96.8 %**.
 
-Per render (post-pitch, excl. intended): **3613 fixed**, **141 newly failing**, 2266 failing before and after.
+Per render (post-pitch, excl. intended): **5621 fixed**, **74 newly failing**, 258 failing before and after.
 
 Newly failing renders (worst 20):
 
 | combination | fails now | causes now | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ |
 |---|---|---|---|---|---|---|---|---|
-| `harm_C2|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0|hb0` | f0, inharm | f0: breath; inharm: breath | −1071 | +34.6 | −30.3 | −8.8 | −5.8 | +0 |
-| `harm_C2|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0.5|hb0` | f0, inharm | f0: breath; inharm: breath | −1071 | +34.6 | −30.3 | −8.8 | −5.8 | +0 |
-| `harm_A5|praat_soft|+12|x1|lc0|cl25|rb0|br2|hb0` | peak, inharm | peak: clean/breath_intended; inharm: clean/breath_intended | +3 | +42.0 | −31.1 | +2.3 | +2.5 | +0 |
-| `lead_G3|world_hard|-7|x1|lc0|cl25|rb0|br5|hb0` | tail | tail: clean/breath_intended | +0 | +28.8 | −24.0 | +0.2 | −1.0 | +5 |
-| `harm_A5|world_hard|-12|x1|lc0|cl25|rb0|br2|hb0` | tail | tail: clean/breath_intended | +1200 | +25.5 | −26.9 | +11.6 | +9.0 | +5 |
-| `harm_A4|sine_spectral|+5|x1.5|lc50|cl25|rb50|br2|hb1` | tail, rms | tail: clean; rms: clean | +701 | +41.1 | −8.4 | −11.4 | −6.3 | −56 |
-| `test_10s_C4_Fs4_tuned|sine_spectral|+12|x1|lc0|cl50|rb0|br5|hb0` | rms | rms: clean | +708 | +30.1 | – | −13.6 | +8.3 | +0 |
-| `harm_G3|world_soft|+0|x1|lc0|cl25|rb0|br5|hb0` | peak | peak: clean/breath_intended | +0 | +29.1 | −29.4 | +0.4 | +0.4 | +5 |
-| `harm_G3|world_vt|+0|x1|lc0|cl25|rb0|br5|hb0` | peak | peak: clean/breath_intended | +0 | +29.1 | −29.4 | +0.4 | +0.4 | +5 |
-| `harm_G3|world_vt|+0|x1|lc0|cl50|rb0|br5|hb0` | peak | peak: clean/breath_intended | +0 | +29.1 | −28.9 | +0.3 | +0.1 | +5 |
-| `harm_G3|world_soft|+0|x1|lc0|cl50|rb0|br5|hb0` | peak | peak: clean/breath_intended | +0 | +29.1 | −28.9 | +0.3 | +0.1 | +5 |
-| `harm_C2|world_hard|+5|x1|lc0|cl25|rb0|br5|hb0` | tail | tail: clean/breath_intended | +0 | +24.0 | −31.2 | −0.2 | −3.8 | +5 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +705 | +42.5 | −13.4 | −11.6 | −6.3 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +699 | +42.1 | −15.3 | −11.9 | −5.9 | +0 |
-| `test_10s_C4_Fs4_tuned|sine_spectral|+12|x1|lc0|cl25|rb0|br5|hb0` | rms | rms: clean | +4 | +30.3 | – | −9.1 | +8.1 | +0 |
-| `test_10s_C4_Fs4_tuned|sine_spectral|-12|x1|lc0|cl25|rb0|br0|hb0` | peak | peak: breath | −1155 | +30.8 | – | −1.6 | +9.5 | +0 |
-| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl50|rb0|br2|hb0` | tail, rms | tail: multi:clean+breath_intended; rms: clean | +431 | +19.8 | −21.9 | −6.2 | −8.4 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +697 | +41.9 | −12.4 | −14.2 | −8.7 | +0 |
-| `test_10s_C4_Fs4_tuned|sine_spectral|-12|x1|lc0|cl25|rb0|br0.5|hb0` | peak | peak: breath | −1155 | +30.8 | – | −1.6 | +8.3 | +0 |
-| `test_2s_C4|sine_spectral|-12|x1|lc0|cl25|rb0|br0|hb0` | peak | peak: breath | −1019 | +31.1 | – | −1.6 | +8.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1.5|lc50|cl25|rb50|br2|hb1` | tail, rms | tail: clean; rms: clean | +703 | +34.0 | −7.1 | −14.4 | −9.4 | −56 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | −8 | +7.4 | −15.4 | −13.8 | −15.0 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl75|rb0|br2|hb0` | tail | tail: clean | −8 | +7.4 | −15.4 | −13.8 | −15.0 | +0 |
+| `lead_G3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | tail: clean | −5 | +40.4 | −16.1 | −12.1 | −12.2 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl50|rb0|br2|hb0` | tail, rms | tail: clean; rms: clean | +435 | +19.7 | −29.2 | −7.7 | −8.9 | +0 |
+| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br0|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
+| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
+| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br2|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
+| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
+| `harm_A5|sine_spectral|-7|x1|lc0|cl100|rb0|br5|hb0` | tail | tail: clean | +702 | +10.3 | −20.2 | −12.9 | −9.9 | +0 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br0|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br0.5|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br2|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br5|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl50|rb0|br5|hb0` | f0 | f0: multi:clean+breath_intended | +40 | +0.7 | −23.4 | −8.9 | −15.7 | +5 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl75|rb0|br0|hb0` | tail | tail: clean | −8 | +13.1 | −24.1 | −9.9 | −11.9 | +0 |
+| `breathy_A3|sine_spectral|-7|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | −8 | +13.1 | −24.1 | −9.9 | −11.9 | +0 |
 
 Post-pitch failures by cause. The pre-fix harness named bugs through counterfactual re-renders (B1-B4, E1, E2); the current harness names the stage whose removal clears the failure:
 
 | cause | before | after | meaning |
 |---|---|---|---|
-| breath_intended | 3886 | 4928 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
+| breath_intended | 3886 | 1459 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
 | B1 | 3600 |  | cleanliness masks the ORIGINAL f0's harmonics (cached WORLD f0 of the input) |
-| breath |  | 2873 | breathiness < 1 (clears with breathiness 1) |
 | B4 | 2603 |  | breathiness re-analyses with harvest (default 71-800 Hz) |
 | breath_resynth | 1686 |  | breathiness second WORLD resynthesis itself |
 | E1 | 826 |  | cleanliness ISTFT start-of-file blow-up (no leading pad, NOLA) |
 | B2 | 782 |  | cleanliness 100 %: 10 Hz mask < 21.5 Hz STFT bin, even with correct f0 |
 | clean_mask | 555 |  | cleanliness 25-75 % mask with correct f0 |
-| clean |  | 554 | cleanliness stage (failure clears with cleanliness off) |
+| clean |  | 327 | cleanliness stage (failure clears with cleanliness off) |
 | E2 | 55 |  | cleanliness's own pyin f0 wrong (50-500 Hz range) |
 | lowcut_design | 35 |  | smart low cut with correct f0 |
-| lowcut |  | 25 | smart low cut stage (clears with low cut off) |
+| lowcut |  | 21 | smart low cut stage (clears with low cut off) |
 | B3 | 21 |  | smart low cut keyed to the original f0 (state.detected_pitch) |
+| breath |  | 19 | breathiness < 1 (clears with breathiness 1) |
 
 The 30 worst pre-fix combinations by post-pitch severity (these are the permanent cases in `tests/test_pipeline_combos.py`), before → after:
 
@@ -97,139 +98,118 @@ The 30 worst pre-fix combinations by post-pitch severity (these are the permanen
 | 10 | `harm_G3|sine_spectral|+0|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, inharm, tail | **pass** | +58.3 → −6.7 | +97 → +0 | +33.8 → +9.7 | −17.7 → −40.9 | inharm: inherited |
 | 11 | `harm_G3|praat_soft|+12|x1|lc50|cl100|rb50|br1|hb1` | peak, f0, tail | **pass** | +62.0 → −9.4 | +152 → +0 | +22.6 → +7.1 | −22.7 → −59.7 | inharm: inherited |
 | 12 | `harm_A4|praat_soft|+5|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, tail | **pass** | +63.1 → −7.9 | +138 → −0 | +27.9 → −2.6 | −21.8 → −58.0 |  |
-| 13 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br5|hb0` | peak, f0, inharm, tail, rms | peak, inharm | +0.3 → +2.6 | +1194 → −1 | +40.3 → +35.2 | −21.5 → −26.6 | peak: breath_intended; inharm: breath_intended; tail: inherited |
-| 14 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br0.5|hb0` | peak, f0, inharm, tail, rms | peak | +1.2 → +2.3 | +1196 → −1 | +38.1 → +14.3 | −21.9 → −27.5 | peak: breath; inharm: inherited; tail: inherited |
-| 15 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br2|hb0` | peak, f0, inharm, tail, rms | peak | +0.9 → +2.5 | +1196 → −1 | +38.4 → +23.2 | −21.7 → −27.2 | peak: breath_intended; inharm: inherited; tail: inherited |
-| 16 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail, rms | inharm | −7.0 → −2.8 | +704 → +1 | +45.1 → +35.4 | −22.5 → −29.7 | inharm: breath_intended; tail: inherited |
-| 17 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail, rms | inharm | −7.2 → −2.9 | +704 → +1 | +45.1 → +35.4 | −22.7 → −29.4 | inharm: breath_intended; tail: inherited |
-| 18 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail, rms | inharm | −7.7 → −4.0 | +704 → +0 | +45.1 → +19.1 | −22.5 → −29.9 | inharm: breath_intended; tail: inherited |
-| 19 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail, rms | **pass** | −7.8 → −4.4 | +704 → +0 | +45.1 → +0.4 | −22.5 → −30.1 | tail: inherited |
-| 20 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail, rms | **pass** | −7.7 → −4.4 | +704 → +0 | +45.1 → +0.2 | −22.5 → −30.2 | tail: inherited |
-| 21 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail, rms | inharm | −7.6 → −4.0 | +704 → +0 | +45.1 → +19.1 | −22.7 → −29.8 | inharm: breath_intended; tail: inherited |
-| 22 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail, rms | **pass** | −7.6 → −4.4 | +704 → +0 | +45.1 → +0.4 | −22.7 → −30.0 | tail: inherited |
-| 23 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail, rms | **pass** | −7.5 → −4.4 | +704 → +0 | +45.1 → +0.3 | −22.7 → −30.1 | tail: inherited |
-| 24 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl50|rb0|br5|hb0` | peak, f0, inharm, tail, rms | peak, inharm | +1.0 → +2.2 | +1196 → −1 | +36.7 → +35.1 | −20.5 → −26.6 | peak: breath_intended; inharm: breath_intended; tail: inherited |
-| 25 | `harm_A4|world_soft|+5|x1|lc50|cl25|rb0|br0.5|hb1` | f0, inharm, tail, rms | **pass** | −7.5 → −4.4 | +704 → +0 | +45.1 → +0.7 | −23.2 → −30.7 | tail: inherited |
-| 26 | `harm_A4|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0|hb0` | peak, f0, inharm, tail | tail | +0.6 → −1.5 | +783 → −6 | +46.9 → +8.7 | −25.4 → −28.6 | inharm: inherited; tail: clean/breath |
+| 13 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br5|hb0` | peak, f0, inharm, tail, rms | **pass** | +0.3 → −2.1 | +1194 → −7 | +40.3 → +13.5 | −21.5 → −29.8 | inharm: inherited; tail: inherited |
+| 14 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br0.5|hb0` | peak, f0, inharm, tail, rms | **pass** | +1.2 → −2.1 | +1196 → −7 | +38.1 → +13.5 | −21.9 → −29.8 | inharm: inherited; tail: inherited |
+| 15 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br2|hb0` | peak, f0, inharm, tail, rms | **pass** | +0.9 → −2.1 | +1196 → −7 | +38.4 → +13.5 | −21.7 → −29.8 | inharm: inherited; tail: inherited |
+| 16 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail, rms | inharm | −7.0 → −4.1 | +704 → +0 | +45.1 → +27.1 | −22.5 → −31.1 | inharm: breath_intended; tail: inherited |
+| 17 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail, rms | inharm | −7.2 → −4.2 | +704 → +0 | +45.1 → +27.1 | −22.7 → −30.9 | inharm: breath_intended; tail: inherited |
+| 18 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail, rms | inharm | −7.7 → −4.8 | +704 → +0 | +45.1 → +10.2 | −22.5 → −31.3 | inharm: breath_intended; tail: inherited |
+| 19 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail, rms | **pass** | −7.8 → −4.9 | +704 → +0 | +45.1 → +0.5 | −22.5 → −31.3 | tail: inherited |
+| 20 | `harm_A4|world_vt|+5|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail, rms | **pass** | −7.7 → −4.9 | +704 → +0 | +45.1 → +0.5 | −22.5 → −31.3 | tail: inherited |
+| 21 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail, rms | **pass** | −7.6 → −4.9 | +704 → +0 | +45.1 → +10.2 | −22.7 → −31.1 | inharm: inherited; tail: inherited |
+| 22 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail, rms | **pass** | −7.6 → −5.0 | +704 → +0 | +45.1 → +0.8 | −22.7 → −31.1 | tail: inherited |
+| 23 | `harm_A4|world_soft|+5|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail, rms | **pass** | −7.5 → −5.0 | +704 → +0 | +45.1 → +0.8 | −22.7 → −31.1 | tail: inherited |
+| 24 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl50|rb0|br5|hb0` | peak, f0, inharm, tail, rms | **pass** | +1.0 → −2.4 | +1196 → −7 | +36.7 → +10.1 | −20.5 → −29.7 | inharm: inherited; tail: inherited |
+| 25 | `harm_A4|world_soft|+5|x1|lc50|cl25|rb0|br0.5|hb1` | f0, inharm, tail, rms | **pass** | −7.5 → −5.1 | +704 → +0 | +45.1 → +0.8 | −23.2 → −36.5 | tail: inherited |
+| 26 | `harm_A4|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0|hb0` | peak, f0, inharm, tail | **pass** | +0.6 → −5.1 | +783 → −4 | +46.9 → +3.4 | −25.4 → −34.4 | tail: inherited |
 | 27 | `harm_A4|praat_soft|+12|x1|lc50|cl100|rb50|br1|hb1` | peak, inharm, tail | **pass** | +59.2 → −9.1 | +2 → +0 | +37.1 → +6.9 | −4.7 → −61.2 | inharm: inherited |
-| 28 | `harm_A4|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0.5|hb0` | peak, f0, inharm, tail | tail | +0.5 → −1.5 | +781 → −6 | +46.9 → +9.1 | −25.4 → −28.6 | inharm: inherited; tail: clean/breath |
-| 29 | `harm_A4|world_hnm|+5|x1.5|lc0|cl50|rb50|br0|hb0` | f0, inharm, tail | **pass** | −5.4 → −4.3 | +702 → +1 | +43.8 → +1.6 | −9.2 → −15.1 | length: inherited; tail: inherited |
+| 28 | `harm_A4|stft_pitchshift|-7|x1|lc0|cl100|rb0|br0.5|hb0` | peak, f0, inharm, tail | **pass** | +0.5 → −5.1 | +781 → −4 | +46.9 → +3.4 | −25.4 → −34.4 | tail: inherited |
+| 29 | `harm_A4|world_hnm|+5|x1.5|lc0|cl50|rb50|br0|hb0` | f0, inharm, tail | **pass** | −5.4 → −5.1 | +702 → +1 | +43.8 → +0.5 | −9.2 → −15.1 | length: inherited; tail: inherited |
 | 30 | `harm_A5|praat_soft|+0|x1|lc0|cl75|rb0|br1|hb0` | peak, f0, tail | **pass** | +55.6 → −7.1 | +137 → +0 | +30.5 → −7.8 | −24.3 → −64.8 |  |
 
 ## Remaining failures
 
-19057 failed (render, metric) pairs in the latest run:
+14237 failed (render, metric) pairs in the latest run:
 
 | category | failures | why it remains |
 |---|---|---|
-| inherited from the pitch stage | 10173 | The pitch-only render fails the same metric. Fixing pitch modes is out of scope for this change set (see the per-mode table). |
-| pitch stage missed the note (f0/inharm) | 855 | Measured against a target the post stages never received. |
-| breathiness > 1 (intended) | 4777 | Breathiness above 1 is meant to add aperiodic energy; the inharmonic rule counts that as a failure. |
-| **post-pitch** | **3252** | listed below |
+| inherited from the pitch stage | 12286 | The pitch-only render fails the same metric. Fixing pitch modes is out of scope for this change set (see the per-mode table). |
+| pitch stage missed the note (f0/inharm) | 148 | Measured against a target the post stages never received. |
+| breathiness > 1 (intended) | 1436 | Breathiness above 1 is meant to add aperiodic energy; the inharmonic rule counts that as a failure. |
+| **post-pitch** | **367** | listed below |
 
 Pitch-stage failures by mode:
 
 | mode | exception | nonfinite | length | peak | f0 | inharm | tail | rms | pitch_miss |
 |---|---|---|---|---|---|---|---|---|---|
-| `world_hard` |  |  | 88 | 267 | 45 | 99 | 576 | 17 | 11 |
-| `world_soft` |  |  | 77 | 361 | 148 | 164 | 662 | 17 | 6 |
-| `world_vt` |  |  | 88 | 340 | 146 | 156 | 644 | 5 | 6 |
-| `world_hnm` |  |  | 342 | 267 | 146 | 441 | 61 |  | 1 |
-| `praat_soft` |  |  | 66 | 9 | 92 | 332 | 42 |  | 87 |
-| `sine_spectral` |  |  | 99 | 244 | 542 | 1364 | 634 |  | 627 |
-| `stft_pitchshift` |  |  | 99 | 121 | 266 | 623 | 483 |  | 117 |
+| `world_hard` |  |  | 88 | 296 | 55 | 89 | 857 | 17 | 6 |
+| `world_soft` |  |  | 77 | 429 | 150 | 183 | 842 | 17 | 2 |
+| `world_vt` |  |  | 88 | 418 | 149 | 174 | 831 | 16 | 2 |
+| `world_hnm` |  |  | 342 | 370 | 155 | 512 | 77 |  | 1 |
+| `praat_soft` |  |  | 66 | 5 | 142 | 468 | 42 |  | 1 |
+| `sine_spectral` |  |  | 99 | 443 | 866 | 1363 | 710 |  | 130 |
+| `stft_pitchshift` |  |  | 99 | 143 | 270 | 728 | 610 |  | 6 |
 
 Post-pitch failures by metric and cause. *breath = 1*: breathiness off, so the failure comes from cleanliness / low cut alone. *pitch-only misses the note*: the pitch stage already produced the wrong pitch, so cleanliness (which masks the target's harmonics) removes most of the body and tail/rms, which are relative to the body, move with it.
 
 | metric | cause | breath = 1 | pitch-only misses the note | failures |
 |---|---|---|---|---|
-| tail | breath | no | no | 986 |
-| peak | breath | no | no | 484 |
-| peak | breath | no | yes | 374 |
-| tail | breath | no | yes | 332 |
-| inharm | breath | no | no | 318 |
-| f0 | breath | no | no | 179 |
-| tail | clean | no | yes | 85 |
-| f0 | clean/breath | no | no | 75 |
-| rms | clean | no | yes | 62 |
-| tail | clean/breath_intended | no | no | 57 |
-| tail | clean/breath | no | no | 54 |
+| tail | clean | no | yes | 139 |
+| rms | clean | no | yes | 95 |
 | tail | clean | yes | yes | 34 |
-| tail | clean/breath | no | yes | 29 |
 | rms | clean | yes | yes | 23 |
-| tail | clean/breath_intended | no | yes | 22 |
-| f0 | clean/breath_intended | no | no | 20 |
-| tail | multi:clean+breath_intended | no | yes | 18 |
-| tail | multi:clean+breath | no | yes | 16 |
-| inharm | clean/breath | no | no | 10 |
-| f0 | clean | no | no | 10 |
-| inharm | clean/breath_intended | no | no | 9 |
-| peak | clean/breath_intended | no | no | 9 |
+| f0 | breath | no | no | 13 |
+| f0 | multi:clean+breath_intended | no | no | 12 |
 | f0 | clean | yes | no | 9 |
-| rms | breath | no | no | 6 |
-| peak | multi:lowcut+breath_intended | no | yes | 5 |
-| f0 | lowcut/breath | no | no | 3 |
-| inharm | lowcut/breath_intended | no | no | 3 |
-| peak | clean/breath | no | yes | 2 |
-| tail | multi:clean+lowcut+breath_intended | no | yes | 2 |
-| f0 | multi:clean+breath | no | no | 2 |
-| inharm | lowcut | no | no | 2 |
+| f0 | clean | no | no | 7 |
+| tail | breath | no | no | 6 |
+| rms | lowcut | no | no | 5 |
+| f0 | clean/breath_intended | no | no | 5 |
+| peak | lowcut | no | yes | 5 |
+| tail | lowcut | no | yes | 2 |
+| tail | clean/breath_intended | no | no | 2 |
+| tail | lowcut | no | no | 2 |
+| inharm | lowcut/breath_intended | no | no | 2 |
 | peak | lowcut | yes | yes | 2 |
-| peak | clean/breath_intended | no | yes | 1 |
-| tail | multi:clean+lowcut+breath | no | yes | 1 |
-| tail | multi:lowcut+breath_intended | no | yes | 1 |
-| tail | lowcut/breath_intended | no | no | 1 |
-| tail | multi:clean+lowcut+breath | no | no | 1 |
-| peak | lowcut/breath_intended | no | no | 1 |
-| tail | multi:clean+lowcut+breath_intended | no | no | 1 |
+| inharm | lowcut | no | no | 1 |
 | peak | clean | yes | yes | 1 |
-| f0 | clean/lowcut/breath | no | no | 1 |
-| peak | lowcut/breath_intended | no | yes | 1 |
+| f0 | lowcut/breath_intended | no | no | 1 |
+| inharm | multi:lowcut+breath_intended | no | no | 1 |
 
 Worst post-pitch failures (up to 40):
 
 | combination | metric | cause | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ |
 |---|---|---|---|---|---|---|---|---|
-| `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | −627 | +31.5 | – | +1.9 | +8.8 | −28 |
-| `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br0.5|hb0` | f0 | breath | −627 | +31.5 | – | +1.9 | +8.8 | −28 |
-| `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br0|hb0` | f0 | clean/breath | −670 | +47.8 | −38.1 | −4.2 | −4.2 | +0 |
-| `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br0.5|hb0` | f0 | clean/breath | −670 | +47.8 | −38.1 | −4.2 | −4.2 | +0 |
-| `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br2|hb0` | f0 | clean/breath_intended | −670 | +47.8 | −38.1 | −4.2 | −4.1 | +0 |
-| `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br5|hb0` | f0 | clean/breath_intended | −670 | +47.8 | −38.0 | −4.2 | −3.6 | +0 |
-| `harm_C2|world_hard|+0|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | −1191 | +34.8 | −19.7 | −4.2 | −0.9 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl0|rb0|br0.5|hb0` | f0 | breath | −1191 | +34.8 | −19.7 | −4.2 | −0.9 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl25|rb0|br0|hb0` | f0 | breath | −1191 | +34.8 | −19.9 | −4.2 | −0.9 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl25|rb0|br0.5|hb0` | f0 | breath | −1191 | +34.8 | −19.9 | −4.2 | −0.9 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl50|rb0|br0|hb0` | f0 | breath | −1191 | +34.8 | −18.4 | −4.2 | −1.0 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl50|rb0|br0.5|hb0` | f0 | breath | −1191 | +34.8 | −18.4 | −4.2 | −1.0 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl75|rb0|br0|hb0` | f0 | breath | −1191 | +34.8 | −21.4 | −4.4 | −1.1 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl75|rb0|br0.5|hb0` | f0 | breath | −1191 | +34.8 | −21.4 | −4.4 | −1.1 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl100|rb0|br0|hb0` | f0 | breath | −1191 | +34.8 | −25.5 | −5.8 | −2.5 | +5 |
-| `harm_C2|world_hard|+0|x1|lc0|cl100|rb0|br0.5|hb0` | f0 | breath | −1191 | +34.8 | −25.5 | −5.8 | −2.5 | +5 |
-| `harm_C2|world_hard|+0|x1|lc100|cl0|rb50|br0.5|hb0` | f0 | breath | −1183 | +34.7 | −23.8 | −4.4 | −1.3 | +5 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl0|rb0|br0.5|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl25|rb0|br0|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl25|rb0|br0.5|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl50|rb0|br0|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl50|rb0|br0.5|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl75|rb0|br0|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl75|rb0|br0.5|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl100|rb0|br0|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|praat_soft|+0|x1|lc0|cl100|rb0|br0.5|hb0` | f0 | breath | −1161 | +34.8 | −34.6 | −3.9 | −4.1 | +0 |
-| `harm_C2|world_soft|+0|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | −1186 | +34.7 | −32.9 | −3.7 | −0.6 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl0|rb0|br0.5|hb0` | f0 | breath | −1186 | +34.7 | −32.9 | −3.7 | −0.6 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br0|hb0` | f0 | breath | −1186 | +34.7 | −15.4 | −3.7 | −0.7 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br0.5|hb0` | f0 | breath | −1186 | +34.7 | −15.5 | −3.7 | −0.7 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl50|rb0|br0|hb0` | f0 | breath | −1186 | +34.7 | −33.1 | −3.8 | −0.7 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl50|rb0|br0.5|hb0` | f0 | breath | −1186 | +34.7 | −33.1 | −3.8 | −0.7 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl75|rb0|br0|hb0` | f0 | breath | −1186 | +34.7 | −29.7 | −4.0 | −1.0 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl75|rb0|br0.5|hb0` | f0 | breath | −1186 | +34.7 | −29.7 | −4.0 | −1.0 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl100|rb0|br0|hb0` | f0 | breath | −1186 | +34.7 | −33.3 | −5.4 | −2.5 | +5 |
-| `harm_C2|world_soft|+0|x1|lc0|cl100|rb0|br0.5|hb0` | f0 | breath | −1186 | +34.7 | −33.3 | −5.4 | −2.5 | +5 |
-| `harm_C2|world_soft|-12|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | −1268 | +33.5 | −31.1 | −1.1 | +0.7 | +5 |
-| `harm_C2|world_soft|-12|x1|lc0|cl0|rb0|br0.5|hb0` | f0 | breath | −1269 | +33.5 | −31.0 | −1.2 | +0.7 | +5 |
-| `harm_C2|world_soft|-12|x1|lc0|cl25|rb0|br0|hb0` | f0 | breath | −1275 | +33.6 | −31.7 | −1.1 | +0.7 | +5 |
+| `breathy_A3|world_vt|+12|x1.5|lc100|cl0|rb50|br5|hb1` | f0 | lowcut/breath_intended | −1197 | +9.6 | −40.8 | −8.5 | −12.4 | −44 |
+| `breathy_A3|stft_pitchshift|+0|x1.5|lc0|cl100|rb50|br0|hb1` | tail | clean | −790 | +17.8 | −0.7 | −16.4 | −10.5 | −56 |
+| `breathy_A3|stft_pitchshift|+5|x1.5|lc100|cl75|rb0|br1|hb0` | tail | clean | −8 | +16.2 | −3.0 | −19.2 | −15.5 | −56 |
+| `breathy_A3|stft_pitchshift|+12|x1.5|lc50|cl50|rb50|br5|hb1` | tail | clean | −27 | +18.5 | −3.5 | −11.5 | −13.7 | −56 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1.5|lc50|cl25|rb50|br2|hb1` | tail | clean | +703 | +34.0 | −7.1 | −14.4 | −9.4 | −56 |
+| `harm_A4|sine_spectral|-7|x1.5|lc100|cl100|rb50|br0.5|hb0` | tail | clean | +1218 | +21.1 | −8.7 | −9.0 | −10.8 | −56 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br0|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br0.5|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br1|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br2|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
+| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
+| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
+| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
+| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
+| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br0|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br0.5|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br1|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br2|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br5|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br0|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br0.5|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br1|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br2|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br5|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
+| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
 
 Cross-check of the f0 failures with breathiness off: YIN (the sweep's f0 metric) vs the spectral peaks of harmonics 1-4 in the note body (1 M-point FFT). Where the harmonics sit on the target the YIN reading is biased, not the pitch:
 
@@ -253,6 +233,7 @@ Golden references regenerated because their render has cleanliness, breathiness 
 |---|---|---|---|---|---|---|---|---|---|---|
 | change1 | `tests/golden/test_2s_C4/pipe_clean__na__F4.wav` | cleanliness masks the output F0 contour (was the input's cached WORLD F0); smart low cut keyed to the output contour | −2.1 → +57.3 | −13.4 → −1.2 | +1 → +0 | +9.2 → −3.8 | −16.0 → −0.7 | 734.1271 | inharm, rms | peak |
 | change2 | `tests/golden/test_2s_C4/pipe_clean__na__F4.wav` | cleanliness: n_fft from output F0, mask >= 2 bins, time-smoothed, both-end padding (E1), envelope guard | +57.3 → −2.5 | −1.2 → −1.2 | +0 → +0 | −3.8 → −3.8 | −0.7 → −0.7 | 734.1239 | peak | pass |
+| change3 | `tests/golden/test_2s_C4/pipe_breath__na__F4.wav` | breathiness shapes the WORLD mode's own aperiodicity before its single synthesis (was a second harvest/cheaptrick/d4c/synthesize pass on the output) | −0.5 → −1.4 | +0.2 → −0.6 | +0 → +0 | +4.0 → +3.5 | +0.8 → −0.0 | 0.8286 | pass | pass |
 
 ## Suspected bugs: before / after
 
@@ -290,9 +271,9 @@ praat_soft G3 +5 st (before: breathiness ≠ 1 switched cleanliness to the cache
 | clean | breath | body vs pitch-only dB | f0 ¢ | inharm Δ dB | post-pitch fails |
 |---|---|---|---|---|---|
 | 50 | 1.0 | −0.3 → −0.3 | −0 → −0 | +0.8 → +0.7 | peak → pass |
-| 50 | 0.5 | −6.0 → −0.3 | −0 → −0 | +9.5 → −2.2 | tail, rms → tail |
+| 50 | 0.5 | −6.0 → −0.3 | −0 → −0 | +9.5 → +0.7 | tail, rms → pass |
 | 100 | 1.0 | −8.1 → −1.7 | −0 → −0 | −0.8 → −2.6 | peak, tail → pass |
-| 100 | 0.5 | −22.9 → −1.6 | −1031 → −0 | +38.5 → −2.8 | f0, inharm, tail → tail |
+| 100 | 0.5 | −22.9 → −1.7 | −1031 → −0 | +38.5 → −2.6 | f0, inharm, tail → pass |
 
 ### B2 - cleanliness mask narrower than the STFT resolution
 
@@ -367,61 +348,61 @@ pyworld calls in one render (G3 +5 st, cleanliness 50), **before**:
 
 | mode | breath | calls |
 |---|---|---|
-| world_hard | 0.5 | dio(f0_floor=50, f0_ceil=500) → stonemask → cheaptrick → d4c → cheaptrick → d4c → synthesize → harvest → cheaptrick → d4c → synthesize |
+| world_hard | 0.5 | dio(f0_floor=50, f0_ceil=500) → stonemask → cheaptrick → d4c → cheaptrick → d4c → synthesize |
 | world_hard | 1.0 | dio(f0_floor=50, f0_ceil=500) → stonemask → cheaptrick → d4c → cheaptrick → d4c → synthesize |
-| praat_soft | 0.5 | harvest → cheaptrick → d4c → synthesize |
+| praat_soft | 0.5 | (none) |
 | praat_soft | 1.0 | (none) |
 
 Breathiness 0.5 vs pitch-only:
 
 | fixture | mode | shift | target f0 | f0 ¢ | inharm Δ dB | post-pitch fails |
 |---|---|---|---|---|---|---|
-| harm_C2 | world_hard | −12 | 32.7 | −1263 → −1263 | +33.9 → +33.9 | f0, inharm → f0, inharm |
-| harm_C2 | world_hard | +0 | 65.4 | −1191 → −1191 | +34.8 → +34.8 | f0, inharm, tail → f0, inharm, tail |
-| harm_C2 | world_hard | +12 | 130.8 | +0 → +0 | +1.0 → +1.0 | tail → tail |
-| harm_C2 | praat_soft | −12 | 32.7 | −1151 → −1151 | +33.4 → +33.4 | inharm, tail → inharm, tail |
-| harm_C2 | praat_soft | +0 | 65.4 | −1161 → −1161 | +34.8 → +34.8 | f0, inharm, tail → f0, inharm, tail |
-| harm_C2 | praat_soft | +12 | 130.8 | −1183 → −1183 | +35.6 → +35.6 | tail → tail |
-| harm_G3 | world_hard | −12 | 98.0 | +0 → +0 | +3.7 → +3.7 | pass → pass |
-| harm_G3 | world_hard | +0 | 196.0 | +0 → +0 | +0.2 → +0.2 | pass → pass |
-| harm_G3 | world_hard | +12 | 392.0 | −0 → −0 | −3.4 → −3.4 | pass → pass |
-| harm_G3 | praat_soft | −12 | 98.0 | +0 → +0 | +1.3 → +1.3 | tail → tail |
-| harm_G3 | praat_soft | +0 | 196.0 | +0 → +0 | −0.0 → −0.0 | tail → tail |
-| harm_G3 | praat_soft | +12 | 392.0 | −2 → −2 | +38.1 → +38.1 | inharm, tail → inharm, tail |
-| harm_A4 | world_hard | −12 | 220.0 | +0 → +0 | +6.9 → +6.9 | pass → pass |
-| harm_A4 | world_hard | +0 | 440.0 | +1 → +1 | +2.5 → +2.5 | pass → pass |
-| harm_A4 | world_hard | +12 | 880.0 | +3 → +3 | +39.9 → +39.9 | peak, inharm → peak, inharm |
-| harm_A4 | praat_soft | −12 | 220.0 | −0 → −0 | +9.1 → +9.1 | tail → tail |
-| harm_A4 | praat_soft | +0 | 440.0 | +0 → +0 | +9.5 → +9.5 | tail → tail |
-| harm_A4 | praat_soft | +12 | 880.0 | +2 → +2 | +46.8 → +46.8 | peak, inharm, tail → peak, inharm, tail |
-| harm_A5 | world_hard | −12 | 440.0 | +1200 → +1200 | +17.1 → +17.1 | peak → peak |
-| harm_A5 | world_hard | +0 | 880.0 | +4 → +4 | +44.0 → +44.0 | peak, inharm → peak, inharm |
-| harm_A5 | world_hard | +12 | 1760.0 | +3 → +3 | +47.1 → +47.1 | peak → peak |
-| harm_A5 | praat_soft | −12 | 440.0 | +1209 → +1209 | +39.5 → +39.5 | peak, inharm, tail → peak, inharm, tail |
-| harm_A5 | praat_soft | +0 | 880.0 | −0 → −0 | +44.8 → +44.8 | peak, inharm, tail → peak, inharm, tail |
-| harm_A5 | praat_soft | +12 | 1760.0 | +2 → +2 | +30.3 → +30.3 | peak, tail → peak, tail |
+| harm_C2 | world_hard | −12 | 32.7 | −1263 → +0 | +33.9 → −0.1 | f0, inharm → pass |
+| harm_C2 | world_hard | +0 | 65.4 | −1191 → +0 | +34.8 → +0.1 | f0, inharm, tail → pass |
+| harm_C2 | world_hard | +12 | 130.8 | +0 → +0 | +1.0 → +0.8 | tail → pass |
+| harm_C2 | praat_soft | −12 | 32.7 | −1151 → +1200 | +33.4 → +0.1 | inharm, tail → pass |
+| harm_C2 | praat_soft | +0 | 65.4 | −1161 → +0 | +34.8 → +0.0 | f0, inharm, tail → pass |
+| harm_C2 | praat_soft | +12 | 130.8 | −1183 → −1200 | +35.6 → +34.5 | tail → pass |
+| harm_G3 | world_hard | −12 | 98.0 | +0 → +0 | +3.7 → +3.6 | pass → pass |
+| harm_G3 | world_hard | +0 | 196.0 | +0 → +0 | +0.2 → −0.1 | pass → pass |
+| harm_G3 | world_hard | +12 | 392.0 | −0 → +0 | −3.4 → −2.8 | pass → pass |
+| harm_G3 | praat_soft | −12 | 98.0 | +0 → +0 | +1.3 → +1.4 | tail → pass |
+| harm_G3 | praat_soft | +0 | 196.0 | +0 → +0 | −0.0 → −0.0 | tail → pass |
+| harm_G3 | praat_soft | +12 | 392.0 | −2 → −0 | +38.1 → +17.2 | inharm, tail → pass |
+| harm_A4 | world_hard | −12 | 220.0 | +0 → +0 | +6.9 → +6.0 | pass → pass |
+| harm_A4 | world_hard | +0 | 440.0 | +1 → +1 | +2.5 → +0.0 | pass → pass |
+| harm_A4 | world_hard | +12 | 880.0 | +3 → +1 | +39.9 → +1.9 | peak, inharm → pass |
+| harm_A4 | praat_soft | −12 | 220.0 | −0 → −1 | +9.1 → +25.3 | tail → pass |
+| harm_A4 | praat_soft | +0 | 440.0 | +0 → −0 | +9.5 → +23.3 | tail → pass |
+| harm_A4 | praat_soft | +12 | 880.0 | +2 → +1 | +46.8 → +24.5 | peak, inharm, tail → pass |
+| harm_A5 | world_hard | −12 | 440.0 | +1200 → +1201 | +17.1 → +18.2 | peak → pass |
+| harm_A5 | world_hard | +0 | 880.0 | +4 → +1 | +44.0 → +1.4 | peak, inharm → pass |
+| harm_A5 | world_hard | +12 | 1760.0 | +3 → +1 | +47.1 → +41.4 | peak → pass |
+| harm_A5 | praat_soft | −12 | 440.0 | +1209 → +1201 | +39.5 → +27.2 | peak, inharm, tail → pass |
+| harm_A5 | praat_soft | +0 | 880.0 | −0 → +1 | +44.8 → +27.7 | peak, inharm, tail → pass |
+| harm_A5 | praat_soft | +12 | 1760.0 | +2 → +2 | +30.3 → +29.9 | peak, tail → pass |
 
 Breathiness 0.99 vs 1.0 (world_hard, shift 0):
 
 | fixture | clean | waveform residual dB | inharm dB at 0.99 |
 |---|---|---|---|
-| harm_G3 | 0 | −4.4 → −4.4 | −41.6 → −41.6 (1.0: −41.9) |
-| harm_G3 | 75 | −2.1 → −1.4 | −41.7 → −41.7 (1.0: −42.0) |
-| test_2s_C4 | 0 | −5.7 → −5.7 | −31.4 → −31.4 (1.0: −31.9) |
-| test_2s_C4 | 75 | −9.2 → −13.4 | −36.5 → −36.5 (1.0: −39.7) |
+| harm_G3 | 0 | −4.4 → −72.8 | −41.6 → −41.9 (1.0: −41.9) |
+| harm_G3 | 75 | −2.1 → −77.0 | −41.7 → −42.0 (1.0: −42.0) |
+| test_2s_C4 | 0 | −5.7 → −65.9 | −31.4 → −31.9 (1.0: −31.9) |
+| test_2s_C4 | 75 | −9.2 → −68.0 | −36.5 → −39.7 (1.0: −39.7) |
 
 Breathiness 0:
 
 | fixture | mode | hf_bias | warnings before | warnings after | NaN/inf samples | residual vs 0.01 dB |
 |---|---|---|---|---|---|---|
-| harm_G3 | world_hard | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −63.2 → −63.2 |
-| harm_G3 | world_hard | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −61.9 → −61.9 |
-| harm_G3 | praat_soft | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −64.9 → −64.9 |
-| harm_G3 | praat_soft | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −60.3 → −60.3 |
-| breathy_A3 | world_hard | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −31.3 → −31.3 |
-| breathy_A3 | world_hard | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −31.0 → −31.0 |
-| breathy_A3 | praat_soft | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −33.3 → −33.3 |
-| breathy_A3 | praat_soft | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | 0 → 0 | −30.9 → −30.9 |
+| harm_G3 | world_hard | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −63.2 → −65.1 |
+| harm_G3 | world_hard | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −61.9 → −63.0 |
+| harm_G3 | praat_soft | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −64.9 → −∞ |
+| harm_G3 | praat_soft | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −60.3 → −∞ |
+| breathy_A3 | world_hard | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −31.3 → −31.3 |
+| breathy_A3 | world_hard | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −31.0 → −29.5 |
+| breathy_A3 | praat_soft | 0.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −33.3 → −∞ |
+| breathy_A3 | praat_soft | 1.0 | RuntimeWarning: divide by zero encountered in divide @ autotuner.py:95 | – | 0 → 0 | −30.9 → −∞ |
 
 ### B5 - WORLD cache keyed on md5 of the first 1000 samples
 
@@ -468,32 +449,49 @@ A = `lead_G3`, then B (same 300 ms of leading zeros for `lead_A4`) without reset
 | lead_G3 | world_hard | 100 | −3.4 → −5.0 | 316.37 → 719.43 | −3.4 | yes → no |
 
 
+## A/B listening: the 10 previous-worst renders
+
+In `tests/sweep/out/ab/`: `…__before.wav` (pre-fix render, saved by the pre-fix run), `…__after.wav` (this code) and `…__after_pitch_only.wav`. All are clipped to ±1.0 for safe listening; the true peaks are in the table.
+
+| # | combination | files | post-pitch fails before → after | peak dBFS | f0 ¢ | inharm Δ dB |
+|---|---|---|---|---|---|---|
+| 1 | `harm_A4|praat_soft|+12|x1|lc0|cl100|rb0|br1|hb0` | before, after, after_pitch_only | peak, f0, inharm, tail → pass | +64.6 → −7.7 | −1276 → +0 | +44.7 → −12.1 |
+| 2 | `harm_A5|praat_soft|+5|x1|lc0|cl100|rb0|br1|hb0` | before, after, after_pitch_only | peak, f0, inharm, tail → pass | +56.8 → −8.0 | −1197 → −1 | +42.9 → −3.8 |
+| 3 | `vowel_D3|praat_soft|+12|x1|lc50|cl100|rb50|br1|hb1` | before, after, after_pitch_only | peak, f0, tail → pass | +73.2 → −8.5 | +715 → +0 | −7.5 → −6.7 |
+| 4 | `vowel_D3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br1|hb0` | before, after, after_pitch_only | peak, f0, tail → pass | +53.4 → −7.5 | +380 → −0 | −0.6 → +0.2 |
+| 5 | `harm_A5|sine_spectral|+0|x1|lc0|cl75|rb0|br1|hb0` | before, after, after_pitch_only | peak, f0 → pass | +52.9 → −8.2 | +1179 → −9 | +30.1 → +31.0 |
+| 6 | `harm_G3|sine_spectral|+0|x1|lc0|cl100|rb0|br1|hb0` | before, after, after_pitch_only | peak, f0, inharm, tail → pass | +58.3 → −6.7 | +97 → +0 | +33.8 → +9.7 |
+| 7 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br5|hb0` | before, after, after_pitch_only | peak, f0, inharm, tail, rms → pass | +0.3 → −2.1 | +1194 → −7 | +40.3 → +13.5 |
+| 8 | `test_10s_C4|sine_spectral|-12|x1|lc0|cl100|rb0|br1|hb0` | before, after, after_pitch_only | peak → pass | +84.7 → +1.8 | +476 → +0 | +31.6 → +26.5 |
+| 9 | `harm_A4|stft_pitchshift|+12|x1|lc0|cl100|rb0|br5|hb0` | before, after, after_pitch_only | peak, f0, inharm, tail → pass | +1.8 → −7.2 | +47 → −2 | +46.8 → −5.2 |
+| 10 | `harm_A4|world_hnm|+12|x1|lc0|cl0|rb0|br0.5|hb0` | before, after, after_pitch_only | peak, inharm, tail → pass | +5.1 → −5.1 | −1 → +1 | +45.6 → +2.8 |
+
 ## Root causes in the latest run
 
-Post-pitch failures (8029):
+Post-pitch failures (1803):
 
 | rank | cause | explains | sole | renders | meaning |
 |---|---|---|---|---|---|
-| 1 | breath_intended | 4928 | 4777 | 3211 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
-| 2 | breath | 2873 | 2679 | 2079 | breathiness < 1 (clears with breathiness 1) |
-| 3 | clean | 554 | 224 | 495 | cleanliness stage (failure clears with cleanliness off) |
-| 4 | lowcut | 25 | 4 | 25 | smart low cut stage (clears with low cut off) |
+| 1 | breath_intended | 1459 | 1436 | 1331 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
+| 2 | clean | 327 | 308 | 295 | cleanliness stage (failure clears with cleanliness off) |
+| 3 | lowcut | 21 | 17 | 18 | smart low cut stage (clears with low cut off) |
+| 4 | breath | 19 | 19 | 19 | breathiness < 1 (clears with breathiness 1) |
 
-All failures (19057):
+All failures (14237):
 
 | rank | cause | explains | sole | renders | meaning |
 |---|---|---|---|---|---|
-| 1 | breath_intended | 4928 | 4777 | 3211 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
-| 2 | pitch:inharm | 3179 | 3179 | 3179 | pitch stage: mode adds inharmonic energy |
-| 3 | pitch:tail | 3102 | 3102 | 3102 | pitch stage: energy past the source offset (the mode's release smear) |
-| 4 | breath | 2873 | 2679 | 2079 | breathiness < 1 (clears with breathiness 1) |
-| 5 | pitch:peak | 1609 | 1609 | 1609 | pitch stage: output above 0 dBFS (onset spikes, hot real fixture) |
-| 6 | pitch:f0 | 1385 | 1385 | 1385 | pitch stage: mode misses the target note |
-| 7 | pitch:length | 859 | 859 | 859 | pitch/stretch stage: output length off by more than the tolerance |
-| 8 | pitch_miss | 855 | 855 | 851 | pitch stage missed the target note; f0/inharm after it are measured against a pitch the post stages never received |
-| 9 | clean | 554 | 224 | 495 | cleanliness stage (failure clears with cleanliness off) |
-| 10 | pitch:rms | 39 | 39 | 39 | pitch stage: level drop |
-| 11 | lowcut | 25 | 4 | 25 | smart low cut stage (clears with low cut off) |
+| 1 | pitch:tail | 3969 | 3969 | 3969 | pitch stage: energy past the source offset (the mode's release smear) |
+| 2 | pitch:inharm | 3517 | 3517 | 3517 | pitch stage: mode adds inharmonic energy |
+| 3 | pitch:peak | 2104 | 2104 | 2104 | pitch stage: output above 0 dBFS (onset spikes, hot real fixture) |
+| 4 | pitch:f0 | 1787 | 1787 | 1787 | pitch stage: mode misses the target note |
+| 5 | breath_intended | 1459 | 1436 | 1331 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
+| 6 | pitch:length | 859 | 859 | 859 | pitch/stretch stage: output length off by more than the tolerance |
+| 7 | clean | 327 | 308 | 295 | cleanliness stage (failure clears with cleanliness off) |
+| 8 | pitch_miss | 148 | 148 | 148 | pitch stage missed the target note; f0/inharm after it are measured against a pitch the post stages never received |
+| 9 | pitch:rms | 50 | 50 | 50 | pitch stage: level drop |
+| 10 | lowcut | 21 | 17 | 18 | smart low cut stage (clears with low cut off) |
+| 11 | breath | 19 | 19 | 19 | breathiness < 1 (clears with breathiness 1) |
 
 ## Pass/fail rules (unchanged)
 
@@ -531,26 +529,26 @@ Ranked by post-pitch severity (sum of value / threshold over post-pitch failures
 
 | # | combination | fails | post sev | all sev | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ | causes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `harm_A5|sine_spectral|+0|x1.5|lc100|cl50|rb0|br0|hb0` | length, peak, f0, inharm, tail | 29.3 | 35.3 | +616 | +46.6 | −19.8 | −0.0 | +1.6 | −56 | length: inherited; peak: breath; f0: clean/lowcut/breath; inharm: breath; tail: inherited |
-| 2 | `harm_C2|world_vt|+0|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.4 | −3.7 | −0.7 | +5 | f0: breath; inharm: breath; tail: clean/breath |
-| 3 | `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br0|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.4 | −3.7 | −0.7 | +5 | f0: breath; inharm: breath; tail: clean/breath |
-| 4 | `harm_C2|world_vt|+0|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.4 | −3.7 | −0.7 | +5 | f0: breath; inharm: breath; tail: clean/breath |
-| 5 | `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br0.5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.5 | −3.7 | −0.7 | +5 | f0: breath; inharm: breath; tail: clean/breath |
-| 6 | `harm_C2|world_vt|+0|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.5 | −3.7 | −0.7 | +5 | f0: breath_intended; inharm: breath_intended; tail: clean/breath_intended |
-| 7 | `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br2|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.5 | −3.7 | −0.7 | +5 | f0: breath_intended; inharm: breath_intended; tail: clean/breath_intended |
-| 8 | `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br2|hb0` | length, peak, f0, inharm | 29.2 | 32.0 | −627 | +31.5 | – | +1.9 | +8.9 | −28 | length: inherited; peak: breath_intended; f0: breath_intended; inharm: breath_intended |
-| 9 | `harm_C2|world_vt|+0|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.7 | −3.7 | −0.7 | +5 | f0: breath_intended; inharm: breath_intended; tail: clean/breath_intended |
-| 10 | `harm_C2|world_soft|+0|x1|lc0|cl25|rb0|br5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −1186 | +34.7 | −15.7 | −3.7 | −0.7 | +5 | f0: breath_intended; inharm: breath_intended; tail: clean/breath_intended |
-| 11 | `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br0.5|hb0` | length, peak, f0, inharm | 29.2 | 31.9 | −627 | +31.5 | – | +1.9 | +8.8 | −28 | length: inherited; peak: breath; f0: breath; inharm: breath |
-| 12 | `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br0|hb0` | length, peak, f0, inharm | 29.2 | 31.9 | −627 | +31.5 | – | +1.9 | +8.8 | −28 | length: inherited; peak: breath; f0: breath; inharm: breath |
-| 13 | `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −670 | +47.8 | −38.0 | −4.2 | −3.6 | +0 | f0: clean/breath_intended; inharm: breath_intended; tail: breath_intended |
-| 14 | `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br0.5|hb0` | f0, inharm, tail | 29.2 | 29.2 | −670 | +47.8 | −38.1 | −4.2 | −4.2 | +0 | f0: clean/breath; inharm: clean/breath; tail: breath |
-| 15 | `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br2|hb0` | f0, inharm, tail | 29.2 | 29.2 | −670 | +47.8 | −38.1 | −4.2 | −4.1 | +0 | f0: clean/breath_intended; inharm: clean/breath_intended; tail: breath_intended |
-| 16 | `harm_A5|praat_soft|-7|x1|lc0|cl100|rb0|br0|hb0` | f0, inharm, tail | 29.2 | 29.2 | −670 | +47.8 | −38.1 | −4.2 | −4.2 | +0 | f0: clean/breath; inharm: clean/breath; tail: breath |
-| 17 | `test_10s_C4_Fs4_tuned|world_hnm|-7|x1|lc0|cl0|rb0|br5|hb0` | length, peak, f0, inharm | 29.1 | 31.8 | −627 | +31.5 | – | +1.9 | +8.5 | −28 | length: inherited; peak: breath_intended; f0: breath_intended; inharm: breath_intended |
-| 18 | `harm_C2|world_hard|+0|x1|lc0|cl50|rb0|br0|hb0` | f0, inharm, tail | 29.0 | 29.0 | −1191 | +34.8 | −18.4 | −4.2 | −1.0 | +5 | f0: breath; inharm: breath; tail: breath |
-| 19 | `harm_C2|world_hard|+0|x1|lc0|cl50|rb0|br0.5|hb0` | f0, inharm, tail | 29.0 | 29.0 | −1191 | +34.8 | −18.4 | −4.2 | −1.0 | +5 | f0: breath; inharm: breath; tail: breath |
-| 20 | `harm_C2|world_hard|+0|x1|lc0|cl50|rb0|br2|hb0` | f0, inharm, tail | 29.0 | 29.0 | −1191 | +34.8 | −18.4 | −4.2 | −1.0 | +5 | f0: breath_intended; inharm: breath_intended; tail: breath_intended |
+| 1 | `test_10s_C4_Fs4_tuned|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | length, peak, f0, inharm | 28.0 | 30.8 | −1186 | +27.3 | – | +0.9 | +7.3 | −28 | length: inherited; peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 2 | `harm_A4|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 27.3 | 27.3 | −1199 | +43.7 | −45.1 | +0.5 | −0.1 | −3 | f0: breath_intended; inharm: breath_intended |
+| 3 | `harm_A5|world_hard|-7|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 27.2 | 27.2 | −1199 | +43.1 | −41.7 | −1.9 | −2.5 | +5 | f0: breath_intended; inharm: breath_intended |
+| 4 | `harm_A5|world_hard|+5|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm, tail | 27.1 | 29.2 | −1198 | +42.5 | −29.3 | −0.2 | −2.3 | +5 | f0: breath_intended; inharm: breath_intended; tail: inherited |
+| 5 | `test_10s_C4_Fs4_tuned|world_hnm|+5|x1|lc0|cl0|rb0|br5|hb0` | length, peak, f0, inharm | 27.0 | 29.8 | −1186 | +24.5 | – | +0.8 | +5.8 | −28 | length: inherited; peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 6 | `harm_A4|world_hnm|+5|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 26.9 | 26.9 | −1199 | +41.5 | −45.8 | +0.4 | −1.1 | −3 | f0: breath_intended; inharm: breath_intended |
+| 7 | `harm_A4|world_hnm|+0|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 26.7 | 26.7 | −1198 | +40.0 | −41.2 | +0.4 | −0.1 | −3 | f0: breath_intended; inharm: breath_intended |
+| 8 | `short_C4|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | peak, f0, inharm | 26.5 | 26.5 | −1196 | +31.9 | – | +0.4 | +0.5 | −0 | peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 9 | `short_C4|world_hnm|+12|x1|lc0|cl25|rb0|br5|hb0` | peak, f0, inharm | 26.5 | 26.5 | −1196 | +31.9 | – | +0.4 | +0.5 | −0 | peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 10 | `short_C4|world_hnm|+12|x1|lc0|cl50|rb0|br5|hb0` | peak, f0, inharm | 26.5 | 26.5 | −1196 | +31.9 | – | +0.4 | +0.5 | −0 | peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 11 | `short_C4|world_hnm|+12|x1|lc0|cl75|rb0|br5|hb0` | peak, f0, inharm | 26.5 | 26.5 | −1196 | +31.9 | – | +0.4 | +0.5 | −0 | peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 12 | `short_C4|world_hnm|+12|x1|lc0|cl100|rb0|br5|hb0` | peak, f0, inharm | 26.5 | 26.5 | −1196 | +31.9 | – | +0.4 | +0.5 | −0 | peak: breath_intended; f0: breath_intended; inharm: breath_intended |
+| 13 | `lead_G3|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 25.8 | 25.8 | −1199 | +35.1 | −44.3 | +0.5 | −2.3 | −4 | f0: breath_intended; inharm: breath_intended |
+| 14 | `harm_G3|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm | 25.8 | 25.8 | −1199 | +34.7 | −50.3 | +0.8 | −0.0 | −3 | f0: breath_intended; inharm: breath_intended |
+| 15 | `test_2s_C4|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | peak, f0, inharm | 24.6 | 28.1 | −1188 | +27.8 | – | +0.8 | +7.5 | −5 | peak: inherited; f0: breath_intended; inharm: breath_intended |
+| 16 | `test_10s_C4|world_hnm|+12|x1|lc0|cl0|rb0|br5|hb0` | length, peak, f0, inharm | 24.6 | 30.4 | −1191 | +27.6 | – | +0.9 | +7.5 | −23 | length: inherited; peak: inherited; f0: breath_intended; inharm: breath_intended |
+| 17 | `test_2s_C4|world_hnm|+5|x1|lc0|cl0|rb0|br5|hb0` | peak, f0, inharm | 24.2 | 27.3 | −1186 | +25.2 | – | +0.8 | +6.3 | −5 | peak: inherited; f0: breath_intended; inharm: breath_intended |
+| 18 | `test_10s_C4|world_hnm|+5|x1|lc0|cl0|rb0|br5|hb0` | length, peak, f0, inharm | 24.1 | 29.5 | −1197 | +24.8 | – | +0.8 | +6.2 | −23 | length: inherited; peak: inherited; f0: breath_intended; inharm: breath_intended |
+| 19 | `breathy_A3|world_hard|+12|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm, tail, rms | 22.4 | 26.2 | −1200 | +14.2 | −22.5 | −6.4 | −11.4 | +5 | f0: breath_intended; inharm: breath_intended; tail: inherited; rms: inherited |
+| 20 | `breathy_A3|world_soft|+12|x1|lc0|cl0|rb0|br5|hb0` | f0, inharm, tail, rms | 22.3 | 26.2 | −1201 | +13.9 | −21.8 | −6.5 | −11.7 | +5 | f0: breath_intended; inharm: breath_intended; tail: inherited; rms: inherited |
 
 ## Failure counts per parameter (latest run)
 
@@ -562,72 +560,72 @@ Ranked by post-pitch severity (sum of value / threshold over post-pitch failures
 
 | mode | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `world_hard` | 66 | 56 | 24 | 11 |  |  | 33 | 10 | 9 | 16 | 42 | 1 |
-| `world_soft` | 66 | 60 | 18 | 7 |  |  | 22 | 20 | 9 | 18 | 40 | 1 |
-| `world_vt` | 55 | 50 | 25 | 16 |  |  | 33 | 13 | 8 | 18 | 35 | 1 |
-| `world_hnm` | 55 | 53 | 30 | 15 |  |  | 37 | 19 | 9 | 27 | 35 |  |
-| `praat_soft` | 66 | 57 | 39 | 10 |  |  | 11 | 13 | 9 | 40 | 34 |  |
-| `sine_spectral` | 66 | 66 | 25 | 17 |  |  | 44 | 26 | 50 | 65 | 39 | 1 |
-| `stft_pitchshift` | 88 | 86 | 55 | 29 |  |  | 44 | 34 | 22 | 63 | 55 | 3 |
+| `world_hard` | 66 | 50 | 6 | 5 |  |  | 33 | 1 | 5 | 5 | 33 | 4 |
+| `world_soft` | 66 | 56 | 5 | 0 |  |  | 22 | 13 | 8 | 13 | 38 | 1 |
+| `world_vt` | 55 | 49 | 10 | 6 |  |  | 33 | 6 | 8 | 15 | 32 | 3 |
+| `world_hnm` | 55 | 43 | 11 | 3 |  |  | 37 | 5 | 6 | 25 | 23 |  |
+| `praat_soft` | 66 | 31 | 3 | 3 |  |  | 11 |  | 8 | 25 | 9 |  |
+| `sine_spectral` | 66 | 66 | 9 | 9 |  |  | 44 | 7 | 43 | 64 | 39 | 2 |
+| `stft_pitchshift` | 88 | 73 | 5 | 5 |  |  | 44 | 3 | 15 | 39 | 43 | 2 |
 
 **shift**
 
 | shift | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -12 | 88 | 87 | 47 | 23 |  |  | 46 | 42 | 26 | 49 | 55 |  |
-| -7 | 88 | 83 | 45 | 21 |  |  | 44 | 25 | 23 | 49 | 55 | 1 |
-| 0 | 110 | 99 | 46 | 24 |  |  | 46 | 26 | 25 | 48 | 66 |  |
-| 5 | 77 | 69 | 25 | 14 |  |  | 44 | 16 | 18 | 27 | 49 | 1 |
-| 12 | 99 | 90 | 53 | 23 |  |  | 44 | 26 | 24 | 74 | 55 | 5 |
+| -12 | 88 | 75 | 10 | 7 |  |  | 46 | 17 | 23 | 39 | 42 |  |
+| -7 | 88 | 69 | 5 | 5 |  |  | 44 | 8 | 18 | 34 | 41 |  |
+| 0 | 110 | 76 | 4 | 4 |  |  | 46 | 6 | 15 | 29 | 46 |  |
+| 5 | 77 | 63 | 4 | 3 |  |  | 44 | 2 | 17 | 28 | 44 | 2 |
+| 12 | 99 | 85 | 26 | 12 |  |  | 44 | 2 | 20 | 56 | 44 | 10 |
 
 **stretch**
 
 | stretch | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 242 | 208 | 120 | 59 |  |  | 4 | 71 | 51 | 121 | 141 | 2 |
-| 1.5 | 220 | 220 | 96 | 46 |  |  | 220 | 64 | 65 | 126 | 139 | 5 |
+| 1 | 242 | 148 | 12 | 11 |  |  | 4 | 27 | 34 | 76 | 79 | 5 |
+| 1.5 | 220 | 220 | 37 | 20 |  |  | 220 | 8 | 59 | 110 | 138 | 7 |
 
 **lowcut**
 
 | lowcut | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 165 | 161 | 92 | 30 |  |  | 99 | 56 | 31 | 97 | 101 | 3 |
-| 50 | 121 | 110 | 54 | 37 |  |  | 57 | 35 | 42 | 60 | 69 | 2 |
-| 100 | 176 | 157 | 70 | 38 |  |  | 68 | 44 | 43 | 90 | 110 | 2 |
+| 0 | 165 | 137 | 16 | 3 |  |  | 99 | 7 | 25 | 64 | 81 | 2 |
+| 50 | 121 | 95 | 12 | 12 |  |  | 57 | 12 | 36 | 47 | 54 | 3 |
+| 100 | 176 | 136 | 21 | 16 |  |  | 68 | 16 | 32 | 75 | 82 | 7 |
 
 **clean**
 
 | clean | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 99 | 94 | 58 | 32 |  |  | 44 | 36 | 28 | 70 | 59 | 1 |
-| 25 | 99 | 94 | 35 | 17 |  |  | 55 | 26 | 24 | 46 | 63 | 3 |
-| 50 | 99 | 92 | 50 | 25 |  |  | 66 | 35 | 20 | 53 | 61 | 3 |
-| 75 | 77 | 74 | 31 | 15 |  |  | 24 | 18 | 20 | 34 | 49 |  |
-| 100 | 88 | 74 | 42 | 16 |  |  | 35 | 20 | 24 | 44 | 48 |  |
+| 0 | 99 | 83 | 22 | 10 |  |  | 44 | 13 | 28 | 63 | 45 | 3 |
+| 25 | 99 | 83 | 10 | 8 |  |  | 55 | 6 | 22 | 38 | 51 | 7 |
+| 50 | 99 | 83 | 3 | 3 |  |  | 66 | 1 | 13 | 35 | 52 | 2 |
+| 75 | 77 | 59 | 4 | 4 |  |  | 24 | 11 | 12 | 22 | 35 |  |
+| 100 | 88 | 60 | 10 | 6 |  |  | 35 | 4 | 18 | 28 | 34 |  |
 
 **hfrb**
 
 | hfrb | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 187 | 170 | 100 | 30 |  |  | 79 | 56 | 36 | 100 | 118 | 4 |
-| 50 | 275 | 258 | 116 | 75 |  |  | 145 | 79 | 80 | 147 | 162 | 3 |
+| 0 | 187 | 128 | 16 | 13 |  |  | 79 | 10 | 27 | 55 | 77 | 6 |
+| 50 | 275 | 240 | 33 | 18 |  |  | 145 | 25 | 66 | 131 | 140 | 6 |
 
 **breath**
 
 | breath | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 99 | 87 | 43 | 43 |  |  | 44 | 28 | 19 | 33 | 62 | 1 |
-| 0.5 | 77 | 71 | 34 | 34 |  |  | 35 | 23 | 24 | 33 | 48 |  |
+| 0 | 99 | 83 | 6 | 6 |  |  | 44 | 7 | 11 | 31 | 51 | 4 |
+| 0.5 | 77 | 59 | 3 | 3 |  |  | 35 | 3 | 20 | 35 | 35 |  |
 | 1 | 88 | 79 | 5 | 5 |  |  | 44 | 14 | 15 | 33 | 45 |  |
-| 2 | 99 | 98 | 67 | 10 |  |  | 66 | 42 | 35 | 76 | 62 | 3 |
-| 5 | 99 | 93 | 67 | 13 |  |  | 35 | 28 | 23 | 72 | 63 | 3 |
+| 2 | 99 | 83 | 18 | 7 |  |  | 66 | 7 | 30 | 53 | 50 | 3 |
+| 5 | 99 | 64 | 17 | 10 |  |  | 35 | 4 | 17 | 34 | 36 | 5 |
 
 **hfbias**
 
 | hfbias | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 242 | 230 | 125 | 61 |  |  | 121 | 84 | 69 | 152 | 152 | 3 |
-| 1 | 220 | 198 | 91 | 44 |  |  | 103 | 51 | 47 | 95 | 128 | 4 |
+| 0 | 242 | 197 | 25 | 14 |  |  | 121 | 16 | 54 | 120 | 117 | 5 |
+| 1 | 220 | 171 | 24 | 17 |  |  | 103 | 19 | 39 | 66 | 100 | 7 |
 
 ### Grid set
 
@@ -635,59 +633,59 @@ Ranked by post-pitch severity (sum of value / threshold over post-pitch failures
 
 | mode | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `world_hard` | 1375 | 1161 | 701 | 250 |  |  |  | 412 | 133 | 565 | 841 | 15 |
-| `world_soft` | 1375 | 1221 | 624 | 194 |  |  |  | 521 | 198 | 586 | 850 | 15 |
-| `world_vt` | 1375 | 1223 | 635 | 185 |  |  |  | 516 | 196 | 589 | 850 | 3 |
-| `world_hnm` | 1375 | 1207 | 900 | 399 |  |  | 250 | 553 | 216 | 755 | 705 |  |
-| `praat_soft` | 1375 | 1011 | 880 | 403 |  |  |  | 246 | 167 | 687 | 697 |  |
-| `sine_spectral` | 1375 | 1369 | 656 | 418 |  |  |  | 590 | 1072 | 1323 | 845 | 62 |
-| `stft_pitchshift` | 1375 | 1263 | 888 | 458 |  |  |  | 549 | 357 | 1023 | 809 | 33 |
+| `world_hard` | 1375 | 1126 | 375 | 22 |  |  |  | 314 | 75 | 434 | 811 | 15 |
+| `world_soft` | 1375 | 1168 | 342 | 3 |  |  |  | 425 | 142 | 505 | 770 | 15 |
+| `world_vt` | 1375 | 1167 | 348 | 5 |  |  |  | 423 | 143 | 504 | 770 | 14 |
+| `world_hnm` | 1375 | 976 | 278 | 22 |  |  | 250 | 407 | 178 | 720 | 35 |  |
+| `praat_soft` | 1375 | 465 | 0 | 0 |  |  |  | 5 | 130 | 420 |  |  |
+| `sine_spectral` | 1375 | 1345 | 180 | 180 |  |  |  | 440 | 905 | 1245 | 740 | 90 |
+| `stft_pitchshift` | 1375 | 920 | 70 | 70 |  |  |  | 140 | 250 | 650 | 605 | 25 |
 
 **shift**
 
 | shift | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -12 | 1925 | 1772 | 1042 | 477 |  |  | 50 | 1041 | 593 | 1060 | 1108 |  |
-| -7 | 1925 | 1770 | 1078 | 488 |  |  | 50 | 758 | 507 | 1186 | 1137 | 14 |
-| 0 | 1925 | 1668 | 1089 | 467 |  |  | 50 | 582 | 354 | 997 | 1103 | 5 |
-| 5 | 1925 | 1647 | 1012 | 405 |  |  | 50 | 522 | 432 | 1105 | 1132 | 23 |
-| 12 | 1925 | 1598 | 1063 | 470 |  |  | 50 | 484 | 453 | 1180 | 1117 | 86 |
+| -12 | 1925 | 1547 | 242 | 11 |  |  | 50 | 777 | 465 | 915 | 803 |  |
+| -7 | 1925 | 1612 | 324 | 45 |  |  | 50 | 512 | 421 | 1069 | 810 | 10 |
+| 0 | 1925 | 1261 | 290 | 23 |  |  | 50 | 317 | 206 | 695 | 617 | 5 |
+| 5 | 1925 | 1427 | 348 | 87 |  |  | 50 | 303 | 394 | 926 | 776 | 35 |
+| 12 | 1925 | 1320 | 389 | 136 |  |  | 50 | 245 | 337 | 873 | 725 | 109 |
 
 **clean**
 
 | clean | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1925 | 1778 | 1175 | 493 |  |  | 50 | 833 | 508 | 1223 | 1123 | 15 |
-| 25 | 1925 | 1735 | 1072 | 472 |  |  | 50 | 754 | 469 | 1133 | 1125 | 49 |
-| 50 | 1925 | 1711 | 1030 | 446 |  |  | 50 | 703 | 465 | 1109 | 1122 | 64 |
-| 75 | 1925 | 1629 | 994 | 428 |  |  | 50 | 578 | 453 | 1045 | 1109 |  |
-| 100 | 1925 | 1602 | 1013 | 468 |  |  | 50 | 519 | 444 | 1018 | 1118 |  |
+| 0 | 1925 | 1625 | 349 | 6 |  |  | 50 | 581 | 449 | 1166 | 761 | 14 |
+| 25 | 1925 | 1504 | 343 | 68 |  |  | 50 | 483 | 393 | 989 | 749 | 65 |
+| 50 | 1925 | 1453 | 342 | 81 |  |  | 50 | 431 | 367 | 911 | 744 | 80 |
+| 75 | 1925 | 1317 | 280 | 60 |  |  | 50 | 344 | 316 | 750 | 740 |  |
+| 100 | 1925 | 1268 | 279 | 87 |  |  | 50 | 315 | 298 | 662 | 737 |  |
 
 **breath**
 
 | breath | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1925 | 1676 | 1031 | 1031 |  |  | 50 | 715 | 512 | 742 | 1213 | 24 |
-| 0.5 | 1925 | 1678 | 1034 | 1034 |  |  | 50 | 711 | 516 | 744 | 1213 | 24 |
+| 0 | 1925 | 1337 | 65 | 65 |  |  | 50 | 414 | 360 | 634 | 744 | 32 |
+| 0.5 | 1925 | 1349 | 56 | 56 |  |  | 50 | 423 | 352 | 635 | 744 | 32 |
 | 1 | 1925 | 1359 | 58 | 58 |  |  | 50 | 430 | 360 | 650 | 743 | 32 |
-| 2 | 1925 | 1837 | 1403 | 90 |  |  | 50 | 707 | 477 | 1502 | 1214 | 24 |
-| 5 | 1925 | 1905 | 1758 | 94 |  |  | 50 | 824 | 474 | 1890 | 1214 | 24 |
+| 2 | 1925 | 1504 | 462 | 61 |  |  | 50 | 426 | 362 | 1077 | 744 | 32 |
+| 5 | 1925 | 1618 | 952 | 62 |  |  | 50 | 461 | 389 | 1482 | 756 | 31 |
 
 ### Per fixture
 
 | fixture | renders | failing | post-pitch | post excl. intended |
 |---|---|---|---|---|
-| `harm_C2` | 948 | 914 | 622 | 324 |
-| `harm_G3` | 948 | 900 | 510 | 195 |
-| `harm_A4` | 948 | 912 | 543 | 234 |
-| `harm_A5` | 948 | 938 | 716 | 397 |
-| `vowel_D3` | 948 | 912 | 591 | 285 |
-| `breathy_A3` | 948 | 907 | 556 | 357 |
-| `short_C4` | 948 | 595 | 379 | 94 |
-| `lead_G3` | 948 | 906 | 508 | 195 |
-| `test_2s_C4` | 948 | 724 | 343 | 100 |
-| `test_10s_C4` | 948 | 743 | 359 | 118 |
-| `test_10s_C4_Fs4_tuned` | 948 | 777 | 341 | 108 |
+| `harm_C2` | 948 | 813 | 138 | 15 |
+| `harm_G3` | 948 | 736 | 167 | 0 |
+| `harm_A4` | 948 | 784 | 190 | 48 |
+| `harm_A5` | 948 | 898 | 64 | 55 |
+| `vowel_D3` | 948 | 792 | 172 | 11 |
+| `breathy_A3` | 948 | 741 | 198 | 158 |
+| `short_C4` | 948 | 587 | 161 | 1 |
+| `lead_G3` | 948 | 761 | 167 | 5 |
+| `test_2s_C4` | 948 | 577 | 132 | 13 |
+| `test_10s_C4` | 948 | 590 | 127 | 13 |
+| `test_10s_C4_Fs4_tuned` | 948 | 624 | 125 | 13 |
 
 <!-- frozen copy of the pre-fix report; tests/sweep/baseline/prefix_report.md -->
 ## Appendix: pre-fix report (frozen)

@@ -26,8 +26,8 @@ class AppState:
         self.loop_start: Optional[int] = None
         self.loop_end:   Optional[int] = None
 
-        # Cached WORLD analysis — computed once per audio, reused by
-        # pitch correction and breathiness to avoid redundant analysis.
+        # Cached WORLD analysis of the loaded audio, reused by the WORLD
+        # pitch modes across /process calls.
         self.world_cache: dict = {
             'audio_hash': None,
             'f0': None,

@@ -11,6 +11,7 @@ import numpy as np
 from server.audio.modes._dsp import _shift_spectral_envelope
 from server.audio.modes._world import (
     fill_unvoiced_f0,
+    shape_aperiodicity,
     validate_world_input,
     voiced_masks,
     world_envelopes,
@@ -31,6 +32,8 @@ def autotune_to_note(
     dilation_frames: int = 3,
     world_cache: dict = None,
     return_f0: bool = False,
+    breathiness: float = 1.0,
+    hf_bias: float = 0.0,
 ):
     """
     Flatten all pitched content in audio to a single target note.
@@ -41,6 +44,7 @@ def autotune_to_note(
         target_note: Target note name like "C4", "F#3", etc.
         preserve_formants: If True, keeps original voice character. If False, formants shift with pitch.
         return_f0: also return the synthesised F0 contour and its time axis (s)
+        breathiness, hf_bias: aperiodicity shaping (shape_aperiodicity)
 
     Returns:
         Autotuned audio as float64 numpy array, or (audio, f0, time_axis)
@@ -74,6 +78,7 @@ def autotune_to_note(
                 ratio = target_freq / f0[i]
                 new_sp[i] = _shift_spectral_envelope(sp[i], float(ratio))
 
+    ap = shape_aperiodicity(ap, sr, breathiness, hf_bias)
     out = pw.synthesize(new_f0, new_sp, ap, sr)
     return (out, new_f0, time_axis) if return_f0 else out
 
@@ -87,6 +92,8 @@ def autotune_with_formant_shift(
     dilation_frames: int = 3,
     world_cache: dict = None,
     return_f0: bool = False,
+    breathiness: float = 1.0,
+    hf_bias: float = 0.0,
 ):
     """
     Autotune to target note with optional formant shifting.
@@ -100,6 +107,7 @@ def autotune_with_formant_shift(
                             Positive = brighter/smaller vocal tract
                             Negative = darker/larger vocal tract
         return_f0: also return the synthesised F0 contour and its time axis (s)
+        breathiness, hf_bias: aperiodicity shaping (shape_aperiodicity)
 
     Returns:
         Autotuned audio as float64 numpy array, or (audio, f0, time_axis)
@@ -127,8 +135,15 @@ def autotune_with_formant_shift(
     else:
         new_sp = sp
 
+    ap = shape_aperiodicity(ap, sr, breathiness, hf_bias)
     out = pw.synthesize(new_f0, new_sp, ap, sr)
     return (out, new_f0, time_axis) if return_f0 else out
+
+
+def breath_settings(settings: dict) -> dict:
+    """breathiness / hf_bias from the /api/process settings (WORLD modes only)."""
+    return {"breathiness": float(settings.get("breathiness", 1.0)),
+            "hf_bias": float(settings.get("hf_bias", 0.0))}
 
 
 def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
@@ -136,7 +151,8 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
     if settings.get("preserve_formants", True):
         return autotune_to_note(audio, sr, settings["target_note"],
                                 preserve_formants=True, voicing_mode=voicing,
-                                world_cache=world_cache, return_f0=True)
+                                world_cache=world_cache, return_f0=True,
+                                **breath_settings(settings))
     return autotune_with_formant_shift(
         audio, sr,
         settings["target_note"],
@@ -144,4 +160,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         voicing_mode=voicing,
         world_cache=world_cache,
         return_f0=True,
+        **breath_settings(settings),
     )

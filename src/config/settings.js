@@ -44,6 +44,8 @@ export const STRETCH_METHODS = [
 const SOFT    = new Set(['world_soft', 'praat_soft', 'world_vt', 'world_hnm', 'sine_spectral', 'stft_pitchshift']);
 const FORMANT = new Set(['world_hard', 'world_soft', 'sine_spectral', 'stft_pitchshift']);
 const VT      = new Set(['world_vt', 'world_hnm']);
+// Breathiness shapes WORLD's aperiodicity before synthesis; other modes have none.
+const BREATH  = new Set(['world_hard', 'world_soft', 'world_vt', 'world_hnm']);
 
 export const VOICING_MODES = ['strict', 'force', 'dilate'];
 // Backend default when voicing_mode is null; undefined = mode has no voicing.
@@ -54,6 +56,7 @@ export function modeCaps(mode) {
     soft:    SOFT.has(mode),
     formant: FORMANT.has(mode),
     vt:      VT.has(mode),
+    breath:  BREATH.has(mode),
     voicing: VOICING_DEFAULT[mode] ?? null,
   };
 }
@@ -64,8 +67,10 @@ export function countActiveAdvanced(s) {
   if (s.cleanliness_percent > 0) n++;
   if (s.clean_lowcut_percent > 0) n++;
   if (s.clean_hf_rollback_percent > 0) n++;
-  if (Math.abs(s.breathiness - 1) > 1e-6) n++;
-  if (s.hf_bias > 0) n++;
+  if (BREATH.has(s.pitch_mode)) {
+    if (Math.abs(s.breathiness - 1) > 1e-6) n++;
+    if (s.hf_bias > 0) n++;
+  }
   if (s.harmonic_limiter_enabled) n++;
   return n;
 }
