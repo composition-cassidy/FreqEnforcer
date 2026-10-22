@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 # ---------------------------------------------------------------------------
@@ -104,6 +106,47 @@ def contour_on_frames(f0_contour, f0_times, frame_times) -> tuple[np.ndarray, np
     return out, voiced
 
 
+# Mask design (cleanliness).  Values chosen on the post-pitch sweep
+# (tests/sweep/), see the commit that introduced them for the numbers.
+CLEAN_BINS_PER_HARMONIC = 4.0   # n_fft so the lowest harmonic spacing spans >= 4 bins,
+                                # the full width of a Hann main lobe
+CLEAN_NFFT_MIN = 2048           # 46 ms; a 1024 floor widens the 2-bin mask to 86 Hz
+                                # and removes ~2 dB less noise on high notes
+CLEAN_NFFT_MAX = 8192           # 186 ms at 44.1 kHz; separates harmonics down to ~22 Hz
+CLEAN_MIN_FWHM_BINS = 2.0       # mask never narrower than 2 STFT bins
+CLEAN_TIME_SIGMA_S = 0.020      # mask smoothing across time, inside voiced runs
+CLEAN_GUARD_S = 0.005           # output envelope never above the input's (5 ms RMS)
+
+
+def cleanliness_n_fft(f0_low_hz: float, sr: int) -> int:
+    """STFT size that separates harmonics of *f0_low_hz*: the smallest power
+    of two giving CLEAN_BINS_PER_HARMONIC bins per harmonic spacing, clamped
+    to [CLEAN_NFFT_MIN, CLEAN_NFFT_MAX]."""
+    if not np.isfinite(f0_low_hz) or f0_low_hz <= 0:
+        return 2048
+    n = 2 ** int(np.ceil(np.log2(CLEAN_BINS_PER_HARMONIC * float(sr) / float(f0_low_hz))))
+    return int(min(CLEAN_NFFT_MAX, max(CLEAN_NFFT_MIN, n)))
+
+
+def _envelope_guard(x: np.ndarray, y: np.ndarray, sr: int) -> np.ndarray:
+    """Scale *y* so its short-term RMS never exceeds *x*'s.
+
+    The mask only removes energy, but an STFT frame that straddles a note
+    on/offset spreads what is left over the whole window, into silence.  The
+    gain is min(1, rms_in / rms_out) over CLEAN_GUARD_S, eroded then smoothed
+    over the same width (a moving average of a running minimum never exceeds
+    the pointwise limit), so it only acts where the output has more energy
+    than the input had: at transients, never inside a sustained note."""
+    from scipy.ndimage import minimum_filter1d, uniform_filter1d
+
+    w = max(8, int(round(CLEAN_GUARD_S * sr)))
+    e_in = np.sqrt(np.maximum(uniform_filter1d(x * x, w), 0.0))
+    e_out = np.sqrt(np.maximum(uniform_filter1d(y * y, w), 0.0))
+    g = np.minimum(1.0, (e_in + 1e-12) / (e_out + 1e-12))
+    g = uniform_filter1d(minimum_filter1d(g, w), w)
+    return y * g
+
+
 def apply_cleanliness(
     audio: np.ndarray,
     sr: int,
@@ -117,8 +160,6 @@ def apply_cleanliness(
     f0_contour: np.ndarray = None,
     f0_times: np.ndarray = None,
 ) -> np.ndarray:
-    from scipy.ndimage import gaussian_filter1d
-
     """
     Apply harmonic isolation to remove frequencies between harmonics.
 
@@ -135,14 +176,24 @@ def apply_cleanliness(
                             Recommended range: 20-60% for speech
         f0_floor: Minimum f0 to detect (Hz)
         f0_ceil: Maximum f0 to detect (Hz)
-        n_harmonics: Number of harmonics to preserve (including fundamental)
+        n_harmonics: unused, kept for API compatibility
         f0_contour, f0_times: F0 of THIS audio (Hz, 0 = unvoiced) and its
             times in s, e.g. the pitch mode's output contour.  When omitted,
             F0 is estimated with pyin (f0_floor..f0_ceil).
 
+    The STFT size follows the lowest voiced F0 (cleanliness_n_fft), the
+    Gaussian mask around each harmonic is never narrower than
+    CLEAN_MIN_FWHM_BINS bins, it is smoothed across time inside voiced runs
+    and cross-faded to 1 (bypass) at voicing edges, the signal is padded on
+    both ends so every output sample sits under full overlap-add, and the
+    result is held under the input's envelope (_envelope_guard).
+
     Returns:
         Processed audio as numpy array
     """
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import stft as scipy_stft, istft as scipy_istft
+
     audio_arr = np.asarray(audio)
 
     if sr <= 0:
@@ -165,107 +216,74 @@ def apply_cleanliness(
         bypass_start_hz = float(sr) / 2.0
     bypass_start_hz = float(min(bypass_start_hz, float(sr) / 2.0))
 
-    n_fft = 2048
-    hop_length = 512
+    x = audio_arr.astype(np.float64, copy=False)
 
-    from scipy.signal import stft as scipy_stft, istft as scipy_istft
-
-    # Pre-pad by n_fft zeros so the last real samples are always covered by a
-    # full STFT window. Without this, padded=False drops the final partial
-    # window and the ISTFT output is short, forcing zero-padding that creates
-    # an abrupt click at the end of sustained notes.
-    audio_padded = np.pad(audio_arr.astype(np.float32, copy=False), (0, n_fft))
-    _f, _t, S = scipy_stft(audio_padded,
-                            fs=sr, nperseg=n_fft, noverlap=n_fft - hop_length,
-                            boundary=None, padded=False)
-    magnitude = np.abs(S)
-    phase = np.angle(S)
-
-    freqs = _f
-
-    if f0_contour is not None:
-        f0, voiced_flag = contour_on_frames(f0_contour, f0_times, _t)
-    else:
+    if f0_contour is None:
         from server.audio.pitch_yin import pyin
-        f0, voiced_flag, _voiced_prob = pyin(
-            audio_arr.astype(np.float32, copy=False),
-            sr,
-            fmin=f0_floor,
-            fmax=f0_ceil,
-            frame_length=n_fft,
-            hop_length=hop_length,
-        )
+        frame, hop_est = 2048, 512
+        est, _voiced, _prob = pyin(x.astype(np.float32), sr, fmin=f0_floor, fmax=f0_ceil,
+                                   frame_length=frame, hop_length=hop_est)
+        f0_contour = np.where(np.isfinite(est), est, 0.0)
+        f0_times = (np.arange(f0_contour.size) * hop_est + frame / 2.0) / float(sr)
 
-    if f0 is None or len(f0) == 0:
+    f0_contour = np.asarray(f0_contour, dtype=np.float64)
+    voiced_f0 = f0_contour[np.isfinite(f0_contour) & (f0_contour > 0)]
+    if voiced_f0.size == 0:
         return audio_arr
 
-    n_frames = S.shape[1]
-    if len(f0) > n_frames:
-        f0 = f0[:n_frames]
-        voiced_flag = voiced_flag[:n_frames]
-    elif len(f0) < n_frames:
-        pad_length = n_frames - len(f0)
-        f0 = np.pad(f0, (0, pad_length), mode="edge")
-        voiced_flag = np.pad(voiced_flag, (0, pad_length), mode="edge")
+    n_fft = cleanliness_n_fft(float(np.percentile(voiced_f0, 5)), sr)
+    hop_length = n_fft // 4
+
+    # Pad n_fft on BOTH ends: every real sample is then covered by full
+    # overlap-add.  (Padding only the end left the first samples divided by a
+    # ~0 window sum in the ISTFT - scipy's "NOLA" warning - which spiked the
+    # first milliseconds by up to +80 dBFS.)
+    xp = np.pad(x, (n_fft, n_fft))
+    freqs, frame_t, S = scipy_stft(xp, fs=sr, nperseg=n_fft, noverlap=n_fft - hop_length,
+                                   boundary=None, padded=False)
+    frame_t = frame_t - n_fft / float(sr)
+    f0, voiced_flag = contour_on_frames(f0_contour, f0_times, frame_t)
+    if not np.any(voiced_flag):
+        return audio_arr
 
     min_bandwidth = 10.0
     max_bandwidth = 200.0
     bandwidth_hz = max_bandwidth - (cleanliness_percent / 100.0) * (max_bandwidth - min_bandwidth)
+    bandwidth_hz = max(bandwidth_hz, CLEAN_MIN_FWHM_BINS * float(sr) / n_fft)
+    sigma_hz = float(bandwidth_hz) / 2.355
 
-    mask = np.zeros_like(magnitude, dtype=np.float32)
-    unvoiced_frames = np.zeros((n_frames,), dtype=bool)
+    mask = np.ones(S.shape, dtype=np.float64)
+    for t in np.flatnonzero(voiced_flag):
+        harmonic_freqs = np.rint(freqs / f0[t]) * f0[t]
+        mask[:, t] = np.exp(-0.5 * ((freqs - harmonic_freqs) / sigma_hz) ** 2)
 
-    for t in range(n_frames):
-        if preserve_unvoiced and (not bool(voiced_flag[t])):
-            unvoiced_frames[t] = True
-            mask[:, t] = 1.0
-            continue
-
-        if np.isnan(f0[t]) or f0[t] <= 0:
-            unvoiced_frames[t] = True
-            mask[:, t] = 1.0
-            continue
-
-        frame_f0 = float(f0[t])
-
-        sigma_hz = float(bandwidth_hz) / 2.355
-        if sigma_hz <= 0:
-            mask[:, t] = 1.0
-            continue
-
-        k = np.rint(freqs / frame_f0)
-        harmonic_freqs = k * frame_f0
-        dist = np.abs(freqs - harmonic_freqs)
-        frame_mask = np.exp(-0.5 * (dist / sigma_hz) ** 2)
-        mask[:, t] = frame_mask.astype(np.float32, copy=False)
-
+    # Smooth across time inside voiced runs only (unvoiced frames don't pull
+    # the comb toward 1), then cross-fade to bypass with a smoothed voicing
+    # weight instead of switching hard at voicing edges.
+    sigma_frames = CLEAN_TIME_SIGMA_S * float(sr) / hop_length
+    v = voiced_flag.astype(np.float64)
+    num = gaussian_filter1d(mask * v[np.newaxis, :], sigma=sigma_frames, axis=1)
+    den = gaussian_filter1d(v, sigma=sigma_frames)
+    mask = np.where(den[np.newaxis, :] > 1e-6, num / np.maximum(den, 1e-6)[np.newaxis, :], 1.0)
+    mask = den[np.newaxis, :] * mask + (1.0 - den[np.newaxis, :])
     mask = np.clip(mask, 0.0, 1.0)
-
-    mask = gaussian_filter1d(mask, sigma=2, axis=1)
-    mask = np.clip(mask, 0.0, 1.0)
-
-    if preserve_unvoiced and np.any(unvoiced_frames):
-        mask[:, unvoiced_frames] = 1.0
 
     mask[freqs >= bypass_start_hz, :] = 1.0
 
     if hf_rollback_percent > 0.0:
         mask = apply_hf_rollback(mask, freqs, float(hf_rollback_percent), int(sr))
 
-    filtered_magnitude = magnitude * mask
+    # scipy checks NOLA over the whole padded signal; it only fails inside the
+    # n_fft margins, which are cut off below.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="NOLA condition failed")
+        _, output = scipy_istft(S * mask, fs=sr, nperseg=n_fft,
+                                noverlap=n_fft - hop_length, boundary=False)
+    output = output[n_fft:n_fft + x.size]
+    if output.size < x.size:
+        output = np.pad(output, (0, x.size - output.size))
 
-    S_filtered = filtered_magnitude * np.exp(1j * phase)
-
-    _, output = scipy_istft(S_filtered, fs=sr, nperseg=n_fft,
-                            noverlap=n_fft - hop_length, boundary=False)
-
-    # Trim or pad to match input length
-    target_len = int(audio_arr.shape[0])
-    if len(output) > target_len:
-        output = output[:target_len]
-    elif len(output) < target_len:
-        output = np.pad(output, (0, target_len - len(output)), mode='constant')
-
+    output = _envelope_guard(x, output, int(sr))
     return output.astype(audio_arr.dtype, copy=False)
 
 

@@ -3,7 +3,7 @@
   "env": {
     "python": "3.14.2",
     "platform": "Windows-11-10.0.26200-SP0",
-    "git_head": "b32a998537a4d4c9c772a2e6941519a9d69ccd70",
+    "git_head": "fa5702c336d98ed9b3fde42ae47d0aa11caa075e",
     "server_dirty": true,
     "packages": {
       "numpy": "2.3.5",
@@ -2834,13 +2834,13 @@
       "target_note": "F4",
       "sr": 44100,
       "n_samples": 88420,
-      "sha256": "1c5b0eea2e7c40985b67439bf15f0ef5261d89c7e45e1f60635e3c604bf6beef",
-      "rms": 3.2050237026638064,
-      "peak": 734.1158447265625,
+      "sha256": "51c3675b72ba4e3c2b006eb9b21de61a3be81581842cd9f956324a24fd96255a",
+      "rms": 0.35378709488496796,
+      "peak": 0.748749852180481,
       "detected_f0": 349.312,
       "detected_note": "F4",
       "detected_cents": 0,
-      "render_s": 2.139
+      "render_s": 3.46
     },
     {
       "id": "test_2s_C4-pipe_harmlim-na-F4",

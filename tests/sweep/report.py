@@ -300,15 +300,58 @@ def sec_remaining(rows, cl) -> str:
             for mode in cfg.PITCH_MODES if mode in inh or mode in miss]
     out += ["Pitch-stage failures by mode:", "", table(["mode"] + METRIC_COLS + ["pitch_miss"], body), ""]
     if post:
-        by = Counter((m, "/".join(cl.causes(r, m))) for r, m in post)
-        out += ["Post-pitch failures by metric and cause:", "",
-                table(["metric", "cause", "failures"], [[m, c, n] for (m, c), n in by.most_common()]), ""]
+        def missed(r):
+            b = cl.base.get(classify.gkey(r))
+            return b is not None and "f0" in b["fails"]
+        by = Counter((m, "/".join(cl.causes(r, m)), r["breath"] == 1.0, missed(r)) for r, m in post)
+        out += ["Post-pitch failures by metric and cause. *breath = 1*: breathiness off, so the failure "
+                "comes from cleanliness / low cut alone. *pitch-only misses the note*: the pitch stage already "
+                "produced the wrong pitch, so cleanliness (which masks the target's harmonics) removes most "
+                "of the body and tail/rms, which are relative to the body, move with it.", "",
+                table(["metric", "cause", "breath = 1", "pitch-only misses the note", "failures"],
+                      [[m, c, "yes" if b1 else "no", "yes" if mi else "no", n]
+                       for (m, c, b1, mi), n in by.most_common()]), ""]
         post.sort(key=lambda t: -(t[0].get("exceed") or {}).get(t[1], 0))
         out += ["Worst post-pitch failures (up to 40):", "",
                 table(["combination", "metric", "cause", "f0 ¢", "inharm Δ", "tail", "RMS Δ", "peak", "len Δ"],
                       [[f"`{r['id']}`", m, "/".join(cl.causes(r, m))] + metric_cells(r["metrics"])
                        for r, m in post[:40]])]
+        f0_rows = [r for r, m in post if m == "f0" and r["breath"] == 1.0][:24]
+        if f0_rows:
+            out += ["", "Cross-check of the f0 failures with breathiness off: YIN (the sweep's f0 metric) vs the "
+                    "spectral peaks of harmonics 1-4 in the note body (1 M-point FFT). Where the harmonics sit on "
+                    "the target the YIN reading is biased, not the pitch:", "",
+                    table(["combination", "YIN ¢ (sweep)", "spectral H1..H4 ¢"],
+                          [[f"`{r['id']}`", f(r["metrics"].get("f0_cents"), 1, True),
+                            ", ".join(f(c, 2, True) for c in spectral_harmonics(r))] for r in f0_rows])]
     return "\n".join(out)
+
+
+def spectral_harmonics(r) -> list[float]:
+    """Re-render *r* and return the offset (cents) of harmonics 1-4 from n x target."""
+    import fixtures
+    import metrics
+    import worker
+    fx = fixtures.get(r["fixture"])
+    post = {"clean_lowcut_percent": r["lowcut"], "cleanliness_percent": r["clean"],
+            "clean_hf_rollback_percent": r["hfrb"], "breathiness": r["breath"], "hf_bias": r["hfbias"]}
+    s = worker.make_settings(r["mode"], r["target_note"], r["stretch"], post)
+    y, *_ = worker.run_pipeline_once(fx, s, fixtures.detected(r["fixture"]))
+    if y is None:
+        return []
+    a, b = metrics.regions(fx, r["stretch"], len(y))["body"]
+    seg = np.asarray(y[a:b], dtype=np.float64)
+    spec = np.abs(np.fft.rfft(seg * np.hanning(seg.size), 1 << 20))
+    df = fx.sr / float(1 << 20)
+    out = []
+    for n in range(1, 5):
+        c = n * r["target_f0"]
+        if c * 1.03 >= fx.sr / 2:
+            break
+        lo, hi = int(c * 0.97 / df), int(c * 1.03 / df)
+        k = lo + int(np.argmax(spec[lo:hi]))
+        out.append(1200.0 * math.log2(k * df / c))
+    return out
 
 
 def sec_intentional(changes) -> str:
