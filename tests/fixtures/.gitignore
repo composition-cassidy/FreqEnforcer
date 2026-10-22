@@ -1,0 +1,2 @@
+# Root .gitignore ignores *.wav; test fixtures must be tracked (via LFS).
+!*.wav

@@ -1,16 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Converts a KeyboardEvent into a canonical shortcut string such as
- * "ctrl+shift+e", "space", "a", "ctrl+arrowup", etc.
- *
- * Rules:
- *  - Ctrl and Meta (Cmd on macOS) are both normalised to "ctrl".
- *  - Space is mapped to "space" instead of " " for readability.
- *  - All other keys are lowercased.
- *  - Modifiers appear in order: ctrl → shift → alt → key.
+ * KeyboardEvent -> "ctrl+shift+e", "space", "a", "ctrl+arrowup", ...
+ * Ctrl and Meta both map to "ctrl"; modifiers in the order ctrl, shift, alt.
  */
-function buildShortcutKey(e) {
+function shortcutKey(e) {
   const parts = [];
   if (e.ctrlKey || e.metaKey) parts.push('ctrl');
   if (e.shiftKey) parts.push('shift');
@@ -19,38 +13,34 @@ function buildShortcutKey(e) {
   return parts.join('+');
 }
 
+const TEXT_INPUTS = new Set(['text', 'number', 'search', 'email', 'url', 'password', 'tel']);
+const NATIVE_KEYS = new Set(['space', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'home', 'end', 'enter']);
+
 /**
- * useKeyboardShortcuts(handlers)
- *
- * Registers a single global keydown listener that dispatches to the matching
- * handler in the `handlers` map.  Keys in the map are shortcut strings as
- * returned by buildShortcutKey (e.g. "ctrl+shift+e", "space", "a").
- *
- * The listener is registered once (on mount) and reads handlers through a ref
- * so there is no need to re-register when handlers change between renders.
- *
- * Shortcuts are suppressed when the focused element is an input, textarea, or
- * select — except for Escape, which always fires.
+ * One global keydown listener dispatching to `handlers` (keys as above).
+ * - text fields, textareas and selects swallow everything except Escape
+ * - other controls (range, checkbox, button) keep their native keys
+ *   (space, arrows, Enter) unless Ctrl is held
  */
 export function useKeyboardShortcuts(handlers) {
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  const ref = useRef(handlers);
+  ref.current = handlers;
 
   useEffect(() => {
     function listener(e) {
-      const tag = e.target.tagName;
-      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-      if (isInput && e.key !== 'Escape') return;
-
-      const key = buildShortcutKey(e);
-      const handler = handlersRef.current[key];
-      if (handler) {
-        e.preventDefault();
-        handler();
-      }
+      const el = e.target;
+      const tag = el.tagName;
+      const key = shortcutKey(e);
+      if (key === 'escape') { ref.current.escape?.(); return; }
+      const isText = tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+        || (tag === 'INPUT' && TEXT_INPUTS.has(el.type || 'text'));
+      if (isText) return;
+      const isControl = tag === 'INPUT' || tag === 'BUTTON' || el.getAttribute?.('role') === 'radio';
+      if (isControl && !key.startsWith('ctrl+') && NATIVE_KEYS.has(key)) return;
+      const handler = ref.current[key];
+      if (handler) { e.preventDefault(); handler(); }
     }
-
     window.addEventListener('keydown', listener);
     return () => window.removeEventListener('keydown', listener);
-  }, []); // register once; latest handlers always available via ref
+  }, []);
 }

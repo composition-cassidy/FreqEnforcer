@@ -202,19 +202,16 @@ def tdpsola(audio: np.ndarray, sr: int, stretch_factor: float) -> np.ndarray:
     if not np.isfinite(factor) or factor <= 0.0:
         raise ValueError("stretch_factor must be a positive finite number")
 
-    try:
-        import librosa
-    except Exception as e:  # pragma: no cover
-        raise MissingDependencyError("librosa is required for TD-PSOLA") from e
+    from server.audio.pitch_yin import pyin
 
     hop_length = int(round(float(sr) * 0.01))
     frame_length = 2048
 
-    f0, _voiced_flag, _voiced_prob = librosa.pyin(
+    f0, _voiced_flag, _voiced_prob = pyin(
         audio_arr,
+        int(sr),
         fmin=50.0,
         fmax=500.0,
-        sr=int(sr),
         frame_length=int(frame_length),
         hop_length=int(hop_length),
     )

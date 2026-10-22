@@ -1,0 +1,90 @@
+[
+ {
+  "change": "change1",
+  "case": "test_2s_C4-pipe_clean-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_clean__na__F4.wav",
+  "reason": "cleanliness masks the output F0 contour (was the input's cached WORLD F0); smart low cut keyed to the output contour",
+  "before": {
+   "peak_dbfs": -2.1111713020740366,
+   "rms_change_db": -13.354012943450462,
+   "f0_cents": 0.772186082220411,
+   "inharm_worse_db": 9.190076208050566,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -16.020876140915487,
+   "fails": [
+    "inharm",
+    "rms"
+   ]
+  },
+  "after": {
+   "peak_dbfs": 57.3152919546085,
+   "rms_change_db": -1.2043834030810672,
+   "f0_cents": 0.3888822438288919,
+   "inharm_worse_db": -3.7850041893468642,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.6872445637869475,
+   "fails": [
+    "peak"
+   ]
+  },
+  "max_abs_diff": 734.1271027158946
+ },
+ {
+  "change": "change2",
+  "case": "test_2s_C4-pipe_clean-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_clean__na__F4.wav",
+  "reason": "cleanliness: n_fft from output F0, mask >= 2 bins, time-smoothed, both-end padding (E1), envelope guard",
+  "before": {
+   "peak_dbfs": 57.3152919546085,
+   "rms_change_db": -1.2043834030810672,
+   "f0_cents": 0.3888822438288919,
+   "inharm_worse_db": -3.7850041893468642,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.6872445637869475,
+   "fails": [
+    "peak"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.513264827052923,
+   "rms_change_db": -1.2043920280817026,
+   "f0_cents": 0.3888822438288919,
+   "inharm_worse_db": -3.785005426092944,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.6872441958964757,
+   "fails": []
+  },
+  "max_abs_diff": 734.1238819740712
+ },
+ {
+  "change": "change3",
+  "case": "test_2s_C4-pipe_breath-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_breath__na__F4.wav",
+  "reason": "breathiness shapes the WORLD mode's own aperiodicity before its single synthesis (was a second harvest/cheaptrick/d4c/synthesize pass on the output)",
+  "before": {
+   "peak_dbfs": -0.542811816680352,
+   "rms_change_db": 0.24497429244082092,
+   "f0_cents": 0.45414592482064686,
+   "inharm_worse_db": 4.010955237357859,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": 0.801787314406079,
+   "fails": []
+  },
+  "after": {
+   "peak_dbfs": -1.4449047671927029,
+   "rms_change_db": -0.5632797374256633,
+   "f0_cents": 0.054962924924038,
+   "inharm_worse_db": 3.520781860747732,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.0025662364810639104,
+   "fails": []
+  },
+  "max_abs_diff": 0.8285593747828429
+ }
+]

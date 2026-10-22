@@ -1,21 +1,24 @@
 {
   "name": "freqenforcer",
-  "version": "2.0.0",
-  "description": "Formant-preserving pitch correction for Sparta Remixers",
+  "version": "2.0.1",
+  "description": "FreqEnforcer",
   "author": "Krasen",
   "license": "MIT",
   "main": "electron/main.js",
   "homepage": "https://github.com/composition-cassidy/FreqEnforcer",
   "scripts": {
-    "dev": "concurrently -n py,vite,electron -c blue,green,yellow \"python server/main.py\" \"npx vite\" \"node -e \\\"setTimeout(()=>require('child_process').execSync('npx electron electron/main.js',{stdio:'inherit'}),3000)\\\"\"",
+    "dev": "concurrently -n vite,electron -c green,yellow \"npx vite\" \"npx electron electron/main.js\"",
     "dev:vite": "npx vite",
     "dev:server": "python server/main.py",
     "dev:electron": "npx electron electron/main.js",
-    "build": "npx vite build"
+    "build": "npx vite build",
+    "build:backend": "python scripts/build_backend.py",
+    "build:electron": "npx electron-builder --win dir",
+    "build:installer": "cd installer && npm install && npx electron-builder --win portable",
+    "build:all": "scripts\\build.bat"
   },
   "dependencies": {
     "concurrently": "^8.2.0",
-    "electron": "^28.0.0",
     "i18next": "^26.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -23,6 +26,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
+    "electron": "^41.1.0",
+    "electron-builder": "^25.1.8",
     "vite": "^5.0.0"
   },
   "build": {
@@ -32,6 +37,47 @@
     "directories": {
       "output": "dist-electron",
       "buildResources": "build-resources"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*.md",
+      "!node_modules/**/*.ts",
+      "!node_modules/**/test/**",
+      "!node_modules/**/.cache/**",
+      "!**/locales/!(en-US|es|es-419|pt-BR|ja|ru).pak"
+    ],
+    "electronLanguages": ["en-US", "es", "es-419", "pt-BR", "ja", "ru"],
+    "extraResources": [
+      {
+        "from": "build-backend/freqenforcer-backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build-resources/splash.html",
+        "to": "splash.html"
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "dir", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build-resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "FreqEnforcer-${version}-Setup.exe"
+    },
+    "portable": {
+      "artifactName": "FreqEnforcer-${version}-portable.exe"
     }
   }
 }

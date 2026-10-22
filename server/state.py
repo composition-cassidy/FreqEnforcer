@@ -26,6 +26,17 @@ class AppState:
         self.loop_start: Optional[int] = None
         self.loop_end:   Optional[int] = None
 
+        # Cached WORLD analysis of the loaded audio, reused by the WORLD
+        # pitch modes across /process calls.
+        self.world_cache: dict = {
+            'audio_hash': None,
+            'f0': None,
+            'timeaxis': None,
+            'sp': None,
+            'ap': None,
+            'sr': None,
+        }
+
     def increment_token(self) -> int:
         with self._lock:
             self.processing_token += 1

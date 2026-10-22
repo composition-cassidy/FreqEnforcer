@@ -2,130 +2,61 @@
   "app": {
     "title": "FreqEnforcer"
   },
-  "ui": {
-    "menu": {
-      "file": "File",
-      "options": "Options",
-      "language": "Language",
-      "file_new_sample": "New Sample",
-      "file_refresh_sample": "Refresh Sample",
-      "file_quit": "Quit"
-    },
-    "language": {
-      "en": "English",
-      "es": "Spanish",
-      "pt_BR": "Portuguese (Brazil)",
-      "ja": "Japanese",
-      "ru": "Russian"
-    },
-    "title": {
-      "debug": "Debug",
-      "select_audio_file": "Select Audio File"
-    },
-    "placeholder": {
-      "debug_notes": "Type feedback/approval notes here. Click Save to write to disk."
-    },
-    "button": {
-      "save": "Save"
-    },
-    "filter": {
-      "audio_files": "Audio Files (*.wav *.mp3 *.flac *.ogg);;All Files (*)"
-    }
+  "menu": {
+    "main": "Main menu",
+    "file": "File",
+    "export": "Export",
+    "options": "Options",
+    "open": "Open…",
+    "reload": "Reload sample",
+    "close_sample": "Close sample",
+    "quit": "Quit",
+    "export_wav": "Export WAV…",
+    "quick_export": "Quick export next to source",
+    "multisample": "Multisample / SFZ…",
+    "preferences": "Preferences"
   },
-  "main": {
-    "input_file": "INPUT FILE:",
-    "input_placeholder": "/path/to/audio/file.wav",
-    "button": {
-      "browse": "Browse",
-      "show_processed": "Show Processed",
-      "show_original": "Show Original",
-      "play": "Play",
-      "stop": "Stop"
-    },
-    "waveform": {
-      "original": "Original",
-      "processed": "Processed"
-    },
-    "dialog": {
-      "error": "Error",
-      "loading_title": "Loading",
-      "loading_label": "Loading audio...",
-      "rendering_waveform": "Rendering waveform...",
-      "load_failed_fmt": "Failed to load audio file:\\n{error}"
-    }
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
   },
-  "progress": {
-    "autotuning": "Autotuning...",
-    "stretching_fmt": "Stretching... ({method}, x{factor:.2f})",
-    "lowcut_fmt": "Removing sub (low cut {hz:.0f} Hz)...",
-    "cleanliness_fmt": "Applying {pct:.0f}% cleanliness...",
-    "highshelf_fmt": "Cleaning highs (shelf {db:.1f} dB @ {hz:.0f} Hz)...",
-    "breathiness": "Applying breathiness...",
-    "harmonic_limiting": "Applying harmonic limiting...",
-    "normalizing": "Normalizing...",
-    "processing": "Processing...",
-    "preparing_audio_engine": "Preparing audio engine...",
-    "preparing_pitch_detector": "Preparing fast pitch detector...",
-    "reading_file": "Reading file...",
-    "detecting_pitch": "Detecting pitch...",
-    "finalizing": "Finalizing..."
+  "status": {
+    "processing": "Processing",
+    "loading": "Loading…"
+  },
+  "header": {
+    "open": "Open…",
+    "no_sample": "No sample loaded",
+    "mono": "mono",
+    "detected": "Detected",
+    "cents": "Cents",
+    "frequency": "Frequency",
+    "confidence": "Confidence"
+  },
+  "view": {
+    "original": "Original",
+    "corrected": "Corrected",
+    "original_pitch": "original pitch",
+    "corrected_pitch": "corrected pitch",
+    "loop": "Loop",
+    "zoom_in": "Zoom in (narrower pitch range)",
+    "zoom_out": "Zoom out (wider pitch range)",
+    "aria": "Waveform with pitch curves, target {{target}}. Drag the target line to change the note, click to seek.",
+    "drop_hint": "Drop a sample here",
+    "open_hint": "or",
+    "formats": "WAV, MP3, FLAC, OGG, AIFF",
+    "drop_now": "Drop to load"
+  },
+  "harm": {
+    "title": "Harmonic ceilings",
+    "hint": "Harmonic ceilings · drag a node down · double-click resets",
+    "reset_all": "Reset all",
+    "empty": "Process a sample to see its harmonics"
   },
   "settings": {
-    "tabs": {
-      "settings": "Settings",
-      "themes": "Themes"
-    },
-    "themes": {
-      "description": "Customize the app colors.",
-      "open_editor": "Open Theme Editor"
-    },
-    "group": {
-      "target_note": "Target Note",
-      "processing": "Processing",
-      "cleanliness": "Cleanliness",
-      "detected_pitch": "Detected Pitch"
-    },
-    "label": {
-      "note": "Note:",
-      "octave": "Octave:",
-      "pitch_mode": "Pitch Mode:",
-      "correction_amount": "Correction Amount:",
-      "retune_speed": "Retune Speed:",
-      "preserve_vibrato": "Preserve Vibrato:",
-      "formant_shift": "Formant Shift:",
-      "stretching_method": "Stretching Method:",
-      "stretch_factor": "Stretch Factor:",
-      "manual": "Manual:",
-      "breathiness": "Breathiness:",
-      "hf_bias": "HF Bias:",
-      "amount": "Amount:",
-      "low_cut": "Low Cut:",
-      "high_shelf": "High Shelf:",
-      "shelf_freq": "Shelf Freq:"
-    },
-    "target_fmt": "Target: {note}{octave} ({freq:.2f} Hz)",
-    "checkbox": {
-      "normalize": "Normalize to 0dB",
-      "preserve_formants": "Preserve Formants",
-      "advanced_mode": "Advanced Mode"
-    },
-    "warning": {
-      "robotic": "High values = robotic sound"
-    },
-    "lowcut": {
-      "off": "Off"
-    },
-    "detected": {
-      "no_audio_loaded": "No audio loaded",
-      "no_pitch": "No pitch detected",
-      "pitch_fmt": "{note} ({freq:.1f} Hz, {cents} ct)"
-    },
-    "button": {
-      "export_wav": "Export WAV",
-      "quick_export": "Quick Export",
-      "apply_loop_points": "Apply Loop Points",
-      "multi_sample_export": "Multi-Sample Export"
-    },
+    "title": "Settings",
     "pitch_mode": {
       "praat_soft": {
         "label": "PSOLA (Praat) Soft",
@@ -188,209 +119,177 @@
         "label": "TD-PSOLA",
         "info": "Fallback stretcher that works without audiotsm/rubberband (can be slower)."
       }
-    },
-    "stretch": {
-      "confirm": {
-        "title": "Warning",
-        "text": "Going over x2 can cause a lot of artifacts and could make your sample sound fake.",
-        "info_fmt": "Requested: {factor:.2f}x",
-        "yes": "hell yeah!",
-        "no": "hell no!!"
-      }
     }
   },
-  "theme": {
-    "title": "Theme Editor",
-    "info": "Edit theme colors as hex (#RRGGBB).",
-    "preset": "Preset:",
-    "name": "Name:",
-    "name_placeholder": "Theme name",
-    "button": {
-      "load": "Load",
-      "import": "Import",
-      "export": "Export",
-      "save": "Save",
-      "apply": "Apply",
-      "close": "Close",
-      "pick": "Pick"
-    },
-    "pick_color_title_fmt": "Pick {key} color",
-    "color": {
-      "bg": "Background",
-      "panel": "Panel",
-      "primary": "Primary",
-      "accent": "Accent",
-      "highlight": "Highlight",
-      "success": "Success",
-      "text": "Text"
-    }
+  "target": {
+    "title": "Target",
+    "octave": "Octave",
+    "octave_down": "Octave down",
+    "octave_up": "Octave up",
+    "hint": "Ctrl+↑/↓ semitone · Ctrl+Shift+↑/↓ octave · drag the target line on the waveform"
   },
-  "waveform": {
-    "axis": {
-      "time": "Time",
-      "midi_note": "MIDI Note"
-    }
+  "mode": {
+    "title": "Mode",
+    "amount": "Amount",
+    "retune_speed": "Retune speed",
+    "keep_vibrato": "Keep vibrato",
+    "formant_shift": "Formant shift",
+    "vocal_tract": "Vocal tract model",
+    "normalize": "Normalize to −0.1 dBFS"
   },
-  "harmonic": {
-    "title": "Harmonic limiter",
-    "button": {
-      "reset_all": "Reset all"
-    },
-    "enabled": "Enabled",
-    "amount": "Compression",
-    "axis": {
-      "db": "dB",
-      "freq": "Frequency"
-    },
-    "meta_fmt": "{note} - {count} harmonics detected"
+  "voicing": {
+    "title": "Voicing",
+    "strict": "Strict",
+    "force": "Force",
+    "dilate": "Dilate",
+    "default": "default: {{mode}}",
+    "world_only": "WORLD only",
+    "help": "Force makes every frame voiced; Strict keeps unvoiced frames unvoiced; Dilate grows the voiced regions by 3 frames. WORLD modes only."
   },
-  "preferences": {
+  "stretch": {
+    "title": "Stretch",
+    "method": "Stretch method",
+    "factor": "Factor",
+    "warn_over_2": "Above 2× expect artifacts; the sample may sound fake."
+  },
+  "advanced": {
+    "title": "Advanced",
+    "active": "{{count}} active",
+    "cleanliness": "Cleanliness",
+    "amount": "Amount",
+    "low_cut": "Low cut",
+    "hf_rollback": "HF rollback",
+    "breath": "Breath",
+    "breathiness": "Breathiness",
+    "hf_bias": "HF bias",
+    "breath_world_only": "Breath shapes WORLD's aperiodicity, so it needs a WORLD mode.",
+    "limiter": "Harmonic limiter",
+    "enable": "Enable",
+    "limiter_help": "Opens the ceiling editor under the waveform.",
+    "compression": "Compression",
+    "loop": "Crossfade loop",
+    "template": "Template",
+    "min_loop": "Min loop",
+    "crossfade": "Crossfade",
+    "no_loop": "no loop points",
+    "find_loop": "Find loop"
+  },
+  "footer": {
+    "play": "Play",
+    "stop": "Stop",
+    "ab": "A/B: original / corrected",
+    "a": "A · Original",
+    "b": "B · Corrected",
+    "peak": "peak",
+    "rms": "rms",
+    "undo": "Undo",
+    "redo": "Redo",
+    "multisample": "Multisample…",
+    "quick_export": "Quick export",
+    "export_wav": "Export WAV"
+  },
+  "ms": {
+    "title": "Multisample / SFZ",
+    "back": "Back to settings",
+    "range": "Range",
+    "low": "Low",
+    "high": "High",
+    "source": "Source {{note}} · {{count}} notes",
+    "invalid_range": "Low note must not be above the high note",
+    "per_note": "Per note",
+    "loop": "Crossfade loop",
+    "loop_help": "Uses the loop settings under Advanced.",
+    "start_trim": "Start trim",
+    "trim": "Trim",
+    "sfz": "Write .sfz instrument (DirectWave)",
+    "output": "Output",
+    "output_auto": "Folder next to the source (automatic)",
+    "output_help": "One WAV per note, root note and loop points embedded.",
+    "change_folder": "Change…",
+    "progress": "Progress",
+    "rendering": "Rendering {{note}} · {{done}} / {{total}}",
+    "complete": "Rendered {{count}} notes to {{dir}}",
+    "error": "Error: {{error}}",
+    "cancelled": "Cancelled",
+    "cancel": "Cancel",
+    "close": "Close",
+    "render": "Render",
+    "rendering_btn": "Rendering…"
+  },
+  "prefs": {
     "title": "Preferences",
-    "section": {
-      "general": "General",
-      "display": "Display"
-    },
-    "tabs": {
-      "preferences": "Preferences",
-      "theme": "Theme"
-    },
-    "show_loading_dialog": {
-      "label": "Show Loading Dialog",
-      "desc": "Show an overlay while loading and processing audio"
-    },
-    "performance_mode": {
-      "label": "Performance Mode",
-      "desc": "Increases debounce delay and reduces waveform detail"
-    },
-    "warmup_enabled": {
-      "label": "Warm Up Audio Engine on Startup",
-      "desc": "Pre-initializes the backend on launch for faster first process"
-    },
-    "note_notation": {
-      "label": "Note Notation",
-      "desc": "Display accidentals as sharps (C#) or flats (Db)",
-      "sharps": "Sharps",
-      "flats": "Flats"
-    }
+    "general": "General",
+    "theme": "Theme",
+    "theme_help": "One dark and one light theme.",
+    "dark": "Dark",
+    "light": "Light",
+    "language": "Language",
+    "language_help": "Interface language.",
+    "notation": "Note names",
+    "notation_help": "Sharps or flats everywhere.",
+    "performance": "Performance mode",
+    "performance_help": "Longer debounce before reprocessing.",
+    "warmup": "Warm up engine on start",
+    "warmup_help": "Pre-initialises the DSP so the first process is faster.",
+    "on": "On",
+    "off": "Off",
+    "shortcuts": "Shortcuts"
   },
-  "electron": {
-    "titlebar": {
-      "no_sample": "No sample loaded",
-      "processing": "Processing",
-      "toggle_ab": "Toggle A/B: Original / Processed",
-      "minimize": "Minimize",
-      "maximize": "Maximize",
-      "restore": "Restore",
-      "close": "Close",
-      "preferences": "Preferences..."
-    },
-    "filebar": {
-      "input_label": "Input File:",
-      "placeholder": "No file loaded — browse or drop an audio file here",
-      "browse": "Browse…",
-      "loading": "Loading…"
-    },
-    "waveform": {
-      "no_audio": "No audio loaded",
-      "processing": "Processing…",
-      "drop_hint": "Drop an audio file or click File → New Sample"
-    },
-    "harmonic": {
-      "empty": "Load a sample and process to see harmonics",
-      "disabled": "DISABLED",
-      "reset": "RESET",
-      "frequency_hz": "FREQUENCY (Hz)",
-      "level_db": "LEVEL (dB)"
-    },
-    "toast": {
-      "load_failed": "Failed to load audio",
-      "processing_failed": "Processing failed",
-      "export_complete": "Export complete",
-      "file_not_found": "File not found",
-      "backend_not_running": "Backend not running — start the Python server on port 8765.",
-      "still_loading": "Still loading… (large file?)",
-      "dismiss": "Dismiss",
-      "loaded": "Loaded: {{name}}",
-      "theme_applied": "Theme applied.",
-      "theme_saved": "Theme \"{{name}}\" saved.",
-      "theme_load_failed": "Failed to load theme.",
-      "theme_save_failed": "Failed to save theme.",
-      "theme_file_load_failed": "Failed to load theme file.",
-      "theme_file_save_failed": "Failed to save theme file.",
-      "unsupported_format": "Unsupported audio format",
-      "file_too_large": "File too large (max 100 MB)",
-      "decode_failed": "Failed to decode audio file",
-      "processing_timeout": "Processing timed out — try a shorter sample",
-      "out_of_memory": "Out of memory — try a shorter sample",
-      "export_permission": "Cannot write to this location — choose a different folder",
-      "export_disk_full": "Disk full — cannot export",
-      "export_path_too_long": "File path too long (max 260 characters)",
-      "backend_starting": "Checking backend…",
-      "backend_failed": "Backend failed to start. Check that Python and all dependencies are installed.",
-      "backend_retry": "Retry",
-      "backend_reconnecting": "Lost connection to backend — reconnecting…",
-      "backend_reconnected": "Backend reconnected",
-      "component_failed": "Component failed to load. Try restarting the app."
-    },
-    "settings": {
-      "normalize": "Normalize to 0 dB",
-      "vocal_tract_model": "Vocal Tract Model",
-      "harmonic_amount": "Harmonic Amount",
-      "limiter": "Limiter",
-      "high_shelf_gain": "High Shelf Gain",
-      "high_shelf_freq": "High Shelf Freq",
-      "advanced_warning": "Advanced controls can degrade audio quality",
-      "target": "Target:",
-      "detected": "Detected:",
-      "on": "ON",
-      "off": "OFF",
-      "decrease_octave": "Decrease octave",
-      "increase_octave": "Increase octave"
-    },
-    "theme": {
-      "simple": "Simple",
-      "advanced": "Advanced",
-      "my_custom_theme": "My Custom Theme",
-      "open_themes_folder": "Open themes folder",
-      "folder": "Folder",
-      "hue": "Hue",
-      "saturation": "Saturation",
-      "brightness": "Brightness",
-      "group_backgrounds": "BACKGROUNDS",
-      "group_borders": "BORDERS",
-      "group_text": "TEXT",
-      "group_accent": "ACCENT",
-      "group_waveform": "WAVEFORM",
-      "group_harmonic": "HARMONIC",
-      "group_semantic": "SEMANTIC",
-      "var_app_background": "App background",
-      "var_title_bar": "Title bar",
-      "var_panel_surfaces": "Panel surfaces",
-      "var_panel_hover": "Panel hover",
-      "var_panel_light": "Panel light",
-      "var_default_border": "Default border",
-      "var_emphasis_border": "Emphasis border",
-      "var_primary_text": "Primary text",
-      "var_secondary_text": "Secondary text",
-      "var_dimmed_text": "Dimmed text",
-      "var_bright_text": "Bright text",
-      "var_accent": "Accent",
-      "var_accent_hover": "Accent hover",
-      "var_white_key_lane": "White key lane",
-      "var_black_key_lane": "Black key lane",
-      "var_grid_lines": "Grid lines",
-      "var_note_labels": "Note labels",
-      "var_bg_white_note": "BG white note",
-      "var_bg_black_note": "BG black note",
-      "var_bg_grid_line": "BG grid line",
-      "var_node_gradient_start": "Node gradient start",
-      "var_node_gradient_end": "Node gradient end",
-      "var_harmonic_grid_lines": "Grid lines",
-      "var_modified_node": "Modified node",
-      "var_success_ok": "Success / OK",
-      "var_error_close": "Error / Close",
-      "var_warning": "Warning",
-      "var_primary_action": "Primary action"
-    }
+  "shortcuts": {
+    "play": "Play / stop",
+    "ab": "Toggle A/B",
+    "export": "Export WAV",
+    "quick_export": "Quick export",
+    "undo": "Undo",
+    "redo": "Redo",
+    "mode": "Pitch mode",
+    "semitone": "Target ± semitone",
+    "octave": "Target ± octave",
+    "open": "Open sample",
+    "multisample": "Multisample",
+    "preferences": "Preferences",
+    "reset": "Reset a control to its default",
+    "hint": "Rest on a control to read its caption"
+  },
+  "toast": {
+    "dismiss": "Dismiss",
+    "loaded": "Loaded {{name}}",
+    "still_loading": "Still loading… (large file?)",
+    "backend_not_running": "Backend not running. Restart the app.",
+    "load_failed": "Failed to load audio",
+    "unsupported_format": "Unsupported audio format",
+    "file_too_large": "File too large (max 100 MB)",
+    "decode_failed": "Failed to decode audio file",
+    "out_of_memory": "Out of memory. Try a shorter sample.",
+    "processing_timeout": "Processing timed out. Try a shorter sample.",
+    "processing_failed": "Processing failed",
+    "backend_reconnecting": "Lost connection to the backend. Reconnecting…",
+    "backend_reconnected": "Backend reconnected",
+    "wait_processing": "Wait for processing to finish before exporting",
+    "exported": "Exported to {{path}}",
+    "export_failed": "Export failed",
+    "export_permission": "Cannot write to this location. Choose a different folder.",
+    "export_disk_full": "Disk full. Cannot export.",
+    "export_path_too_long": "File path too long (max 260 characters)",
+    "file_exists": "{{name}} exists. Overwrite?",
+    "overwrite": "Overwrite",
+    "loop_none": "Could not find a suitable loop region",
+    "loop_set": "Loop points set: {{start}} – {{end}} s",
+    "loop_failed": "Loop failed"
+  },
+  "backend": {
+    "checking": "Starting the audio engine…",
+    "failed": "The audio engine failed to start.",
+    "retry": "Retry"
+  },
+  "error": {
+    "component_failed": "{{name}} failed to render. Restart the app."
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "pt_BR": "Português (Brasil)",
+    "ja": "日本語",
+    "ru": "Русский"
   }
 }

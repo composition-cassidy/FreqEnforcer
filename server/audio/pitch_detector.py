@@ -27,7 +27,7 @@ except ImportError:
 
 
 def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict:
-    import librosa
+    from server.audio.pitch_yin import pyin, yin
 
     audio_arr = np.asarray(audio, dtype=np.float32)
 
@@ -47,25 +47,28 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict
             "voiced_ratio": 0.0,
         }
 
+    hop_length = 512
+
     if bool(fast):
-        f0 = librosa.yin(
+        f0 = yin(
             audio_arr,
+            sr,
             fmin=50.0,
             fmax=500.0,
-            sr=sr,
             frame_length=2048,
+            hop_length=hop_length,
         )
-        times = librosa.times_like(f0, sr=sr)
+        times = np.arange(len(f0), dtype=np.float32) * hop_length / sr
 
         f0_arr = np.asarray(f0, dtype=np.float32)
-        times_arr = np.asarray(times, dtype=np.float32)
+        times_arr = times
 
-        voiced_mask = np.isfinite(f0_arr)
+        voiced_mask = np.isfinite(f0_arr) & (f0_arr > 0)
         voiced_ratio = float(np.sum(voiced_mask)) / float(f0_arr.size) if f0_arr.size else 0.0
 
         if np.any(voiced_mask):
-            median_f0 = float(np.nanmedian(f0_arr))
-            mean_f0 = float(np.nanmean(f0_arr))
+            median_f0 = float(np.nanmedian(f0_arr[voiced_mask]))
+            mean_f0 = float(np.nanmean(f0_arr[voiced_mask]))
         else:
             median_f0 = None
             mean_f0 = None
@@ -78,18 +81,19 @@ def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict
             "voiced_ratio": voiced_ratio,
         }
 
-    f0, voiced_flag, voiced_probs = librosa.pyin(
+    f0, voiced_flag, voiced_probs = pyin(
         audio_arr,
+        sr,
         fmin=50.0,
         fmax=500.0,
-        sr=sr,
         frame_length=2048,
+        hop_length=hop_length,
     )
 
-    times = librosa.times_like(f0, sr=sr)
+    times = np.arange(len(f0), dtype=np.float32) * hop_length / sr
 
     f0_arr = np.asarray(f0, dtype=np.float32)
-    times_arr = np.asarray(times, dtype=np.float32)
+    times_arr = times
 
     voiced_mask = np.isfinite(f0_arr)
 
@@ -133,6 +137,63 @@ def get_predominant_pitch(
     _, cents = get_pitch_difference(float(freq_hz), float(ref_freq))
 
     return float(freq_hz), note_name, int(cents)
+
+
+def pitch_contour(result: dict, max_points: int = 1000) -> dict:
+    """Decimate a detect_pitch() result to a UI-sized contour.
+
+    Returns {"times": [...], "hz": [...]} with ``None`` for unvoiced frames.
+    Decimation keeps every k-th frame so voiced gaps survive as-is.
+    """
+    f0 = np.asarray(result.get("f0_array", ()), dtype=np.float32)
+    times = np.asarray(result.get("times", ()), dtype=np.float32)
+    n = int(min(f0.size, times.size))
+    if n == 0:
+        return {"times": [], "hz": []}
+    step = max(1, int(np.ceil(n / float(max_points))))
+    f0 = f0[:n:step]
+    times = times[:n:step]
+    voiced = np.isfinite(f0) & (f0 > 0)
+    hz = [round(float(v), 2) if ok else None for v, ok in zip(f0, voiced)]
+    return {"times": [round(float(t), 4) for t in times], "hz": hz}
+
+
+def pitch_confidence(result: dict) -> float:
+    """0-1 confidence: voiced fraction weighted by the mean pYIN voiced probability."""
+    voiced_ratio = float(result.get("voiced_ratio") or 0.0)
+    probs = result.get("voiced_probs")
+    f0 = np.asarray(result.get("f0_array", ()), dtype=np.float32)
+    if probs is None or f0.size == 0:
+        return round(min(1.0, max(0.0, voiced_ratio)), 3)
+    probs = np.asarray(probs, dtype=np.float32)
+    voiced = np.isfinite(f0) & (f0 > 0)
+    if probs.size != f0.size or not np.any(voiced):
+        return round(min(1.0, max(0.0, voiced_ratio)), 3)
+    mean_prob = float(np.mean(probs[voiced]))
+    return round(min(1.0, max(0.0, voiced_ratio * mean_prob)), 3)
+
+
+def get_pitch_summary(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict:
+    """Everything the UI wants from one detection pass.
+
+    Returns {"freq_hz", "note_name", "cents", "confidence", "f0_contour"};
+    the first three are None when nothing voiced was found (same rule as
+    get_predominant_pitch).
+    """
+    result = detect_pitch(audio, sr=sr, fast=bool(fast))
+    freq_hz = result.get("median_f0")
+    summary = {
+        "freq_hz": None, "note_name": None, "cents": None,
+        "confidence": pitch_confidence(result),
+        "f0_contour": pitch_contour(result),
+    }
+    if freq_hz is None:
+        return summary
+    midi_rounded = int(round(freq_to_midi(float(freq_hz))))
+    note_name = midi_to_note_name(midi_rounded)
+    _, cents = get_pitch_difference(float(freq_hz), float(note_name_to_freq(note_name)))
+    summary.update({"freq_hz": float(freq_hz), "note_name": note_name, "cents": int(cents)})
+    return summary
 
 
 def get_target_frequency(note_name: str) -> float:

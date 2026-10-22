@@ -79,6 +79,41 @@ def _target_f0_from_note(target_note: str) -> float:
     return float(440.0 * (2.0 ** ((float(midi) - 69.0) / 12.0)))
 
 
+def _centered_stft(x: np.ndarray, n_fft: int, hop_length: int) -> np.ndarray:
+    """Windowed STFT with center-padding, matching librosa.stft defaults."""
+    pad = n_fft // 2
+    x_padded = np.pad(x, (pad, pad), mode="reflect")
+    window = np.hanning(n_fft).astype(np.float64)
+    n_frames = 1 + (len(x_padded) - n_fft) // hop_length
+    stft_out = np.empty((n_fft // 2 + 1, n_frames), dtype=np.complex128)
+    for i in range(n_frames):
+        start = i * hop_length
+        frame = x_padded[start : start + n_fft] * window
+        stft_out[:, i] = np.fft.rfft(frame)
+    return stft_out
+
+
+def _centered_istft(stft_matrix: np.ndarray, hop_length: int, length: int) -> np.ndarray:
+    """Inverse STFT with overlap-add, matching librosa.istft defaults."""
+    n_fft = 2 * (stft_matrix.shape[0] - 1)
+    window = np.hanning(n_fft).astype(np.float64)
+    n_frames = stft_matrix.shape[1]
+    pad = n_fft // 2
+    out_len = n_fft + (n_frames - 1) * hop_length
+    output = np.zeros(out_len, dtype=np.float64)
+    win_sum = np.zeros(out_len, dtype=np.float64)
+    for i in range(n_frames):
+        frame = np.fft.irfft(stft_matrix[:, i], n=n_fft) * window
+        start = i * hop_length
+        output[start : start + n_fft] += frame
+        win_sum[start : start + n_fft] += window ** 2
+    nonzero = win_sum > 1e-10
+    output[nonzero] /= win_sum[nonzero]
+    # Remove center-padding
+    output = output[pad : pad + length]
+    return output
+
+
 def analyze_harmonics(
     audio: np.ndarray,
     sr: int,
@@ -88,8 +123,6 @@ def analyze_harmonics(
     max_harmonics: int = 20,
     relative_floor_db: float = -60.0,
 ) -> HarmonicAnalysis:
-    import librosa
-
     x = np.asarray(audio)
     if x.ndim != 1:
         raise ValueError("audio must be 1D mono")
@@ -100,17 +133,15 @@ def analyze_harmonics(
     if (not np.isfinite(f0)) or f0 <= 0.0:
         f0 = 440.0
 
-    stft = librosa.stft(
-        np.asarray(x, dtype=np.float32, order="C"),
+    stft = _centered_stft(
+        np.asarray(x, dtype=np.float64),
         n_fft=int(n_fft),
         hop_length=int(hop_length),
-        window="hann",
-        center=True,
     )
     mag = np.abs(stft)
     avg_mag = np.mean(mag, axis=1) if mag.size else np.zeros((int(n_fft // 2) + 1,), dtype=np.float64)
     avg_db = _safe_db(avg_mag)
-    freqs = librosa.fft_frequencies(sr=int(sr), n_fft=int(n_fft))
+    freqs = np.fft.rfftfreq(int(n_fft), d=1.0 / int(sr))
 
     nyquist = float(sr) * 0.5
     max_by_nyquist = int(max(1, math.floor(nyquist / max(f0, 1e-6))))
@@ -173,8 +204,6 @@ def apply_harmonic_limiting(
     n_fft: int = 4096,
     hop_length: int = 1024,
 ) -> np.ndarray:
-    import librosa
-
     x = np.asarray(audio)
     if x.ndim != 1:
         raise ValueError("audio must be 1D mono")
@@ -187,16 +216,14 @@ def apply_harmonic_limiting(
     if (not np.isfinite(f0)) or f0 <= 0.0:
         return x
 
-    stft = librosa.stft(
-        np.asarray(x, dtype=np.float32, order="C"),
+    stft = _centered_stft(
+        np.asarray(x, dtype=np.float64),
         n_fft=int(n_fft),
         hop_length=int(hop_length),
-        window="hann",
-        center=True,
     )
     mag = np.abs(stft).astype(np.float64, copy=False)
     phase = np.angle(stft)
-    freqs = librosa.fft_frequencies(sr=int(sr), n_fft=int(n_fft))
+    freqs = np.fft.rfftfreq(int(n_fft), d=1.0 / int(sr))
 
     knee = float(max(0.0, knee_db))
     attack_frames = max(1e-6, (float(attack_ms) * 0.001 * float(sr)) / float(hop_length))
@@ -245,7 +272,7 @@ def apply_harmonic_limiting(
 
     mag = np.maximum(mag, floor_amp)
     out_stft = mag * np.exp(1j * phase)
-    y = librosa.istft(out_stft, hop_length=int(hop_length), window="hann", center=True, length=int(x.shape[0]))
+    y = _centered_istft(out_stft, hop_length=int(hop_length), length=int(x.shape[0]))
     return np.asarray(y, dtype=x.dtype)
 
 

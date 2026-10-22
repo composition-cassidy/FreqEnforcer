@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FreqEnforcer UI mockup</title>
+<style>
+/* ──────────────────────────────────────────────────────────────────────────
+   tokens.css (this block becomes src/styles/tokens.css)
+   One dark theme, one optional light theme. Everything below reads tokens.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* type */
+  --font-ui:   "Segoe UI", -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px;
+  --fs-16: 16px; --fs-22: 22px; --fs-28: 28px;
+  --lh: 1.3;
+
+  /* 4 px grid */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+
+  /* shape */
+  --r: 2px; --r-lg: 4px; --bw: 1px;
+
+  /* control geometry */
+  --h-title: 32px; --h-header: 56px; --h-footer: 48px;
+  --w-side: 296px; --h-ctl: 24px; --h-track: 4px; --w-value: 64px;
+
+  /* neutrals (dark) */
+  --bg-0: #131313;   /* app */
+  --bg-1: #1a1a1a;   /* panels */
+  --bg-2: #212121;   /* controls, inputs */
+  --bg-3: #2a2a2a;   /* hover, track */
+  --line-1: #2b2b2b; /* structure */
+  --line-2: #3a3a3a; /* emphasis */
+  --fg-1: #e4e4e4;
+  --fg-2: #9a9a9a;
+  --fg-3: #5c5c5c;
+
+  /* the one accent: selected / active state + corrected pitch curve */
+  --accent:    #3fb3ba;
+  --accent-fg: #0b1617;
+
+  /* data colours (not accents) */
+  --wave:       #4a4a4a;
+  --wave-b:     #5a5a5a;
+  --curve-orig: #8a8a8a;
+
+  /* status only (toasts, warnings) */
+  --ok: #6fbf73; --warn: #d9a441; --err: #d25c5c;
+
+  --focus: 0 0 0 1px var(--bg-0), 0 0 0 3px var(--accent);
+}
+:root[data-theme="light"] {
+  --bg-0: #e9e9e9; --bg-1: #f4f4f4; --bg-2: #ffffff; --bg-3: #e2e2e2;
+  --line-1: #d4d4d4; --line-2: #bdbdbd;
+  --fg-1: #1b1b1b; --fg-2: #5f5f5f; --fg-3: #a0a0a0;
+  --accent: #157f86; --accent-fg: #ffffff;
+  --wave: #bdbdbd; --wave-b: #ababab; --curve-orig: #7a7a7a;
+  --focus: 0 0 0 1px var(--bg-2), 0 0 0 3px var(--accent);
+}
+
+/* ── mockup page chrome (not part of the app) ───────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #0b0b0b; color: #ccc; font: 13px/1.4 var(--font-ui); }
+.page { padding: 24px; max-width: 1340px; margin: 0 auto; }
+.page h1 { font-size: 15px; font-weight: 600; color: #eee; margin-bottom: 4px; }
+.page p.lead { color: #888; margin-bottom: 12px; }
+.states { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.states button {
+  font: inherit; color: #ccc; background: #1c1c1c; border: 1px solid #333;
+  border-radius: 2px; padding: 4px 10px; cursor: pointer;
+}
+.states button[aria-pressed="true"] { background: #2a2a2a; border-color: #666; color: #fff; }
+.notes { margin-top: 24px; border-top: 1px solid #222; padding-top: 16px; color: #aaa; }
+.notes h2 { font-size: 13px; color: #ddd; margin: 12px 0 6px; }
+.notes ul { padding-left: 18px; }
+.notes li { margin: 3px 0; }
+.notes code { font: 12px var(--font-mono); color: #ddd; }
+
+/* ── app frame ──────────────────────────────────────────────────────────── */
+.app {
+  width: 1280px; height: 800px; margin: 0 auto;
+  display: grid;
+  grid-template-rows: var(--h-title) var(--h-header) 2px 1fr var(--h-footer);
+  grid-template-columns: 1fr var(--w-side);
+  grid-template-areas:
+    "title title"
+    "header header"
+    "progress progress"
+    "center side"
+    "footer footer";
+  background: var(--bg-0); color: var(--fg-1);
+  font: var(--fs-12)/var(--lh) var(--font-ui);
+  border: 1px solid var(--line-2);
+  overflow: hidden;
+  user-select: none;
+}
+.app * { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.dim  { color: var(--fg-2); }
+.faint{ color: var(--fg-3); }
+.num  { font-family: var(--font-mono); text-align: right; display: inline-block; }
+
+button, select, input { font: inherit; color: inherit; }
+button:focus-visible, select:focus-visible, input:focus-visible,
+[tabindex]:focus-visible { outline: none; box-shadow: var(--focus); }
+
+/* ── title bar ──────────────────────────────────────────────────────────── */
+.title {
+  grid-area: title; display: flex; align-items: stretch;
+  background: var(--bg-1); border-bottom: var(--bw) solid var(--line-1);
+  -webkit-app-region: drag;
+}
+.title .brand { padding: 0 var(--s3); display: flex; align-items: center; gap: var(--s2); font-weight: 600; }
+.title .brand .ver { font-weight: 400; color: var(--fg-3); }
+.title .menus { display: flex; -webkit-app-region: no-drag; }
+.title .menus button {
+  background: none; border: 0; padding: 0 var(--s3); color: var(--fg-2); cursor: pointer;
+}
+.title .menus button:hover, .title .menus button[aria-expanded="true"] { background: var(--bg-3); color: var(--fg-1); }
+.title .spacer { flex: 1; }
+.title .status { display: flex; align-items: center; gap: var(--s2); color: var(--fg-2); padding: 0 var(--s3); }
+.title .wc { display: flex; -webkit-app-region: no-drag; }
+.title .wc button {
+  width: 46px; background: none; border: 0; color: var(--fg-2); cursor: pointer; font-size: var(--fs-13);
+}
+.title .wc button:hover { background: var(--bg-3); color: var(--fg-1); }
+.title .wc button.close:hover { background: var(--err); color: #fff; }
+
+.menu {
+  position: absolute; z-index: 20; min-width: 220px;
+  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r-lg);
+  padding: var(--s1) 0; display: none;
+}
+.menu[data-open="true"] { display: block; }
+.menu button {
+  display: flex; width: 100%; justify-content: space-between; gap: var(--s4);
+  background: none; border: 0; text-align: left; padding: var(--s1) var(--s3); cursor: pointer;
+}
+.menu button:hover { background: var(--bg-3); }
+.menu button:disabled { color: var(--fg-3); cursor: default; }
+.menu button:disabled:hover { background: none; }
+.menu .sep { height: var(--bw); background: var(--line-1); margin: var(--s1) 0; }
+.menu kbd { font-family: var(--font-mono); color: var(--fg-3); }
+
+/* ── header: file + detected pitch ──────────────────────────────────────── */
+.header {
+  grid-area: header; display: grid; grid-template-columns: 1fr auto;
+  align-items: center; padding: 0 var(--s4); gap: var(--s6);
+  background: var(--bg-1); border-bottom: var(--bw) solid var(--line-1);
+}
+.file { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.file .name { font-size: var(--fs-13); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file .meta { color: var(--fg-2); white-space: nowrap; }
+.file .meta span + span::before { content: "·"; margin: 0 var(--s2); color: var(--fg-3); }
+.btn {
+  height: var(--h-ctl); padding: 0 var(--s3); border-radius: var(--r);
+  background: var(--bg-2); border: var(--bw) solid var(--line-2); color: var(--fg-1); cursor: pointer;
+  display: inline-flex; align-items: center; gap: var(--s2); white-space: nowrap;
+}
+.btn:hover { background: var(--bg-3); }
+.btn:active { background: var(--bg-3); border-color: var(--fg-3); }
+.btn:disabled { color: var(--fg-3); cursor: default; background: var(--bg-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn kbd { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-3); }
+.btn.primary kbd { color: var(--accent-fg); opacity: .7; }
+.btn svg { width: 12px; height: 12px; fill: currentColor; }
+
+.detected { display: grid; grid-template-columns: auto auto auto auto; gap: 0 var(--s5); align-items: baseline; }
+.detected .k { font-size: var(--fs-10); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); display: block; }
+.detected .v { font-family: var(--font-mono); font-size: var(--fs-13); color: var(--fg-1); }
+.detected .note { font-family: var(--font-mono); font-size: var(--fs-28); line-height: 1; font-weight: 600; }
+.detected .note sub { font-size: var(--fs-13); font-weight: 400; color: var(--fg-2); vertical-align: baseline; }
+
+/* ── processing progress (2 px) ─────────────────────────────────────────── */
+.progress { grid-area: progress; background: var(--bg-1); position: relative; }
+.progress i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); transition: width 120ms linear; }
+
+/* ── center: waveform + pitch overlay ───────────────────────────────────── */
+.center {
+  grid-area: center; display: grid; grid-template-rows: auto 1fr; min-height: 0;
+  border-right: var(--bw) solid var(--line-1); background: var(--bg-0); position: relative;
+}
+.center[data-harmonics="true"] { grid-template-rows: auto 1fr auto 200px; }
+.viewbar {
+  display: flex; align-items: center; gap: var(--s4); padding: 0 var(--s3); height: 28px;
+  border-bottom: var(--bw) solid var(--line-1); color: var(--fg-2);
+}
+.viewbar .legend { display: flex; gap: var(--s4); }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: var(--s1); }
+.legend .orig i { background: var(--curve-orig); }
+.legend .corr i { background: var(--accent); }
+.viewbar .spacer { flex: 1; }
+.viewbar .range button { background: none; border: var(--bw) solid var(--line-2); border-radius: var(--r); color: var(--fg-2); width: 22px; height: 20px; cursor: pointer; }
+.viewbar .range button:hover { color: var(--fg-1); background: var(--bg-3); }
+.wave { position: relative; min-height: 0; }
+.wave canvas, .harm canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wave .empty {
+  position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s2); color: var(--fg-2);
+}
+.wave .empty kbd { font-family: var(--font-mono); color: var(--fg-3); }
+.app[data-state="empty"] .wave .empty { display: flex; }
+.app[data-state="empty"] .wave canvas { display: none; }
+.app[data-state="empty"] .side-main, .app[data-state="empty"] .footer .transport { opacity: .45; pointer-events: none; }
+.app[data-state="processing"] .wave canvas { opacity: .6; }
+.app[data-state="processing"] .progress i { width: 64%; }
+.app[data-state="processing"] .title .status b { display: inline; }
+.title .status b { display: none; font-weight: 400; color: var(--fg-1); }
+
+.splitter { height: var(--s1); background: var(--bg-1); border-top: var(--bw) solid var(--line-1); border-bottom: var(--bw) solid var(--line-1); cursor: row-resize; display: none; }
+.harm { position: relative; display: none; }
+.center[data-harmonics="true"] .splitter, .center[data-harmonics="true"] .harm { display: block; }
+.harm .cap { position: absolute; left: var(--s3); top: var(--s2); color: var(--fg-2); font-size: var(--fs-11); z-index: 1; display: flex; gap: var(--s3); }
+.harm .cap button { background: none; border: var(--bw) solid var(--line-2); border-radius: var(--r); color: var(--fg-2); padding: 0 var(--s2); height: 18px; cursor: pointer; }
+
+/* drop overlay */
+.drop { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: var(--bg-0); z-index: 5; }
+.drop div { border: var(--bw) dashed var(--line-2); border-radius: var(--r-lg); padding: var(--s6) var(--s8); color: var(--fg-2); }
+
+/* ── side column ────────────────────────────────────────────────────────── */
+.side { grid-area: side; background: var(--bg-1); min-height: 0; position: relative; overflow: hidden; }
+.side > section { position: absolute; inset: 0; overflow-y: auto; display: none; }
+.side > section[data-active="true"] { display: block; }
+.side::-webkit-scrollbar, .side > section::-webkit-scrollbar { width: 8px; }
+.side > section::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 0; }
+
+.group { border-bottom: var(--bw) solid var(--line-1); }
+.group > header {
+  display: flex; align-items: center; height: 28px; padding: 0 var(--s3) 0 var(--s4);
+  font-size: var(--fs-10); letter-spacing: .08em; text-transform: uppercase; color: var(--fg-2);
+}
+.group > header .r { margin-left: auto; font-family: var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--fg-3); }
+.group > .body { padding: 0 var(--s4) var(--s3); display: flex; flex-direction: column; gap: var(--s2); }
+.group[data-disabled="true"] .body { opacity: .4; pointer-events: none; }
+.group.collapsible > header { cursor: pointer; background: none; border: 0; width: 100%; text-align: left; }
+.group.collapsible > header::before { content: ""; width: 0; height: 0; border: 4px solid transparent; border-left-color: var(--fg-2); margin: 0 var(--s2) 0 -2px; transition: transform 80ms; }
+.group.collapsible[data-open="true"] > header::before { transform: rotate(90deg); }
+.group.collapsible > .body { display: none; }
+.group.collapsible[data-open="true"] > .body { display: flex; }
+.sub { font-size: var(--fs-10); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-3); margin-top: var(--s2); }
+.sub:first-child { margin-top: 0; }
+
+/* one control = label row (label · value) + track */
+.ctl { display: grid; grid-template-columns: 1fr var(--w-value); grid-template-rows: 16px var(--h-ctl); align-items: center; column-gap: var(--s2); }
+.ctl label { color: var(--fg-2); }
+.ctl .val {
+  font-family: var(--font-mono); text-align: right; color: var(--fg-1);
+  background: none; border: var(--bw) solid transparent; border-radius: var(--r); padding: 0 var(--s1); height: 16px; line-height: 14px;
+}
+.ctl .val:hover { border-color: var(--line-2); }
+.ctl .val:focus { border-color: var(--accent); background: var(--bg-2); outline: none; }
+.ctl input[type=range] { grid-column: 1 / -1; width: 100%; height: var(--h-ctl); margin: 0; background: none; -webkit-appearance: none; cursor: pointer; }
+.ctl input[type=range]::-webkit-slider-runnable-track { height: var(--h-track); background: var(--bg-3); border-radius: var(--r); }
+.ctl input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 14px; margin-top: -5px; border-radius: var(--r);
+  background: var(--fg-2); border: var(--bw) solid var(--bg-0);
+}
+.ctl input[type=range]:hover::-webkit-slider-thumb, .ctl input[type=range]:active::-webkit-slider-thumb { background: var(--fg-1); }
+.ctl input[type=range]:focus-visible { box-shadow: none; }
+.ctl input[type=range]:focus-visible::-webkit-slider-thumb { background: var(--accent); }
+.ctl[data-modified="true"] label::after { content: "●"; color: var(--accent); font-size: 6px; vertical-align: middle; margin-left: var(--s1); }
+.ctl .hint { grid-column: 1 / -1; color: var(--warn); font-size: var(--fs-11); margin-top: -4px; }
+
+/* row controls: select, segmented, check */
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: var(--h-ctl); gap: var(--s2); }
+.row label { color: var(--fg-2); }
+.select {
+  height: var(--h-ctl); width: 100%; background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  color: var(--fg-1); padding: 0 var(--s6) 0 var(--s2); -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-2) 50%), linear-gradient(135deg, var(--fg-2) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 10px, calc(100% - 9px) 10px; background-size: 4px 4px; background-repeat: no-repeat;
+}
+.select:hover { border-color: var(--fg-3); }
+.select.full { grid-column: 1 / -1; }
+.seg { display: inline-flex; border: var(--bw) solid var(--line-2); border-radius: var(--r); overflow: hidden; height: var(--h-ctl); }
+.seg button { background: var(--bg-2); border: 0; border-right: var(--bw) solid var(--line-2); padding: 0 var(--s3); color: var(--fg-2); cursor: pointer; min-width: 44px; }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { color: var(--fg-1); background: var(--bg-3); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.seg.full { display: flex; } .seg.full button { flex: 1; }
+.check { display: flex; align-items: center; gap: var(--s2); height: var(--h-ctl); cursor: pointer; color: var(--fg-2); }
+.check input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.check:hover { color: var(--fg-1); }
+.help { color: var(--fg-3); font-size: var(--fs-11); line-height: 1.35; }
+
+/* target note picker */
+.notes-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.notes-grid button {
+  height: var(--h-ctl); background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  color: var(--fg-2); font-family: var(--font-mono); font-size: var(--fs-11); padding: 0; cursor: pointer;
+}
+.notes-grid button.black { background: var(--bg-0); }
+.notes-grid button:hover { color: var(--fg-1); border-color: var(--fg-3); }
+.notes-grid button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.stepper { display: inline-flex; align-items: center; border: var(--bw) solid var(--line-2); border-radius: var(--r); height: var(--h-ctl); }
+.stepper button { width: 24px; height: 100%; background: var(--bg-2); border: 0; color: var(--fg-2); cursor: pointer; }
+.stepper button:hover { color: var(--fg-1); background: var(--bg-3); }
+.stepper output { font-family: var(--font-mono); min-width: 28px; text-align: center; }
+.target-readout { display: grid; grid-template-columns: 1fr auto; align-items: baseline; }
+.target-readout .big { font-family: var(--font-mono); font-size: var(--fs-22); font-weight: 600; line-height: 1; }
+.target-readout .big sub { font-size: var(--fs-12); font-weight: 400; color: var(--fg-2); vertical-align: baseline; }
+.target-readout .delta { font-family: var(--font-mono); color: var(--fg-2); }
+
+/* ── side: multisample + preferences sheets ─────────────────────────────── */
+.sheet-head { display: flex; align-items: center; gap: var(--s2); height: 28px; padding: 0 var(--s3); border-bottom: var(--bw) solid var(--line-1); }
+.sheet-head button.back { background: none; border: 0; color: var(--fg-2); cursor: pointer; padding: 0 var(--s1); }
+.sheet-head button.back:hover { color: var(--fg-1); }
+.sheet-head h3 { font-size: var(--fs-12); font-weight: 600; }
+.pathbox { background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r); padding: var(--s1) var(--s2); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rangebar { height: 28px; display: flex; border: var(--bw) solid var(--line-2); border-radius: var(--r); overflow: hidden; background: var(--bg-2); }
+.rangebar i { display: block; height: 100%; }
+.rangebar i.in { background: var(--accent); opacity: .35; }
+.rangebar i.src { width: 2px; background: var(--fg-1); }
+.pbar { height: 4px; background: var(--bg-3); border-radius: var(--r); overflow: hidden; }
+.pbar i { display: block; height: 100%; width: 58%; background: var(--accent); }
+.sheet-foot { display: flex; gap: var(--s2); padding: var(--s3) var(--s4); border-top: var(--bw) solid var(--line-1); justify-content: flex-end; }
+.pref { display: grid; grid-template-columns: 1fr auto; gap: var(--s1) var(--s3); align-items: center; padding: var(--s2) 0; border-bottom: var(--bw) solid var(--line-1); }
+.pref:last-child { border-bottom: 0; }
+.pref .d { grid-column: 1; color: var(--fg-3); font-size: var(--fs-11); }
+.pref .c { grid-row: 1 / span 2; }
+.switch { width: 32px; height: 16px; border-radius: 8px; background: var(--bg-3); border: var(--bw) solid var(--line-2); position: relative; cursor: pointer; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--fg-2); transition: left 80ms; }
+.switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"]::after { left: 18px; background: var(--accent-fg); }
+
+/* ── footer: transport · A/B · export ───────────────────────────────────── */
+.footer {
+  grid-area: footer; display: flex; align-items: center; gap: var(--s3); padding: 0 var(--s4);
+  background: var(--bg-1); border-top: var(--bw) solid var(--line-1);
+}
+.footer .transport { display: flex; align-items: center; gap: var(--s3); }
+.footer .time { font-family: var(--font-mono); font-size: var(--fs-13); min-width: 150px; }
+.footer .time span { color: var(--fg-3); }
+.footer .levels { font-family: var(--font-mono); color: var(--fg-2); display: flex; gap: var(--s3); }
+.footer .levels b { font-weight: 400; color: var(--fg-3); }
+.footer .spacer { flex: 1; }
+.footer .history { display: flex; gap: 2px; }
+.footer .history button { width: 28px; padding: 0; justify-content: center; }
+.btn.play { width: 56px; justify-content: center; }
+.app[data-playing="true"] .btn.play .ic-play, .app:not([data-playing="true"]) .btn.play .ic-stop { display: none; }
+
+/* toast */
+.toast {
+  position: absolute; left: var(--s4); bottom: calc(var(--h-footer) + var(--s3)); z-index: 10;
+  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-left: 3px solid var(--ok);
+  border-radius: var(--r); padding: var(--s2) var(--s3); display: none; gap: var(--s4); align-items: center;
+}
+.toast[data-open="true"] { display: flex; }
+.toast .path { font-family: var(--font-mono); color: var(--fg-2); }
+.toast button { background: none; border: 0; color: var(--fg-2); cursor: pointer; }
+.app { position: relative; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>FreqEnforcer — UI mockup (static)</h1>
+  <p class="lead">1280×800 frame. Click around: menus, mode select, Advanced, A/B, Multisample, Options → Preferences / Light theme. Canvases are devicePixelRatio-aware.</p>
+  <div class="states" role="group" aria-label="Mockup states">
+    <button data-state="loaded" aria-pressed="true">Loaded</button>
+    <button data-state="empty">Empty</button>
+    <button data-state="processing">Processing</button>
+    <button data-theme-toggle>Light theme</button>
+    <button data-toast>Show toast</button>
+  </div>
+
+<!-- ═══════════════════════════ APP FRAME ═══════════════════════════ -->
+<div class="app" id="app" data-state="loaded" data-playing="false">
+
+  <!-- title bar -->
+  <div class="title">
+    <div class="brand">FreqEnforcer <span class="ver mono">2.1</span></div>
+    <nav class="menus" aria-label="Main menu">
+      <button data-menu="file" aria-expanded="false" aria-haspopup="menu">File</button>
+      <button data-menu="export" aria-expanded="false" aria-haspopup="menu">Export</button>
+      <button data-menu="options" aria-expanded="false" aria-haspopup="menu">Options</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="status"><b>Processing <span class="mono">64%</span> · WORLD analysis</b></div>
+    <div class="wc">
+      <button aria-label="Minimize">–</button>
+      <button aria-label="Maximize">□</button>
+      <button class="close" aria-label="Close">×</button>
+    </div>
+  </div>
+  <div class="menu" id="menu-file" style="left:92px;top:32px" role="menu">
+    <button><span>Open…</span><kbd>Ctrl+O</kbd></button>
+    <button><span>Reload sample</span><kbd>Ctrl+R</kbd></button>
+    <button><span>Close sample</span><kbd>Ctrl+N</kbd></button>
+    <div class="sep"></div>
+    <button><span>Quit</span><kbd>Ctrl+Q</kbd></button>
+  </div>
+  <div class="menu" id="menu-export" style="left:132px;top:32px" role="menu">
+    <button><span>Export WAV…</span><kbd>Ctrl+E</kbd></button>
+    <button><span>Quick export next to source</span><kbd>Ctrl+Shift+E</kbd></button>
+    <button data-open-sheet="multisample"><span>Multisample / SFZ…</span><kbd>Ctrl+M</kbd></button>
+  </div>
+  <div class="menu" id="menu-options" style="left:186px;top:32px" role="menu">
+    <button data-open-sheet="prefs"><span>Preferences</span><kbd>Ctrl+,</kbd></button>
+    <button data-theme-toggle><span>Light theme</span><kbd></kbd></button>
+    <div class="sep"></div>
+    <button><span>Language · English</span><kbd>›</kbd></button>
+    <div class="sep"></div>
+    <button><span>Keyboard shortcuts</span><kbd>?</kbd></button>
+  </div>
+
+  <!-- header -->
+  <div class="header">
+    <div class="file">
+      <button class="btn" title="Open (Ctrl+O)">Open…</button>
+      <span class="name" id="file-name">vocal_take3_C4.wav</span>
+      <span class="meta mono"><span>44.1 kHz</span><span>mono</span><span>2.000 s</span><span>−0.1 dBFS</span></span>
+    </div>
+    <div class="detected" aria-label="Detected pitch">
+      <div><span class="k">Detected</span><span class="note">C<sub>4</sub></span></div>
+      <div><span class="k">Cents</span><span class="v">+3.2 ¢</span></div>
+      <div><span class="k">Frequency</span><span class="v">262.1 Hz</span></div>
+      <div><span class="k">Confidence</span><span class="v">0.92</span></div>
+    </div>
+  </div>
+
+  <div class="progress"><i></i></div>
+
+  <!-- center -->
+  <div class="center" id="center" data-harmonics="false">
+    <div class="viewbar">
+      <span class="mono" id="ab-caption">A · Original</span>
+      <span class="legend"><span class="orig"><i></i>original pitch</span><span class="corr"><i></i>corrected pitch</span></span>
+      <span class="spacer"></span>
+      <span class="dim">Loop <span class="mono">0.412 – 1.337 s</span></span>
+      <span class="range"><button aria-label="Zoom out">−</button> <button aria-label="Zoom in">+</button></span>
+    </div>
+    <div class="wave">
+      <canvas id="wave"></canvas>
+      <div class="empty">
+        <span>Drop a sample here</span>
+        <span class="dim">or <kbd>Ctrl+O</kbd> to open · WAV, MP3, FLAC, OGG, AIFF</span>
+      </div>
+    </div>
+    <div class="splitter" role="separator" aria-orientation="horizontal"></div>
+    <div class="harm">
+      <div class="cap"><span>Harmonic ceilings · drag a node · double-click resets</span><button>Reset all</button></div>
+      <canvas id="harm"></canvas>
+    </div>
+    <div class="drop"><div>Drop to load</div></div>
+  </div>
+
+  <!-- side column -->
+  <aside class="side">
+    <!-- ── settings ── -->
+    <section class="side-main" data-active="true" id="sheet-settings">
+      <div class="group">
+        <header>Target</header>
+        <div class="body">
+          <div class="notes-grid" role="radiogroup" aria-label="Target note">
+            <button aria-pressed="true">C</button><button class="black">C♯</button><button>D</button><button class="black">D♯</button><button>E</button><button>F</button>
+            <button class="black">F♯</button><button>G</button><button class="black">G♯</button><button>A</button><button class="black">A♯</button><button>B</button>
+          </div>
+          <div class="row">
+            <label>Octave</label>
+            <span class="stepper"><button aria-label="Octave down">−</button><output>4</output><button aria-label="Octave up">+</button></span>
+          </div>
+          <div class="target-readout">
+            <span class="big">C<sub>4</sub> <span class="dim" style="font-size:var(--fs-12);font-weight:400">261.63 Hz</span></span>
+            <span class="delta">Δ 0 st · −3.2 ¢</span>
+          </div>
+          <div class="help">Ctrl+↑/↓ semitone · Ctrl+Shift+↑/↓ octave · drag the curve on the waveform</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <header>Mode <span class="r">1–7</span></header>
+        <div class="body">
+          <select class="select full" id="mode" aria-label="Pitch mode">
+            <optgroup label="WORLD">
+              <option value="world_hard" selected>WORLD Hard — flatten</option>
+              <option value="world_soft">WORLD Soft — retune</option>
+              <option value="world_vt">WORLD VT — vocal tract</option>
+              <option value="world_hnm">WORLD HNM — harmonic</option>
+            </optgroup>
+            <optgroup label="PSOLA">
+              <option value="praat_soft">PSOLA (Praat) Soft</option>
+            </optgroup>
+            <optgroup label="Experimental">
+              <option value="sine_spectral">Sinusoidal (spectral)</option>
+              <option value="stft_pitchshift">STFT phase vocoder</option>
+            </optgroup>
+          </select>
+          <div class="help" id="mode-help">Hard snap to the target for the most locked sound.</div>
+
+          <div class="ctl" data-for="soft">
+            <label for="c-amount">Amount</label><input class="val" id="c-amount-v" value="100 %" readonly tabindex="-1">
+            <input type="range" id="c-amount" min="0" max="100" value="100" aria-label="Correction amount">
+          </div>
+          <div class="ctl" data-for="soft">
+            <label for="c-speed">Retune speed</label><input class="val" value="40 ms" readonly tabindex="-1">
+            <input type="range" id="c-speed" min="0" max="500" value="40" aria-label="Retune speed">
+          </div>
+          <div class="ctl" data-for="soft">
+            <label for="c-vib">Keep vibrato</label><input class="val" value="100 %" readonly tabindex="-1">
+            <input type="range" id="c-vib" min="0" max="100" value="100" aria-label="Preserve vibrato">
+          </div>
+          <div class="ctl" data-for="formant" data-modified="true">
+            <label for="c-formant">Formant shift</label><input class="val" value="+40 ¢" readonly tabindex="-1">
+            <input type="range" id="c-formant" min="-500" max="500" value="40" aria-label="Formant shift">
+          </div>
+          <div class="ctl" data-for="vt">
+            <label for="c-vt">Vocal tract model</label><input class="val" value="10" readonly tabindex="-1">
+            <input type="range" id="c-vt" min="0" max="100" value="10" aria-label="Vocal tract model">
+          </div>
+          <label class="check"><input type="checkbox"> Normalize to −0.1 dBFS</label>
+        </div>
+      </div>
+
+      <div class="group" id="g-voicing">
+        <header>Voicing <span class="r" id="voicing-default">default: force</span></header>
+        <div class="body">
+          <div class="seg full" role="radiogroup" aria-label="Voicing">
+            <button aria-pressed="false">Strict</button><button aria-pressed="true">Force</button><button aria-pressed="false">Dilate</button>
+          </div>
+          <div class="help" id="voicing-help">Force makes every frame voiced; Strict keeps unvoiced frames; Dilate grows the voiced mask by 3 frames. WORLD modes only.</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <header>Stretch</header>
+        <div class="body">
+          <select class="select full" aria-label="Stretch method">
+            <option>WSOLA</option><option>OLA</option><option>Phase vocoder</option>
+            <option>Rubber Band — faster</option><option>Rubber Band — finer</option><option>Rubber Band — percussive</option>
+            <option>TD-PSOLA</option>
+          </select>
+          <div class="ctl">
+            <label for="c-stretch">Factor</label><input class="val" value="1.00 ×" aria-label="Stretch factor value">
+            <input type="range" id="c-stretch" min="1" max="400" value="100" aria-label="Stretch factor">
+          </div>
+        </div>
+      </div>
+
+      <div class="group collapsible" data-open="false">
+        <header role="button" tabindex="0" aria-expanded="false">Advanced <span class="r">2 active</span></header>
+        <div class="body">
+          <div class="sub">Cleanliness</div>
+          <div class="ctl"><label>Amount</label><input class="val" value="0 %" readonly tabindex="-1"><input type="range" min="0" max="100" value="0"></div>
+          <div class="ctl"><label>Low cut</label><input class="val" value="0 %" readonly tabindex="-1"><input type="range" min="0" max="100" value="0"></div>
+          <div class="ctl"><label>HF rollback</label><input class="val" value="0 %" readonly tabindex="-1"><input type="range" min="0" max="100" value="0"></div>
+
+          <div class="sub">Breath</div>
+          <div class="ctl" data-modified="true"><label>Breathiness</label><input class="val" value="1.20 ×" readonly tabindex="-1"><input type="range" min="0" max="500" value="120"></div>
+          <div class="ctl"><label>HF bias</label><input class="val" value="0.00" readonly tabindex="-1"><input type="range" min="0" max="100" value="0"></div>
+
+          <div class="sub">Harmonic limiter</div>
+          <label class="check"><input type="checkbox" id="hl-on"> Enable</label>
+          <div class="help">Opens the ceiling editor under the waveform.</div>
+          <div class="ctl"><label>Compression</label><input class="val" value="50 %" readonly tabindex="-1"><input type="range" min="0" max="100" value="50"></div>
+
+          <div class="sub">Crossfade loop</div>
+          <div class="ctl"><label>Template</label><input class="val" value="6 per" readonly tabindex="-1"><input type="range" min="2" max="16" value="6"></div>
+          <div class="ctl"><label>Min loop</label><input class="val" value="10 per" readonly tabindex="-1"><input type="range" min="2" max="32" value="10"></div>
+          <div class="ctl"><label>Crossfade</label><input class="val" value="2 per" readonly tabindex="-1"><input type="range" min="1" max="8" value="2"></div>
+          <div class="row"><span class="mono dim">0.412 – 1.337 s</span><button class="btn">Find loop</button></div>
+        </div>
+      </div>
+      <div class="group" style="border:0"><div class="body" style="padding-top:var(--s3)"><div class="help">Double-click any control to reset it. <span class="mono">●</span> marks a non-default value.</div></div></div>
+    </section>
+
+    <!-- ── multisample sheet (replaces the column, no modal) ── -->
+    <section id="sheet-multisample">
+      <div class="sheet-head"><button class="back" data-open-sheet="settings" aria-label="Back to settings">‹</button><h3>Multisample / SFZ</h3></div>
+      <div class="group">
+        <header>Range</header>
+        <div class="body">
+          <div class="row"><label>Low</label><span><select class="select" style="width:64px"><option>C</option></select> <select class="select" style="width:52px"><option>2</option></select></span></div>
+          <div class="row"><label>High</label><span><select class="select" style="width:64px"><option>C</option></select> <select class="select" style="width:52px"><option>7</option></select></span></div>
+          <div class="rangebar" aria-hidden="true"><i style="width:8%"></i><i class="in" style="width:70%"></i><i class="src"></i><i style="flex:1"></i></div>
+          <div class="help">Source <span class="mono">C4</span> · <span class="mono">61</span> notes · parallel render on <span class="mono">23</span> workers</div>
+        </div>
+      </div>
+      <div class="group">
+        <header>Per note</header>
+        <div class="body">
+          <label class="check"><input type="checkbox" checked> Crossfade loop (uses Advanced › loop settings)</label>
+          <label class="check"><input type="checkbox"> Start trim</label>
+          <div class="ctl"><label>Trim</label><input class="val" value="0 ms" readonly tabindex="-1"><input type="range" min="0" max="500" value="0"></div>
+          <label class="check"><input type="checkbox" checked> Write .sfz instrument (DirectWave)</label>
+        </div>
+      </div>
+      <div class="group">
+        <header>Output</header>
+        <div class="body">
+          <div class="pathbox">D:\samples\vocal_take3_C4_multisample\</div>
+          <div class="row"><span class="help">Folder next to source by default</span><button class="btn">Change…</button></div>
+        </div>
+      </div>
+      <div class="group" style="border:0">
+        <header>Progress</header>
+        <div class="body">
+          <div class="row"><span class="mono">Rendering F♯3 · 35 / 61</span><span class="mono dim">58 %</span></div>
+          <div class="pbar"><i></i></div>
+        </div>
+      </div>
+      <div class="sheet-foot"><button class="btn">Cancel</button><button class="btn primary">Render</button></div>
+    </section>
+
+    <!-- ── preferences sheet ── -->
+    <section id="sheet-prefs">
+      <div class="sheet-head"><button class="back" data-open-sheet="settings" aria-label="Back to settings">‹</button><h3>Preferences</h3></div>
+      <div class="group">
+        <header>General</header>
+        <div class="body">
+          <div class="pref"><span>Performance mode</span><span class="c switch" role="switch" aria-checked="false" tabindex="0"></span><span class="d">Longer debounce, fewer waveform bins</span></div>
+          <div class="pref"><span>Warm up engine on start</span><span class="c switch" role="switch" aria-checked="true" tabindex="0"></span><span class="d">Runs /api/warmup after the backend is up</span></div>
+          <div class="pref"><span>Note names</span><span class="c seg"><button aria-pressed="true">C♯</button><button aria-pressed="false">D♭</button></span><span class="d">Sharps or flats everywhere</span></div>
+          <div class="pref"><span>Theme</span><span class="c seg"><button aria-pressed="true" data-theme-set="dark">Dark</button><button aria-pressed="false" data-theme-set="light">Light</button></span><span class="d">One dark, one light. No editor.</span></div>
+          <div class="pref"><span>Language</span><span class="c"><select class="select"><option>English</option><option>Español</option><option>日本語</option><option>Português (BR)</option><option>Русский</option></select></span><span class="d">&nbsp;</span></div>
+        </div>
+      </div>
+      <div class="group" style="border:0">
+        <header>Shortcuts</header>
+        <div class="body help mono" style="line-height:1.8">
+          Space play/stop · A A/B · Ctrl+E export · Ctrl+Shift+E quick export<br>
+          Ctrl+Z undo · Ctrl+Shift+Z redo · 1–7 mode · Ctrl+↑↓ semitone · Ctrl+O open
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- footer -->
+  <div class="footer">
+    <div class="transport">
+      <button class="btn play" id="play" title="Play / stop (Space)">
+        <svg class="ic-play" viewBox="0 0 12 12"><path d="M2 1l9 5-9 5z"/></svg>
+        <svg class="ic-stop" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8"/></svg>
+      </button>
+      <span class="time">0:00.000 <span>/ 0:02.000</span></span>
+      <span class="seg" role="radiogroup" aria-label="A/B" id="ab">
+        <button aria-pressed="true" title="Original (A)">A · Original</button>
+        <button aria-pressed="false" title="Corrected (A)">B · Corrected</button>
+      </span>
+      <span class="levels"><span><b>peak</b> −0.1 dB</span><span><b>rms</b> −14.2 dB</span></span>
+    </div>
+    <span class="spacer"></span>
+    <span class="history">
+      <button class="btn" title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 12 12"><path d="M4 2L1 5l3 3V6h3.5a2 2 0 010 4H5v1h2.5a3 3 0 000-6H4z"/></svg></button>
+      <button class="btn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled><svg viewBox="0 0 12 12"><path d="M8 2l3 3-3 3V6H4.5a2 2 0 000 4H7v1H4.5a3 3 0 010-6H8z"/></svg></button>
+    </span>
+    <button class="btn" data-open-sheet="multisample">Multisample… <kbd>Ctrl+M</kbd></button>
+    <button class="btn">Quick export <kbd>Ctrl+Shift+E</kbd></button>
+    <button class="btn primary">Export WAV <kbd>Ctrl+E</kbd></button>
+  </div>
+
+  <div class="toast" id="toast" data-open="false"><span>Exported</span><span class="path">…\vocal_take3_C4_tuned.wav</span><button aria-label="Dismiss">×</button></div>
+</div>
+
+<!-- ═══════════════════════════ NOTES ═══════════════════════════ -->
+<div class="notes">
+  <h2>What this shows</h2>
+  <ul>
+    <li><b>Layout</b>: title bar (menus, processing status) · header (file + detected pitch) · 2 px progress line · waveform with pitch overlay · one settings column (Target, Mode, Voicing, Stretch, Advanced collapsed) · footer (transport, A/B, levels, undo/redo, export).</li>
+    <li><b>No modals in the core flow.</b> Multisample and Preferences slide into the settings column with a back button. Toasts sit bottom-left of the waveform.</li>
+    <li><b>Harmonic limiter ceiling editor</b> appears as a resizable pane under the waveform only while the limiter is enabled (Advanced › Harmonic limiter). It is the one canvas that needs node dragging.</li>
+    <li><b>Controls</b>: label · tabular-mono value · native <code>&lt;input type=range&gt;</code> restyled (keyboard-accessible for free). Value is editable on click, double-click anywhere on the control resets, a dot marks non-default. Mode-specific controls (Amount / Retune / Vibrato / Formant / Vocal tract) show per mode; Voicing greys out on non-WORLD modes.</li>
+    <li><b>Tokens</b>: the first <code>&lt;style&gt;</code> block is <code>tokens.css</code>. One accent (<code>#3fb3ba</code> dark / <code>#157f86</code> light), 4 px grid, 2 px radius, 1 px borders, Segoe UI + Consolas with <code>tabular-nums</code> so numbers never jump.</li>
+    <li><b>Canvases</b> size themselves from <code>clientWidth × devicePixelRatio</code> with <code>ctx.setTransform(dpr,…)</code> and a ResizeObserver, so 175 % DPI renders crisp and at the intended size.</li>
+  </ul>
+  <h2>Needs a decision from you</h2>
+  <ul>
+    <li><b>Pitch curve</b>: the backend's pYIN already computes an F0 contour but only returns note/cents/Hz. The overlay needs <code>/api/load-audio</code> (and <code>/api/process</code> for the corrected curve) to also return a decimated <code>f0_contour</code> and a <code>confidence</code> value. Additive, response-only; existing fields unchanged. OK to add?</li>
+    <li><b>Voicing</b>: adds optional <code>voicing_mode</code> to <code>ProcessRequest</code> / <code>RenderMultisampleRequest</code>, default <code>null</code> = today's per-mode behaviour (force for Hard, strict for Soft/VT/HNM), so golden tests stay bit-exact.</li>
+    <li><b>Accent colour</b>: I kept the brand's teal, desaturated. Say the word if you'd rather have amber or neutral white-on-grey for selection.</li>
+    <li><b>Crossfade loop settings</b> moved from hard-coded (6/10/2) to Advanced so the multisample render and "Find loop" share them. Fine, or keep them hidden?</li>
+    <li><b>Dropped</b>: ThemeEditor + 5 JSON themes, the waveform "blob" note-lane view (replaced by the pitch overlay with a draggable target line), KnobControl (sliders only), the loading overlay dialog. The 1–7 mode keys, Ctrl+arrows and all current shortcuts stay.</li>
+  </ul>
+</div>
+</div>
+
+<script>
+(() => {
+  const app = document.getElementById('app');
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+  // ── DPR-aware canvas helper ────────────────────────────────────────────
+  function fit(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const W = Math.round(w * dpr), H = Math.round(h * dpr);
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+  const css = (name) => getComputedStyle(app).getPropertyValue(name).trim();
+
+  // ── synthetic data ─────────────────────────────────────────────────────
+  const N = 1200;
+  const peaksA = new Float32Array(N), peaksB = new Float32Array(N);
+  const f0A = new Float32Array(N), f0B = new Float32Array(N);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < N; i++) {
+    const t = i / N;
+    const env = Math.min(1, t * 18) * Math.exp(-t * 1.4) * (0.75 + 0.25 * Math.sin(t * 40));
+    const noise = 0.6 + 0.4 * rnd();
+    peaksA[i] = env * noise;
+    peaksB[i] = env * (0.55 + 0.45 * rnd()) * 0.95;
+    const voiced = t > 0.05 && t < 0.93;
+    const vib = 0.22 * Math.sin(t * 2 * Math.PI * 11);
+    const drift = -0.6 + 0.9 * t + 0.35 * Math.sin(t * 5);
+    f0A[i] = voiced ? drift + vib + (rnd() - 0.5) * 0.06 : NaN;
+    f0B[i] = voiced ? 0 + vib * 0.5 : NaN;
+  }
+
+  // ── waveform + pitch overlay ───────────────────────────────────────────
+  let showB = false;
+  function drawWave() {
+    const c = $('#wave'); if (!c.clientWidth) return;
+    const { ctx, w, h } = fit(c);
+    ctx.clearRect(0, 0, w, h);
+    const padR = 44, padB = 18, plotW = w - padR, plotH = h - padB;
+
+    // time grid
+    ctx.strokeStyle = css('--line-1'); ctx.lineWidth = 1;
+    ctx.fillStyle = css('--fg-3'); ctx.font = `10px ${css('--font-mono')}`; ctx.textAlign = 'left';
+    for (let s = 0; s <= 2.0; s += 0.25) {
+      const x = Math.round(s / 2 * plotW) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, plotH); ctx.stroke();
+      ctx.fillText(s.toFixed(2), x + 3, h - 6);
+    }
+
+    // loop region
+    const l0 = 0.412 / 2 * plotW, l1 = 1.337 / 2 * plotW;
+    ctx.fillStyle = css('--bg-1'); ctx.fillRect(l0, 0, l1 - l0, plotH);
+    ctx.strokeStyle = css('--line-2');
+    for (const x of [l0, l1]) { ctx.beginPath(); ctx.moveTo(Math.round(x) + .5, 0); ctx.lineTo(Math.round(x) + .5, plotH); ctx.stroke(); }
+
+    // waveform
+    const peaks = showB ? peaksB : peaksA;
+    const mid = plotH * 0.5, amp = plotH * 0.42;
+    ctx.fillStyle = showB ? css('--wave-b') : css('--wave');
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) ctx.lineTo(i / N * plotW, mid - peaks[i] * amp);
+    for (let i = N - 1; i >= 0; i--) ctx.lineTo(i / N * plotW, mid + peaks[i] * amp);
+    ctx.closePath(); ctx.fill();
+
+    // pitch scale (semitones from target) on the right
+    const stToY = (st) => mid - st * (plotH * 0.08);
+    ctx.textAlign = 'right';
+    for (let st = -4; st <= 4; st += 1) {
+      const y = Math.round(stToY(st)) + .5;
+      ctx.strokeStyle = st === 0 ? css('--fg-3') : css('--line-1');
+      ctx.setLineDash(st === 0 ? [4, 3] : []);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = st === 0 ? css('--fg-1') : css('--fg-3');
+      ctx.fillText(st === 0 ? 'C4' : (st > 0 ? '+' : '') + st, w - 6, y + 3);
+    }
+    // right axis label
+    ctx.fillStyle = css('--fg-3'); ctx.fillText('st', w - 6, 12);
+
+    // curves
+    const curve = (arr, color, width) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = 'round'; ctx.beginPath();
+      let pen = false;
+      for (let i = 0; i < N; i++) {
+        const v = arr[i];
+        if (Number.isNaN(v)) { pen = false; continue; }
+        const x = i / N * plotW, y = stToY(v);
+        pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true;
+      }
+      ctx.stroke();
+    };
+    curve(f0A, css('--curve-orig'), 1.25);
+    curve(f0B, css('--accent'), 1.5);
+
+    // target handle (draggable in the real app)
+    ctx.fillStyle = css('--accent');
+    ctx.fillRect(plotW - 3, Math.round(stToY(0)) - 1, 3, 3);
+
+    // playhead
+    const px = Math.round(plotW * 0.35) + .5;
+    ctx.strokeStyle = css('--fg-1'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, plotH); ctx.stroke();
+  }
+
+  // ── harmonic ceiling editor ────────────────────────────────────────────
+  function drawHarm() {
+    const c = $('#harm'); if (!c.clientWidth) return;
+    const { ctx, w, h } = fit(c);
+    ctx.clearRect(0, 0, w, h);
+    const M = { l: 40, r: 16, t: 28, b: 22 };
+    const pw = w - M.l - M.r, ph = h - M.t - M.b;
+    const fMin = 100, fMax = 12000, dMin = -80, dMax = 0;
+    const fx = (f) => M.l + pw * Math.log(f / fMin) / Math.log(fMax / fMin);
+    const dy = (d) => M.t + ph * (dMax - d) / (dMax - dMin);
+    ctx.font = `10px ${css('--font-mono')}`; ctx.fillStyle = css('--fg-3');
+    ctx.strokeStyle = css('--line-1'); ctx.lineWidth = 1;
+    for (const f of [100, 200, 500, 1000, 2000, 5000, 10000]) {
+      const x = Math.round(fx(f)) + .5; ctx.beginPath(); ctx.moveTo(x, M.t); ctx.lineTo(x, M.t + ph); ctx.stroke();
+      ctx.textAlign = 'center'; ctx.fillText(f >= 1000 ? f / 1000 + 'k' : f, x, h - 8);
+    }
+    for (let d = 0; d >= -80; d -= 20) {
+      const y = Math.round(dy(d)) + .5; ctx.beginPath(); ctx.moveTo(M.l, y); ctx.lineTo(M.l + pw, y); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.fillText(d, M.l - 6, y + 3);
+    }
+    // spectrum
+    ctx.strokeStyle = css('--wave-b'); ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i <= pw; i++) {
+      const f = fMin * Math.pow(fMax / fMin, i / pw);
+      let d = -62 + 8 * Math.sin(Math.log(f) * 3) - 10 * Math.log10(f / 262);
+      const k = Math.round(f / 262); const near = Math.abs(f - k * 262) / 262;
+      if (k >= 1 && near < 0.12) d += (22 - k * 1.6) * (1 - near / 0.12);
+      ctx.lineTo(M.l + i, dy(Math.max(dMin, d)));
+    }
+    ctx.stroke();
+    // nodes
+    for (let k = 1; k <= 24; k++) {
+      const f = k * 262; if (f > fMax) break;
+      const peak = -40 - k * 1.6; const modified = k === 3 || k === 7;
+      const ceil = peak + (modified ? -9 : 0);
+      const x = fx(f), y = dy(ceil);
+      ctx.strokeStyle = css('--line-2'); ctx.beginPath(); ctx.moveTo(x, dy(peak)); ctx.lineTo(x, M.t + ph); ctx.stroke();
+      ctx.fillStyle = modified ? css('--accent') : css('--fg-2');
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      if (modified) { ctx.fillStyle = css('--fg-1'); ctx.textAlign = 'center'; ctx.fillText('−9 dB', x, y - 8); }
+    }
+  }
+
+  const redraw = () => { drawWave(); drawHarm(); };
+  new ResizeObserver(redraw).observe($('.wave'));
+  new ResizeObserver(redraw).observe($('.harm'));
+  matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change', redraw);
+  redraw();
+
+  // ── interactions ───────────────────────────────────────────────────────
+  // menus
+  $$('[data-menu]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    $$('[data-menu]').forEach((x) => x.setAttribute('aria-expanded', 'false'));
+    $$('.menu').forEach((m) => (m.dataset.open = 'false'));
+    b.setAttribute('aria-expanded', String(open));
+    $('#menu-' + b.dataset.menu).dataset.open = String(open);
+  }));
+  document.addEventListener('click', () => { $$('[data-menu]').forEach((x) => x.setAttribute('aria-expanded', 'false')); $$('.menu').forEach((m) => (m.dataset.open = 'false')); });
+
+  // sheets (settings / multisample / prefs)
+  $$('[data-open-sheet]').forEach((b) => b.addEventListener('click', () => {
+    $$('.side > section').forEach((s) => (s.dataset.active = 'false'));
+    $('#sheet-' + b.dataset.openSheet).dataset.active = 'true';
+  }));
+
+  // A/B
+  const setAB = (b) => {
+    showB = b;
+    $$('#ab button').forEach((x, i) => x.setAttribute('aria-pressed', String((i === 1) === b)));
+    $('#ab-caption').textContent = b ? 'B · Corrected' : 'A · Original';
+    drawWave();
+  };
+  $$('#ab button').forEach((x, i) => x.addEventListener('click', () => setAB(i === 1)));
+  // play
+  $('#play').addEventListener('click', () => (app.dataset.playing = app.dataset.playing === 'true' ? 'false' : 'true'));
+  // keyboard (mockup subset)
+  document.addEventListener('keydown', (e) => {
+    const tag = e.target.tagName; if (tag === 'INPUT' || tag === 'SELECT') return;
+    if (e.key === ' ') { e.preventDefault(); $('#play').click(); }
+    if (e.key.toLowerCase() === 'a' && !e.ctrlKey) setAB(!showB);
+  });
+
+  // segmented + radio-like groups
+  $$('.seg').forEach((seg) => $$('button', seg).forEach((b) => b.addEventListener('click', () => {
+    if (seg.id === 'ab') return;
+    $$('button', seg).forEach((x) => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    if (b.dataset.themeSet) setTheme(b.dataset.themeSet);
+  })));
+  $$('.notes-grid button').forEach((b) => b.addEventListener('click', () => {
+    $$('.notes-grid button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+  }));
+  $$('.switch').forEach((s) => s.addEventListener('click', () => s.setAttribute('aria-checked', String(s.getAttribute('aria-checked') !== 'true'))));
+
+  // collapsible
+  $$('.group.collapsible > header').forEach((h) => {
+    const g = h.parentElement;
+    const toggle = () => { const o = g.dataset.open !== 'true'; g.dataset.open = String(o); h.setAttribute('aria-expanded', String(o)); };
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+
+  // mode → visible controls, voicing availability, help
+  const HELP = {
+    world_hard: 'Hard snap to the target for the most locked sound.',
+    world_soft: 'Smooth retune with amount, speed and vibrato control.',
+    world_vt: 'Pitch-adaptive vocal tract model; formants follow the shift.',
+    world_hnm: 'Harmonic + noise resynthesis. Cleanest on large shifts.',
+    praat_soft: 'Praat PSOLA overlap-add. Natural, light-weight.',
+    sine_spectral: 'Tracks and shifts individual harmonics. Experimental.',
+    stft_pitchshift: 'Phase vocoder with cepstral formant preservation. Experimental.',
+  };
+  const VOICING_DEFAULT = { world_hard: 'force', world_soft: 'strict', world_vt: 'strict', world_hnm: 'strict' };
+  function applyMode(m) {
+    const soft = m !== 'world_hard';
+    const formant = ['world_hard', 'world_soft', 'sine_spectral', 'stft_pitchshift'].includes(m);
+    const vt = m === 'world_vt' || m === 'world_hnm';
+    $$('.ctl[data-for="soft"]').forEach((x) => (x.style.display = soft ? '' : 'none'));
+    $$('.ctl[data-for="formant"]').forEach((x) => (x.style.display = formant ? '' : 'none'));
+    $$('.ctl[data-for="vt"]').forEach((x) => (x.style.display = vt ? '' : 'none'));
+    $('#mode-help').textContent = HELP[m];
+    const vd = VOICING_DEFAULT[m];
+    $('#g-voicing').dataset.disabled = String(!vd);
+    $('#voicing-default').textContent = vd ? 'default: ' + vd : 'WORLD only';
+    if (vd) $$('#g-voicing .seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.textContent.toLowerCase() === vd)));
+  }
+  $('#mode').addEventListener('change', (e) => applyMode(e.target.value));
+  applyMode('world_hard');
+
+  // harmonic limiter pane
+  $('#hl-on').addEventListener('change', (e) => { $('#center').dataset.harmonics = String(e.target.checked); requestAnimationFrame(redraw); });
+
+  // live value readouts for ranges (mockup: keep suffix)
+  $$('.ctl').forEach((ctl) => {
+    const r = $('input[type=range]', ctl), v = $('.val', ctl); if (!r || !v) return;
+    const suffix = v.value.replace(/^[-+\d.\s]+/, '');
+    const dflt = r.value;
+    const fmt = (x) => {
+      const n = Number(x);
+      if (r.id === 'c-stretch' || suffix.includes('×')) return (n / 100).toFixed(2) + ' ' + suffix.trim();
+      if (suffix === '') return (n / 100).toFixed(2);
+      return (r.min < 0 && n > 0 ? '+' : '') + n + ' ' + suffix.trim();
+    };
+    r.addEventListener('input', () => { v.value = fmt(r.value); ctl.dataset.modified = String(r.value !== dflt); });
+    ctl.addEventListener('dblclick', () => { r.value = dflt; r.dispatchEvent(new Event('input')); });
+  });
+
+  // theme + page state buttons
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $$('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)));
+    $$('[data-theme-toggle]').forEach((b) => { if (b.closest('.states')) b.setAttribute('aria-pressed', String(t === 'light')); });
+    redraw();
+  }
+  $$('[data-theme-toggle]').forEach((b) => b.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light')));
+  $$('.states [data-state]').forEach((b) => b.addEventListener('click', () => {
+    app.dataset.state = b.dataset.state;
+    $$('.states [data-state]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $('#file-name').textContent = b.dataset.state === 'empty' ? 'No sample' : 'vocal_take3_C4.wav';
+    redraw();
+  }));
+  $('[data-toast]').addEventListener('click', () => { $('#toast').dataset.open = 'true'; setTimeout(() => ($('#toast').dataset.open = 'false'), 3500); });
+  $('#toast button').addEventListener('click', () => ($('#toast').dataset.open = 'false'));
+})();
+</script>
+</body>
+</html>

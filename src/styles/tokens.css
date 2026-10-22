@@ -1,0 +1,56 @@
+/* FreqEnforcer design tokens.
+   One dark theme (default) and one light theme (html[data-theme="light"]).
+   Every component reads these; nothing hard-codes a colour, size or font. */
+
+:root {
+  /* type */
+  --font-ui:   "Segoe UI", -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px;
+  --fs-16: 16px; --fs-22: 22px; --fs-28: 28px;
+  --lh: 1.3;
+
+  /* 4 px grid */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+
+  /* shape */
+  --r: 2px; --r-lg: 4px; --bw: 1px;
+
+  /* layout */
+  --h-title: 32px; --h-header: 56px; --h-footer: 48px; --h-viewbar: 28px;
+  --w-side: 296px; --h-ctl: 24px; --h-track: 4px; --w-value: 64px;
+
+  /* neutrals (dark) */
+  --bg-0: #131313;   /* app */
+  --bg-1: #1a1a1a;   /* panels */
+  --bg-2: #212121;   /* controls, inputs */
+  --bg-3: #2a2a2a;   /* hover, track */
+  --line-1: #2b2b2b; /* structure */
+  --line-2: #3a3a3a; /* emphasis */
+  --fg-1: #e4e4e4;
+  --fg-2: #9a9a9a;
+  --fg-3: #5c5c5c;
+
+  /* the one accent: selected / active state and the corrected pitch curve */
+  --accent:    #3fb3ba;
+  --accent-fg: #0b1617;
+
+  /* data colours (never used as an accent) */
+  --wave:       #4a4a4a;
+  --wave-b:     #5a5a5a;
+  --curve-orig: #8a8a8a;
+
+  /* status only (toasts, warnings) */
+  --ok: #6fbf73; --warn: #d9a441; --err: #d25c5c;
+
+  --focus: 0 0 0 1px var(--bg-0), 0 0 0 3px var(--accent);
+}
+
+:root[data-theme="light"] {
+  --bg-0: #e9e9e9; --bg-1: #f4f4f4; --bg-2: #ffffff; --bg-3: #e2e2e2;
+  --line-1: #d4d4d4; --line-2: #bdbdbd;
+  --fg-1: #1b1b1b; --fg-2: #5f5f5f; --fg-3: #a0a0a0;
+  --accent: #157f86; --accent-fg: #ffffff;
+  --wave: #bdbdbd; --wave-b: #ababab; --curve-orig: #7a7a7a;
+  --focus: 0 0 0 1px var(--bg-2), 0 0 0 3px var(--accent);
+}

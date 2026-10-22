@@ -1,0 +1,79 @@
+/* Shared control styles: slider, select, segmented, check, note grid, stepper. */
+
+/* one control = label row (label · value) + track */
+.ctl { display: grid; grid-template-columns: 1fr var(--w-value); grid-template-rows: 16px var(--h-ctl); align-items: center; column-gap: var(--s2); }
+.ctl__label { color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctl__value {
+  font-family: var(--font-mono); text-align: right; color: var(--fg-1); width: 100%;
+  background: none; border: var(--bw) solid transparent; border-radius: var(--r); padding: 0 var(--s1); height: 16px; line-height: 14px;
+}
+.ctl__value:hover { border-color: var(--line-2); }
+.ctl__value:focus { border-color: var(--accent); background: var(--bg-2); outline: none; box-shadow: none; }
+.ctl__range { grid-column: 1 / -1; width: 100%; height: var(--h-ctl); margin: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.ctl__range::-webkit-slider-runnable-track { height: var(--h-track); background: var(--bg-3); border-radius: var(--r); }
+.ctl__range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 14px; margin-top: -5px; border-radius: var(--r);
+  background: var(--fg-2); border: var(--bw) solid var(--bg-0);
+}
+.ctl__range:hover::-webkit-slider-thumb, .ctl__range:active::-webkit-slider-thumb { background: var(--fg-1); }
+.ctl__range:focus-visible { box-shadow: none; }
+.ctl__range:focus-visible::-webkit-slider-thumb { background: var(--accent); }
+.ctl--modified .ctl__label::after { content: "●"; color: var(--accent); font-size: 6px; vertical-align: middle; margin-left: var(--s1); }
+.ctl__hint { grid-column: 1 / -1; color: var(--warn); font-size: var(--fs-11); margin-top: -4px; }
+.ctl--disabled { opacity: .4; pointer-events: none; }
+
+/* select */
+.select {
+  height: var(--h-ctl); width: 100%; background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  color: var(--fg-1); padding: 0 var(--s6) 0 var(--s2); -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-2) 50%), linear-gradient(135deg, var(--fg-2) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 10px, calc(100% - 9px) 10px; background-size: 4px 4px; background-repeat: no-repeat;
+}
+.select:hover { border-color: var(--fg-3); }
+.select option, .select optgroup { background: var(--bg-2); color: var(--fg-1); }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: var(--h-ctl); gap: var(--s2); }
+.row__label { color: var(--fg-2); }
+.row--modified .row__label::after { content: "●"; color: var(--accent); font-size: 6px; vertical-align: middle; margin-left: var(--s1); }
+
+/* segmented */
+.seg { display: inline-flex; border: var(--bw) solid var(--line-2); border-radius: var(--r); overflow: hidden; height: var(--h-ctl); }
+.seg button { background: var(--bg-2); border: 0; border-right: var(--bw) solid var(--line-2); padding: 0 var(--s3); color: var(--fg-2); cursor: pointer; min-width: 44px; white-space: nowrap; }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { color: var(--fg-1); background: var(--bg-3); }
+.seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.seg button:focus-visible { box-shadow: inset var(--focus); }
+.seg--full { display: flex; width: 100%; } .seg--full button { flex: 1; }
+
+/* check */
+.check { display: flex; align-items: center; gap: var(--s2); height: var(--h-ctl); cursor: pointer; color: var(--fg-2); }
+.check input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; flex: none; }
+.check:hover { color: var(--fg-1); }
+.check--modified::after { content: "●"; color: var(--accent); font-size: 6px; margin-left: var(--s1); }
+
+/* note grid + stepper */
+.notes-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.notes-grid button {
+  height: var(--h-ctl); background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  color: var(--fg-2); font-family: var(--font-mono); font-size: var(--fs-11); padding: 0; cursor: pointer;
+}
+.notes-grid button.black { background: var(--bg-0); }
+.notes-grid button:hover { color: var(--fg-1); border-color: var(--fg-3); }
+.notes-grid button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.stepper { display: inline-flex; align-items: center; border: var(--bw) solid var(--line-2); border-radius: var(--r); height: var(--h-ctl); }
+.stepper button { width: 24px; height: 100%; background: var(--bg-2); border: 0; color: var(--fg-2); cursor: pointer; }
+.stepper button:hover { color: var(--fg-1); background: var(--bg-3); }
+.stepper button:disabled { color: var(--fg-3); background: var(--bg-2); cursor: default; }
+.stepper output { font-family: var(--font-mono); min-width: 28px; text-align: center; }
+
+.help { color: var(--fg-3); font-size: var(--fs-11); line-height: 1.35; }
+.help kbd { font-family: var(--font-mono); }
+
+/* dwell caption: hidden until the pointer rests on the control (or it has keyboard focus) */
+.dwell { position: relative; display: flex; flex-direction: column; gap: var(--s2); }
+.dwell__tip {
+  position: absolute; left: 0; right: 0; top: calc(100% + var(--s1)); z-index: 5;
+  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r);
+  padding: var(--s1) var(--s2); color: var(--fg-2); font-size: var(--fs-11); line-height: 1.35;
+  visibility: hidden; opacity: 0; transition: opacity 80ms linear, visibility 0s 80ms; pointer-events: none;
+}
+.dwell--show .dwell__tip { visibility: visible; opacity: 1; transition-delay: 0s; }

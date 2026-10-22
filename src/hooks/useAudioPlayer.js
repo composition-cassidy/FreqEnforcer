@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:8765';
+import { API_BASE } from '../config/api';
 
 // ── useAudioPlayer ─────────────────────────────────────────────────────────
 /**
@@ -154,14 +154,31 @@ export function useAudioPlayer() {
   const loadOriginal  = useCallback(() => fetchAndStore('original'),  [fetchAndStore]);
   const loadProcessed = useCallback(() => fetchAndStore('processed'), [fetchAndStore]);
 
+  /** Load processed audio directly from a temp filename (skips base64). */
+  const loadProcessedFromFile = useCallback((filename) => {
+    const url = `${API_BASE}/api/audio-file/${filename}`;
+
+    revokeUrl(processedUrlRef);
+    processedUrlRef.current = url;
+
+    if (activeBufferRef.current === 'processed') {
+      const el = getAudioEl();
+      el.src = url;
+      el.load();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Start or resume playback. */
   const play = useCallback(() => {
     const el = getAudioEl();
     const url = getActiveUrl();
     if (!url) return; // nothing loaded
 
+    const wasCached = el.src === url;
+
     // If src doesn't match the active URL, switch
-    if (el.src !== url) {
+    if (!wasCached) {
       const savedTime = el.currentTime || 0;
       el.src = url;
       el.load();
@@ -175,6 +192,16 @@ export function useAudioPlayer() {
     }).catch((err) => {
       console.warn('useAudioPlayer: play() rejected:', err.message);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Jump to a position (seconds) on the active side; keeps playing if it was. */
+  const seek = useCallback((seconds) => {
+    const el = audioElRef.current;
+    if (!el || !getActiveUrl()) return;
+    const dur = Number.isFinite(el.duration) ? el.duration : 0;
+    el.currentTime = Math.max(0, Math.min(dur || seconds, seconds));
+    setPlaybackPosition(el.currentTime);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -278,9 +305,11 @@ export function useAudioPlayer() {
     play,
     pause: stop,   // pause = stop for our ■ model (stop-to-beginning)
     stop,
+    seek,
     reset,
     loadOriginal,
     loadProcessed,
+    loadProcessedFromFile,
     switchBuffer,
     isPlaying,
     playbackPosition,

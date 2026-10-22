@@ -5,7 +5,13 @@ __pycache__/
 venv/
 dist/
 dist-electron/
+dist-installer/
 build/
+build-backend/
+build-temp/
+installer/payload/
+installer/node_modules/
+installer/icon.ico
 *.wav
 *.mp3
 *.flac

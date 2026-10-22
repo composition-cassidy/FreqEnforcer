@@ -1,6 +1,33 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+// Electron 29+ removed File.path.  The replacement is webUtils.getPathForFile()
+// which works in the preload context where the File object keeps its native ref.
+let _lastDroppedPath = null;
+document.addEventListener('drop', (e) => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file) {
+    try {
+      _lastDroppedPath = webUtils.getPathForFile(file);
+    } catch (_) {
+      _lastDroppedPath = null;
+    }
+  } else {
+    _lastDroppedPath = null;
+  }
+}, true);  // capture phase — fires before renderer handlers
+
+// Backend port chosen by the OS at spawn time; main.js passes it via
+// webPreferences.additionalArguments.
+const _portArg = process.argv.find((a) => a.startsWith('--fe-backend-port='));
+const _backendPort = _portArg ? Number(_portArg.split('=')[1]) : NaN;
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  backendUrl: Number.isInteger(_backendPort) && _backendPort > 0
+    ? `http://127.0.0.1:${_backendPort}`
+    : null,
+  getLastDroppedFilePath: () => _lastDroppedPath,
+  // Sample passed on the command line (--fe-open=<path>), if any.
+  initialFile: (process.argv.find((a) => a.startsWith('--fe-initial-file=')) ?? '').slice('--fe-initial-file='.length) || null,
   // ── Window controls ──────────────────────────────────────────────────
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
@@ -16,26 +43,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 
-  // ── Theme persistence ────────────────────────────────────────────────
-  getThemePreference:  ()        => ipcRenderer.invoke('themes:getPreference'),
-  saveThemePreference: (theme)   => ipcRenderer.invoke('themes:savePreference', theme),
-
-  // ── User themes ──────────────────────────────────────────────────────
-  getUserThemesDir: ()           => ipcRenderer.invoke('themes:getUserThemesDir'),
-  listUserThemes:   ()           => ipcRenderer.invoke('themes:listUserThemes'),
-  saveUserTheme:    (theme)      => ipcRenderer.invoke('themes:saveUserTheme', theme),
-  deleteUserTheme:  (themeName)  => ipcRenderer.invoke('themes:deleteUserTheme', themeName),
-
-  // ── Import / Export ──────────────────────────────────────────────────
-  importTheme:  ()       => ipcRenderer.invoke('themes:importTheme'),
-  exportTheme:  (theme)  => ipcRenderer.invoke('themes:exportTheme', theme),
-
-  // ── Theme system v2 (CSS-variable-based) ─────────────────────────────
-  themesSave:       (data)             => ipcRenderer.invoke('themes:save', data),
-  themesLoad:       ()                 => ipcRenderer.invoke('themes:load'),
-  themesList:       ()                 => ipcRenderer.invoke('themes:list'),
-  themesSaveFile:   (filename, data)   => ipcRenderer.invoke('themes:saveFile', filename, data),
-  themesLoadFile:   (filename)         => ipcRenderer.invoke('themes:loadFile', filename),
-  themesOpenFolder: ()                 => ipcRenderer.invoke('themes:openFolder'),
-  themesDialog:     ()                 => ipcRenderer.invoke('themes:dialog'),
 });
