@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ? `http://127.0.0.1:${_backendPort}`
     : null,
   getLastDroppedFilePath: () => _lastDroppedPath,
+  // Sample passed on the command line (--fe-open=<path>), if any.
+  initialFile: (process.argv.find((a) => a.startsWith('--fe-initial-file=')) ?? '').slice('--fe-initial-file='.length) || null,
   // ── Window controls ──────────────────────────────────────────────────
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
@@ -41,26 +43,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
 
-  // ── Theme persistence ────────────────────────────────────────────────
-  getThemePreference:  ()        => ipcRenderer.invoke('themes:getPreference'),
-  saveThemePreference: (theme)   => ipcRenderer.invoke('themes:savePreference', theme),
-
-  // ── User themes ──────────────────────────────────────────────────────
-  getUserThemesDir: ()           => ipcRenderer.invoke('themes:getUserThemesDir'),
-  listUserThemes:   ()           => ipcRenderer.invoke('themes:listUserThemes'),
-  saveUserTheme:    (theme)      => ipcRenderer.invoke('themes:saveUserTheme', theme),
-  deleteUserTheme:  (themeName)  => ipcRenderer.invoke('themes:deleteUserTheme', themeName),
-
-  // ── Import / Export ──────────────────────────────────────────────────
-  importTheme:  ()       => ipcRenderer.invoke('themes:importTheme'),
-  exportTheme:  (theme)  => ipcRenderer.invoke('themes:exportTheme', theme),
-
-  // ── Theme system v2 (CSS-variable-based) ─────────────────────────────
-  themesSave:       (data)             => ipcRenderer.invoke('themes:save', data),
-  themesLoad:       ()                 => ipcRenderer.invoke('themes:load'),
-  themesList:       ()                 => ipcRenderer.invoke('themes:list'),
-  themesSaveFile:   (filename, data)   => ipcRenderer.invoke('themes:saveFile', filename, data),
-  themesLoadFile:   (filename)         => ipcRenderer.invoke('themes:loadFile', filename),
-  themesOpenFolder: ()                 => ipcRenderer.invoke('themes:openFolder'),
-  themesDialog:     ()                 => ipcRenderer.invoke('themes:dialog'),
 });

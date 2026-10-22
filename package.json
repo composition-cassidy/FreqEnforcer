@@ -58,13 +58,6 @@
         ]
       },
       {
-        "from": "themes",
-        "to": "themes",
-        "filter": [
-          "*.json"
-        ]
-      },
-      {
         "from": "build-resources/splash.html",
         "to": "splash.html"
       }
