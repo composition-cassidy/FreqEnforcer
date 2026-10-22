@@ -112,7 +112,7 @@ vibrato residual re-added (`preserve_vibrato`) and `pitch_amount` blending.
 | `world_vt` | `autotune_world_vt(formant_shift_beta)` | same | freq-dependent envelope warp (`_warp_spectral_envelope_fdep`), `pw.synthesize`, repair | `strict` | pyworld, numpy |
 | `world_hnm` | `autotune_world_vt(use_hnm=True, beta=0.2)` | same | `hnm_synth.hnm_synthesize` (per-frame harmonic + noise OLA, **unseeded `np.random`**), micro-RMS envelope transfer, repair | `strict` | pyworld (analysis only), numpy |
 | `praat_soft` | `autotune_praat_soft_to_note` | Praat `To Manipulation` pitch tier | Praat PSOLA overlap-add resynthesis | n/a | parselmouth |
-| `sine_spectral` | `autotune_sine_spectral` | in-house pYIN + scipy STFT + cepstral envelope (`sinusoidal.estimate_spectral_envelope`) | envelope × harmonic-excitation phase, ISTFT, RMS envelope match | n/a | numpy/scipy |
+| `sine_spectral` | `autotune_sine_spectral` | `pitch_yin.yin_track` on the STFT frame grid, refined from the harmonics' phase advance; scipy STFT (2048, hop 128); cepstral envelope (`_dsp._improved_lifter`) | per-peak region move by whole bins + phase-locked rotation to the target frequency (Laroche & Dolson), E(dest)/E(src) formant gain, ISTFT, RMS envelope match | n/a | numpy/scipy |
 | `stft_pitchshift` | `autotune_stft_pitchshift` | in-house pYIN, zero-padded STFT | `stftpitchshift` vocoder encode/decode, Lanczos-3 resample, cepstral lifter, V/UV crossfade | n/a | stftpitchshift, numpy |
 
 Voicing modes (`strict` / `force` / `dilate`) exist only on the four WORLD
@@ -200,10 +200,10 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
     UI's Voicing control sets it.
 14. `autotune_to_note(preserve_formants=False)` branch is unreachable: the
     route sends `preserve_formants=False` to `autotune_with_formant_shift`.
-15. `sinusoidal.py` (1270 lines): only `estimate_spectral_envelope` is used.
-    `dft_anal`, `peak_detect`, `peak_interp`, `sine_tracking`,
-    `sine_model_anal`, `harmonic_model_anal`, `sine_model_synth`,
-    `gen_spec_sines`, `compute_residual_stft`, and the track-cleanup helpers are dead.
+15. `sinusoidal.py` (1270 lines) is dead: `sine_spectral` used its
+    `estimate_spectral_envelope` until it moved to `_dsp._improved_lifter`;
+    only `server/main.py`'s startup import check still loads it. Its old HF
+    rolloff hack, `_dsp._apply_hf_rolloff`, is unused too.
 16. `dwp_writer.py` (`write_dwp`) is never imported.
 17. `cleanliness.apply_high_shelf` (imported by the route but unused, see the
     "high shelf removed" comment) and `cleanliness.preview_cleanliness_mask` are unused.

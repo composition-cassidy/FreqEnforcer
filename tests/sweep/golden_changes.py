@@ -6,7 +6,12 @@ logging before/after metrics to tests/sweep/intentional_changes.json.
 
 Each positional argument must match exactly one manifest case id. Cases
 without cleanliness, breathiness or low cut active are refused, since
-pitch-only references must never change.
+pitch-only references must never change - unless --pitch-mode names the
+pitch mode a change deliberately fixes; then that mode's own references
+(direct calls and pipeline cases using it) are accepted too:
+
+    python tests/sweep/golden_changes.py --change change6 --pitch-mode sine_spectral \
+        --reason "sine_spectral lands on the target note" test_2s_C4-sine_spectral-na-F4
 """
 
 from __future__ import annotations
@@ -33,6 +38,12 @@ def post_active(params: dict) -> bool:
             or float(params.get("breathiness", 1.0)) != 1.0)
 
 
+def pitch_mode_of(case) -> str:
+    if case.function == "_run_pipeline":
+        return str(case.params.get("pitch_mode", matrix.PIPELINE_DEFAULTS["pitch_mode"]))
+    return case.mode
+
+
 def measure(audio: np.ndarray, case) -> dict:
     from server.utils.note_utils import note_name_to_freq
     fx = fixtures.get(case.fixture.rsplit(".", 1)[0])
@@ -52,6 +63,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--change", required=True)
     ap.add_argument("--reason", required=True)
+    ap.add_argument("--pitch-mode", help="also accept the references of this pitch mode")
     ap.add_argument("cases", nargs="+", help="case id substrings, one match each")
     args = ap.parse_args()
 
@@ -63,7 +75,8 @@ def main() -> int:
             raise SystemExit(f"{pat!r} matches {len(hits)} cases: {[c['id'] for c in hits]}")
         entry = hits[0]
         case = matrix.case_from_manifest(entry)
-        if case.function != "_run_pipeline" or not post_active(case.params):
+        fixed_mode = args.pitch_mode is not None and pitch_mode_of(case) == args.pitch_mode
+        if not fixed_mode and (case.function != "_run_pipeline" or not post_active(case.params)):
             raise SystemExit(f"refusing {entry['id']}: no cleanliness/breathiness/low cut in its render")
         path = matrix.GOLDEN_DIR / entry["file"]
         old, _sr = sf.read(str(path), dtype="float64")
@@ -71,7 +84,8 @@ def main() -> int:
         before, after = measure(old, case), measure(new, case)
         diff = float(np.max(np.abs(old - new))) if old.shape == new.shape else None
         log.append({"change": args.change, "case": entry["id"], "file": f"tests/golden/{entry['file']}",
-                    "reason": args.reason, "before": before, "after": after, "max_abs_diff": diff})
+                    "reason": args.reason, "before": before, "after": after, "max_abs_diff": diff,
+                    **({"pitch_mode": args.pitch_mode} if fixed_mode else {})})
         print(f"{entry['id']}: before {before['fails']} -> after {after['fails']}, max|diff| {diff}")
         subprocess.check_call([sys.executable, "-B", str(cfg.ROOT / "tests" / "golden" / "render_golden.py"),
                                "--only", entry["id"]], cwd=cfg.ROOT)

@@ -8,7 +8,7 @@ python tests/sweep/report.py                    # rebuild this report from tests
 python -m pytest tests/test_pipeline_combos.py  # the 30 previous-worst combinations + cache collision
 ```
 
-- Latest run: git `778e03e`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 15.82 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
+- Latest run: git `6d0b081`, Python 3.14.2, Windows-11-10.0.26200-SP0, 22 worker processes, 15.72 min, **10428 renders** through `server.routes.audio._run_pipeline` with settings built by `ProcessRequest(...).model_dump()`.
 - librosa imported in any process: no
 
 ## Pass rate after each change
@@ -23,6 +23,7 @@ One row per full sweep (`tests/sweep/history.json`). *raw* = renders with no fai
 | **change3: breathiness in WORLD modes** | `26f7941` (dirty) | 2026-10-22 22:19 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
 | **change4: full-buffer cache key** | `9a4f14b` (dirty) | 2026-10-22 22:45 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
 | **change5: permanent combo tests** | `778e03e` | 2026-10-22 23:03 | 10428 | 24.2 % | 84.3 % | 96.8 % | 1803 | breath_intended 1459, clean 327, lowcut 21, breath 19 |
+| **change6: sine_spectral on target** | `6d0b081` (dirty) | 2026-10-22 23:51 | 10428 | 35.9 % | 85.7 % | 98.2 % | 1646 | breath_intended 1459, clean 171, lowcut 20, breath 19 |
 
 ## Before / after (pre-fix vs latest run)
 
@@ -31,48 +32,48 @@ Failed metrics (counted per render):
 | metric | all, before | all, after | post-pitch, before | post-pitch, after |
 |---|---|---|---|---|
 | length | 859 | 859 | 0 | 0 |
-| peak | 4055 | 2188 | 2519 | 84 |
-| f0 | 4587 | 2004 | 2420 | 79 |
-| inharm | 6664 | 4831 | 3261 | 1304 |
-| tail | 6307 | 4182 | 3577 | 213 |
-| rms | 450 | 173 | 412 | 123 |
+| peak | 4055 | 1803 | 2519 | 81 |
+| f0 | 4587 | 1079 | 2420 | 120 |
+| inharm | 6664 | 3497 | 3261 | 1304 |
+| tail | 6307 | 3431 | 3577 | 110 |
+| rms | 450 | 81 | 412 | 31 |
 
-Renders passing: raw **6.1 % → 24.2 %**, post-pitch **30.2 % → 84.3 %**, post-pitch excl. intended **43.6 % → 96.8 %**.
+Renders passing: raw **6.1 % → 35.9 %**, post-pitch **30.2 % → 85.7 %**, post-pitch excl. intended **43.6 % → 98.2 %**.
 
-Per render (post-pitch, excl. intended): **5621 fixed**, **74 newly failing**, 258 failing before and after.
+Per render (post-pitch, excl. intended): **5750 fixed**, **57 newly failing**, 129 failing before and after.
 
-Why renders that passed before fail now (failed metrics, by the documented reasons of *Remaining failures*): mostly the fixes working as specified on inputs the pitch stage already got wrong - cleanliness now masks the *target's* harmonics, so it removes the body of a mis-pitched render (before, the original f0 happened to match it); the low cut now keys on the real output f0, so on upward shifts the 100 % setting cuts where its design says instead of under-cutting.
+Why renders that passed before fail now (failed metrics, by the documented reasons of *Remaining failures*): the fixes working as specified, and the f0 metric misreading a pitch that is now right. *yin_bias*: once sine_spectral lands on the target, cleanliness strips the breathy fixture's pitch-locked aspiration noise and YIN reads the result sharp, though its harmonics sit on the target (before, the pitch-only render missed the note, so these f0 failures were the pitch stage's). *pitch_miss_body*: cleanliness now masks the *target's* harmonics, so it removes the body of a mis-pitched render (before, the original f0 happened to match it). *lowcut_100*: the low cut now keys on the real output f0, so on upward shifts the 100 % setting cuts where its design says instead of under-cutting.
 
 | reason | failed metrics |
 |---|---|
-| pitch_miss_body | 60 |
-| yin_bias | 12 |
-| lowcut_100 | 8 |
+| yin_bias | 38 |
+| pitch_miss_body | 13 |
+| lowcut_100 | 9 |
 
 Newly failing renders (worst 20):
 
 | combination | fails now | causes now | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ |
 |---|---|---|---|---|---|---|---|---|
-| `harm_A4|sine_spectral|+5|x1.5|lc50|cl25|rb50|br2|hb1` | tail, rms | tail: clean; rms: clean | +703 | +34.0 | −7.1 | −14.4 | −9.4 | −56 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br5|hb0` | tail, rms | tail: clean; rms: clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | −8 | +7.4 | −15.4 | −13.8 | −15.0 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl75|rb0|br2|hb0` | tail | tail: clean | −8 | +7.4 | −15.4 | −13.8 | −15.0 | +0 |
-| `lead_G3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | tail: clean | −5 | +40.4 | −16.1 | −12.1 | −12.2 | +0 |
 | `breathy_A3|stft_pitchshift|+0|x1|lc0|cl50|rb0|br2|hb0` | tail, rms | tail: clean; rms: clean | +435 | +19.7 | −29.2 | −7.7 | −8.9 | +0 |
-| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br0|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
-| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
-| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br2|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
-| `harm_A4|sine_spectral|+12|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +1159 | +11.0 | −16.6 | −9.6 | −7.2 | +0 |
-| `harm_A5|sine_spectral|-7|x1|lc0|cl100|rb0|br5|hb0` | tail | tail: clean | +702 | +10.3 | −20.2 | −12.9 | −9.9 | +0 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br0|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br0.5|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br2|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl100|rb0|br5|hb0` | tail | tail: clean | −8 | +11.7 | −22.6 | −11.9 | −14.0 | +0 |
 | `breathy_A3|world_hard|+12|x1|lc0|cl50|rb0|br5|hb0` | f0 | f0: multi:clean+breath_intended | +40 | +0.7 | −23.4 | −8.9 | −15.7 | +5 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl75|rb0|br0|hb0` | tail | tail: clean | −8 | +13.1 | −24.1 | −9.9 | −11.9 | +0 |
-| `breathy_A3|sine_spectral|-7|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | −8 | +13.1 | −24.1 | −9.9 | −11.9 | +0 |
+| `breathy_A3|world_soft|+12|x1|lc0|cl25|rb0|br2|hb0` | f0 | f0: clean/breath_intended | +38 | −5.3 | −20.5 | −8.2 | −14.5 | +5 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl25|rb0|br2|hb0` | f0 | f0: clean/breath_intended | +37 | −6.2 | −22.8 | −8.2 | −15.1 | +5 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl75|rb0|br2|hb0` | f0 | f0: clean | +37 | −13.9 | −25.2 | −9.3 | −16.6 | +5 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl100|rb0|br2|hb0` | f0 | f0: clean | +37 | −15.9 | −25.6 | −10.0 | −17.4 | +5 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl75|rb0|br5|hb0` | f0 | f0: multi:clean+breath_intended | +36 | −3.6 | −25.1 | −9.8 | −16.9 | +5 |
+| `breathy_A3|world_vt|+12|x1|lc0|cl25|rb0|br5|hb0` | f0 | f0: multi:clean+breath_intended | +36 | +3.7 | −21.8 | −7.2 | −14.2 | +5 |
+| `breathy_A3|world_vt|+12|x1|lc0|cl25|rb0|br1|hb0` | f0 | f0: clean | +35 | −7.8 | −21.9 | −6.7 | −13.6 | +5 |
+| `breathy_A3|stft_pitchshift|-7|x1|lc0|cl75|rb0|br0|hb0` | tail | tail: clean | +434 | +19.9 | −27.1 | −10.2 | −12.2 | +0 |
+| `breathy_A3|stft_pitchshift|-7|x1|lc0|cl75|rb0|br0.5|hb0` | tail | tail: clean | +434 | +19.9 | −27.1 | −10.2 | −12.2 | +0 |
+| `breathy_A3|stft_pitchshift|-7|x1|lc0|cl75|rb0|br2|hb0` | tail | tail: clean | +434 | +19.9 | −27.1 | −10.2 | −12.2 | +0 |
+| `breathy_A3|stft_pitchshift|-7|x1|lc0|cl75|rb0|br5|hb0` | tail | tail: clean | +434 | +19.9 | −27.1 | −10.2 | −12.2 | +0 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl100|rb0|br5|hb0` | f0 | f0: multi:clean+breath_intended | +34 | −5.3 | −25.6 | −10.6 | −17.8 | +5 |
+| `test_10s_C4|world_vt|+12|x1.5|lc100|cl0|rb50|br5|hb1` | inharm, rms | inharm: lowcut/breath_intended; rms: lowcut | +0 | +7.4 | – | −6.0 | −7.0 | −35 |
+| `test_2s_C4|world_vt|+12|x1.5|lc100|cl0|rb50|br5|hb1` | inharm, rms | inharm: lowcut/breath_intended; rms: lowcut | +1 | +7.3 | – | −6.0 | −7.3 | −51 |
+| `breathy_A3|world_hard|+12|x1|lc0|cl75|rb0|br1|hb0` | f0 | f0: clean | +33 | −14.7 | −25.3 | −9.0 | −15.7 | +5 |
+| `breathy_A3|world_soft|+12|x1|lc0|cl50|rb0|br2|hb0` | f0 | f0: clean/breath_intended | +32 | −7.9 | −20.5 | −8.5 | −15.1 | +5 |
+| `test_10s_C4_Fs4_tuned|world_vt|+12|x1.5|lc100|cl0|rb50|br5|hb1` | inharm | inharm: lowcut | +1 | +8.0 | – | −5.9 | −6.5 | −42 |
+| `breathy_A3|sine_spectral|-12|x1|lc0|cl75|rb0|br0.5|hb0` | f0 | f0: clean | +20 | −9.5 | −53.6 | −1.1 | −10.5 | +0 |
 
 Post-pitch failures by cause. The pre-fix harness named bugs through counterfactual re-renders (B1-B4, E1, E2); the current harness names the stage whose removal clears the failure:
 
@@ -85,11 +86,11 @@ Post-pitch failures by cause. The pre-fix harness named bugs through counterfact
 | E1 | 826 |  | cleanliness ISTFT start-of-file blow-up (no leading pad, NOLA) |
 | B2 | 782 |  | cleanliness 100 %: 10 Hz mask < 21.5 Hz STFT bin, even with correct f0 |
 | clean_mask | 555 |  | cleanliness 25-75 % mask with correct f0 |
-| clean |  | 327 | cleanliness stage (failure clears with cleanliness off) |
+| clean |  | 171 | cleanliness stage (failure clears with cleanliness off) |
 | E2 | 55 |  | cleanliness's own pyin f0 wrong (50-500 Hz range) |
 | lowcut_design | 35 |  | smart low cut with correct f0 |
-| lowcut |  | 21 | smart low cut stage (clears with low cut off) |
 | B3 | 21 |  | smart low cut keyed to the original f0 (state.detected_pitch) |
+| lowcut |  | 20 | smart low cut stage (clears with low cut off) |
 | breath |  | 19 | breathiness < 1 (clears with breathiness 1) |
 
 The 30 worst pre-fix combinations by post-pitch severity (these are the permanent cases in `tests/test_pipeline_combos.py`), before → after:
@@ -104,8 +105,8 @@ The 30 worst pre-fix combinations by post-pitch severity (these are the permanen
 | 6 | `breathy_A3|praat_soft|-12|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, inharm, tail | **pass** | +57.9 → −9.9 | −1194 → +1 | +8.6 → −5.5 | −17.1 → −81.1 |  |
 | 7 | `harm_A5|praat_soft|-7|x1|lc0|cl75|rb0|br1|hb0` | peak, f0, tail | **pass** | +54.1 → −7.2 | +692 → +0 | +27.9 → +3.3 | −29.2 → −58.3 |  |
 | 8 | `vowel_D3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, tail | **pass** | +53.4 → −7.5 | +380 → −0 | −0.6 → +0.2 | −28.9 → −49.8 |  |
-| 9 | `harm_A5|sine_spectral|+0|x1|lc0|cl75|rb0|br1|hb0` | peak, f0 | **pass** | +52.9 → −8.2 | +1179 → −9 | +30.1 → +31.0 | −31.1 → −28.5 | inharm: inherited; tail: inherited |
-| 10 | `harm_G3|sine_spectral|+0|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, inharm, tail | **pass** | +58.3 → −6.7 | +97 → +0 | +33.8 → +9.7 | −17.7 → −40.9 | inharm: inherited |
+| 9 | `harm_A5|sine_spectral|+0|x1|lc0|cl75|rb0|br1|hb0` | peak, f0 | **pass** | +52.9 → −7.0 | +1179 → +1 | +30.1 → −15.8 | −31.1 → −71.7 |  |
+| 10 | `harm_G3|sine_spectral|+0|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, inharm, tail | **pass** | +58.3 → −7.6 | +97 → +0 | +33.8 → −0.2 | −17.7 → −68.7 |  |
 | 11 | `harm_G3|praat_soft|+12|x1|lc50|cl100|rb50|br1|hb1` | peak, f0, tail | **pass** | +62.0 → −9.4 | +152 → +0 | +22.6 → +7.1 | −22.7 → −59.7 | inharm: inherited |
 | 12 | `harm_A4|praat_soft|+5|x1|lc0|cl100|rb0|br1|hb0` | peak, f0, tail | **pass** | +63.1 → −7.9 | +138 → −0 | +27.9 → −2.6 | −21.8 → −58.0 |  |
 | 13 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br5|hb0` | peak, f0, inharm, tail, rms | **pass** | +0.3 → −2.1 | +1194 → −7 | +40.3 → +13.5 | −21.5 → −29.8 | inharm: inherited; tail: inherited |
@@ -129,14 +130,14 @@ The 30 worst pre-fix combinations by post-pitch severity (these are the permanen
 
 ## Remaining failures
 
-14237 failed (render, metric) pairs in the latest run:
+10750 failed (render, metric) pairs in the latest run:
 
 | category | failures | why it remains |
 |---|---|---|
-| inherited from the pitch stage | 12286 | The pitch-only render fails the same metric. Fixing pitch modes is out of scope for this change set (see the per-mode table). |
-| pitch stage missed the note (f0/inharm) | 148 | Measured against a target the post stages never received. |
+| inherited from the pitch stage | 9086 | The pitch-only render fails the same metric. Fixing pitch modes other than sine_spectral is out of scope for this change set (see the per-mode table). |
+| pitch stage missed the note (f0/inharm) | 18 | Measured against a target the post stages never received. |
 | breathiness > 1 (intended) | 1436 | Breathiness above 1 is meant to add aperiodic energy; the inharmonic rule counts that as a failure. |
-| **post-pitch** | **367** | listed below |
+| **post-pitch** | **210** | listed below |
 
 Pitch-stage failures by mode:
 
@@ -147,32 +148,34 @@ Pitch-stage failures by mode:
 | `world_vt` |  |  | 88 | 418 | 149 | 174 | 831 | 16 | 2 |
 | `world_hnm` |  |  | 342 | 370 | 155 | 512 | 77 |  | 1 |
 | `praat_soft` |  |  | 66 | 5 | 142 | 468 | 42 |  | 1 |
-| `sine_spectral` |  |  | 99 | 443 | 866 | 1363 | 710 |  | 130 |
+| `sine_spectral` |  |  | 99 | 61 | 30 | 29 | 62 |  |  |
 | `stft_pitchshift` |  |  | 99 | 143 | 270 | 728 | 610 |  | 6 |
 
 Post-pitch failures by metric and cause. *breath = 1*: breathiness off, so the failure comes from cleanliness / low cut alone. *pitch-only misses the note*: the pitch stage already produced the wrong pitch, so cleanliness (which masks the target's harmonics) removes most of the body and tail/rms, which are relative to the body, move with it.
 
 | metric | cause | breath = 1 | pitch-only misses the note | failures |
 |---|---|---|---|---|
-| tail | clean | no | yes | 139 |
-| rms | clean | no | yes | 95 |
-| tail | clean | yes | yes | 34 |
-| rms | clean | yes | yes | 23 |
+| tail | clean | no | yes | 55 |
+| f0 | clean | no | no | 39 |
+| rms | clean | no | yes | 21 |
+| f0 | clean | yes | no | 17 |
+| tail | clean | yes | yes | 14 |
 | f0 | breath | no | no | 13 |
 | f0 | multi:clean+breath_intended | no | no | 12 |
-| f0 | clean | yes | no | 9 |
-| f0 | clean | no | no | 7 |
 | tail | breath | no | no | 6 |
 | rms | lowcut | no | no | 5 |
+| rms | clean | yes | yes | 5 |
 | f0 | clean/breath_intended | no | no | 5 |
-| peak | lowcut | no | yes | 5 |
+| tail | lowcut | no | no | 3 |
 | tail | lowcut | no | yes | 2 |
 | tail | clean/breath_intended | no | no | 2 |
-| tail | lowcut | no | no | 2 |
 | inharm | lowcut/breath_intended | no | no | 2 |
 | peak | lowcut | yes | yes | 2 |
+| peak | lowcut | no | no | 1 |
 | inharm | lowcut | no | no | 1 |
 | peak | clean | yes | yes | 1 |
+| peak | lowcut | no | yes | 1 |
+| f0 | lowcut | no | no | 1 |
 | f0 | lowcut/breath_intended | no | no | 1 |
 | inharm | multi:lowcut+breath_intended | no | no | 1 |
 
@@ -184,52 +187,53 @@ Worst post-pitch failures (up to 40):
 | `breathy_A3|stft_pitchshift|+0|x1.5|lc0|cl100|rb50|br0|hb1` | tail | clean | −790 | +17.8 | −0.7 | −16.4 | −10.5 | −56 |
 | `breathy_A3|stft_pitchshift|+5|x1.5|lc100|cl75|rb0|br1|hb0` | tail | clean | −8 | +16.2 | −3.0 | −19.2 | −15.5 | −56 |
 | `breathy_A3|stft_pitchshift|+12|x1.5|lc50|cl50|rb50|br5|hb1` | tail | clean | −27 | +18.5 | −3.5 | −11.5 | −13.7 | −56 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | +703 | +19.3 | −7.0 | −21.0 | −8.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1.5|lc50|cl25|rb50|br2|hb1` | tail | clean | +703 | +34.0 | −7.1 | −14.4 | −9.4 | −56 |
-| `harm_A4|sine_spectral|-7|x1.5|lc100|cl100|rb50|br0.5|hb0` | tail | clean | +1218 | +21.1 | −8.7 | −9.0 | −10.8 | −56 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br0|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br0.5|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br1|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br2|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | clean | +703 | +22.8 | −9.3 | −18.7 | −8.4 | +0 |
-| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
-| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
-| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
-| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
-| `vowel_D3|sine_spectral|+12|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | +142 | +42.3 | −11.1 | −18.8 | −13.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br0|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br0.5|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br1|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br2|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl50|rb0|br5|hb0` | tail | clean | +704 | +29.2 | −12.1 | −15.7 | −7.5 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br0|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br0.5|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br1|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br2|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
-| `harm_A4|sine_spectral|+5|x1|lc0|cl25|rb0|br5|hb0` | tail | clean | +703 | +33.4 | −12.8 | −14.6 | −6.0 | +0 |
 | `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
 | `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
 | `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
 | `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
 | `breathy_A3|stft_pitchshift|+5|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | −9 | +14.8 | −13.1 | −21.4 | −15.2 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
-| `breathy_A3|sine_spectral|+12|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −8 | +5.8 | −13.5 | −15.8 | −15.3 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl75|rb0|br0|hb0` | tail | clean | −7 | +15.8 | −15.2 | −18.8 | −14.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl75|rb0|br0.5|hb0` | tail | clean | −7 | +15.8 | −15.2 | −18.8 | −14.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl75|rb0|br1|hb0` | tail | clean | −7 | +15.8 | −15.2 | −18.8 | −14.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl75|rb0|br2|hb0` | tail | clean | −7 | +15.8 | −15.2 | −18.8 | −14.2 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl75|rb0|br5|hb0` | tail | clean | −7 | +15.8 | −15.2 | −18.8 | −14.2 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −11 | +17.4 | −17.1 | −20.1 | −12.0 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −11 | +17.4 | −17.1 | −20.1 | −12.0 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −11 | +17.4 | −17.1 | −20.1 | −12.0 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −11 | +17.4 | −17.1 | −20.1 | −12.0 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | −11 | +17.4 | −17.1 | −20.1 | −12.0 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc50|cl100|rb0|br5|hb1` | tail | clean | −11 | +17.4 | −17.3 | −20.1 | −12.2 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl100|rb0|br0|hb0` | tail | clean | −10 | +15.0 | −19.6 | −21.9 | −17.7 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl100|rb0|br0.5|hb0` | tail | clean | −10 | +15.0 | −19.6 | −21.9 | −17.7 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl100|rb0|br1|hb0` | tail | clean | −10 | +15.0 | −19.6 | −21.9 | −17.7 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl100|rb0|br2|hb0` | tail | clean | −10 | +15.0 | −19.6 | −21.9 | −17.7 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl100|rb0|br5|hb0` | tail | clean | −10 | +15.0 | −19.6 | −21.9 | −17.7 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl75|rb0|br0|hb0` | tail | clean | −760 | +18.4 | −20.4 | −16.6 | −10.8 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl75|rb0|br0.5|hb0` | tail | clean | −760 | +18.4 | −20.4 | −16.6 | −10.8 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl75|rb0|br1|hb0` | tail | clean | −760 | +18.4 | −20.4 | −16.6 | −10.8 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl75|rb0|br2|hb0` | tail | clean | −760 | +18.4 | −20.4 | −16.6 | −10.8 | +0 |
+| `breathy_A3|stft_pitchshift|+0|x1|lc0|cl75|rb0|br5|hb0` | tail | clean | −760 | +18.4 | −20.4 | −16.6 | −10.8 | +0 |
+| `breathy_A3|world_hard|+5|x1|lc0|cl0|rb0|br0|hb0` | f0 | breath | +44 | −9.2 | −27.9 | −0.8 | −9.3 | +5 |
+| `breathy_A3|world_hard|+5|x1|lc0|cl25|rb0|br0|hb0` | f0 | breath | +43 | −13.3 | −28.3 | −1.0 | −9.8 | +5 |
+| `breathy_A3|world_hard|+5|x1|lc0|cl100|rb0|br0|hb0` | f0 | breath | +43 | −20.0 | −27.4 | −2.6 | −11.8 | +5 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl50|rb0|br0|hb0` | tail | clean | +361 | +18.3 | −21.7 | −11.5 | −11.5 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl50|rb0|br0.5|hb0` | tail | clean | +361 | +18.3 | −21.7 | −11.5 | −11.5 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl50|rb0|br1|hb0` | tail | clean | +361 | +18.3 | −21.7 | −11.5 | −11.5 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl50|rb0|br2|hb0` | tail | clean | +361 | +18.3 | −21.7 | −11.5 | −11.5 | +0 |
+| `breathy_A3|stft_pitchshift|+5|x1|lc0|cl50|rb0|br5|hb0` | tail | clean | +361 | +18.3 | −21.7 | −11.5 | −11.5 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl75|rb0|br0|hb0` | tail | clean | −11 | +17.2 | −22.3 | −18.9 | −17.0 | +0 |
+| `breathy_A3|stft_pitchshift|+12|x1|lc0|cl75|rb0|br0.5|hb0` | tail | clean | −11 | +17.2 | −22.3 | −18.9 | −17.0 | +0 |
 
 **Every remaining post-pitch failure, by documented reason:**
 
 | reason | failures | why it is not fixed here |
 |---|---|---|
-| pitch_miss_body | 301 | Pitch-only render already misses the target note. Cleanliness masks the target's harmonics, so it removes most of the (off-target) body; tail and rms are measured relative to that body. Fix belongs to the pitch mode (mostly sine_spectral / stft_pitchshift), not the post stages. |
-| yin_bias | 47 | YIN (the sweep's f0 metric) misreads the note: the spectral peaks of harmonics 1-4 sit within 2 cents of the target. Seen on the breathy fixture once its pitch-locked aspiration noise is removed. The pitch is right; the metric is left unchanged, as required. |
-| lowcut_100 | 10 | Smart low cut at 100 %: the cutoff is 0.85 x the output's lowest f0 (filtfilt, 2nd order), which takes ~3.6 dB off the fundamental by design; stacked with other stages it crosses the rule. Lowering the 0.85 ceiling would change the control's documented behaviour - a product decision. |
+| pitch_miss_body | 101 | Pitch-only render already misses the target note. Cleanliness masks the target's harmonics, so it removes most of the (off-target) body; tail and rms are measured relative to that body. Fix belongs to the pitch mode (mostly stft_pitchshift), not the post stages. |
+| yin_bias | 88 | YIN (the sweep's f0 metric) misreads the note: the spectral peaks of harmonics 1-4 sit within 2 cents of the target. Seen on the breathy fixture once its pitch-locked aspiration noise is removed. The pitch is right; the metric is left unchanged, as required. |
+| lowcut_100 | 11 | Smart low cut at 100 %: the cutoff is 0.85 x the output's lowest f0 (filtfilt, 2nd order), which takes ~3.6 dB off the fundamental by design; stacked with other stages it crosses the rule. Lowering the 0.85 ceiling would change the control's documented behaviour - a product decision. |
 | marginal_tail | 4 | The pitch-only render's own release smear sits just under -40 dB; the post stages raise it by 3 dB or less, past the line. The extra energy is in voiced release frames of the pitch mode's synthesis. |
 | hnm_low_release | 5 | world_hnm on C1-C2 targets, tail failures caused only by breathiness < 1 and/or the low cut (all within ~1 dB of the -40 dB limit in this sweep). Breathiness < 1 makes the decaying release frames fully periodic, so HNM's harmonic part rings longer; with the low cut, the IIR high-pass (cutoff ~40 Hz) rings after the offset. Fixing either is a design change (keep release frames' aperiodicity / guard the low cut's envelope), proposed as a follow-up rather than tuned here. |
+| other | 1 | Not covered above - listed individually. |
 
 Evidence for *yin_bias* (up to 24): YIN reading vs the offset of harmonics 1-4 from n x target (1 M-point FFT of the note body):
 
@@ -260,16 +264,32 @@ Evidence for *yin_bias* (up to 24): YIN reading vs the offset of harmonics 1-4 f
 | `breathy_A3|world_hard|-7|x1.5|lc50|cl75|rb50|br0|hb1` | +23.5 | −0.13, +0.12, +0.03, −0.01 |
 | `breathy_A3|world_hnm|+5|x1|lc0|cl25|rb0|br5|hb0` | +23.3 | +0.12, +0.12, +0.03, +0.12 |
 
+Failures under *other*:
+
+| combination | metric | cause | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ |
+|---|---|---|---|---|---|---|---|---|
+| `test_10s_C4_Fs4_tuned|sine_spectral|-12|x1.5|lc50|cl0|rb0|br2|hb0` | peak | lowcut | +0 | +1.2 | – | −0.4 | +0.7 | −42 |
 
 ## Intentional output changes
 
-Golden references regenerated because their render has cleanliness, breathiness or low cut active (`tests/sweep/intentional_changes.json`). Pitch-only references are unchanged. Metrics use the sweep's definitions on the 2 s C4 fixture; *H1 vs input* is the fundamental's level relative to the source's.
+Golden references regenerated because their render has cleanliness, breathiness or low cut active, or because a change fixed their pitch mode: `sine_spectral` (`tests/sweep/intentional_changes.json`). Every other pitch-only reference is unchanged. Metrics use the sweep's definitions on the reference's own fixture; *H1 vs input* is the fundamental's level relative to the source's.
 
 | change | file | why | peak dBFS | RMS Δ dB | f0 ¢ | inharm Δ dB | H1 vs input dB | max\|old−new\| | sweep fails before | sweep fails after |
 |---|---|---|---|---|---|---|---|---|---|---|
 | change1 | `tests/golden/test_2s_C4/pipe_clean__na__F4.wav` | cleanliness masks the output F0 contour (was the input's cached WORLD F0); smart low cut keyed to the output contour | −2.1 → +57.3 | −13.4 → −1.2 | +1 → +0 | +9.2 → −3.8 | −16.0 → −0.7 | 734.1271 | inharm, rms | peak |
 | change2 | `tests/golden/test_2s_C4/pipe_clean__na__F4.wav` | cleanliness: n_fft from output F0, mask >= 2 bins, time-smoothed, both-end padding (E1), envelope guard | +57.3 → −2.5 | −1.2 → −1.2 | +0 → +0 | −3.8 → −3.8 | −0.7 → −0.7 | 734.1239 | peak | pass |
 | change3 | `tests/golden/test_2s_C4/pipe_breath__na__F4.wav` | breathiness shapes the WORLD mode's own aperiodicity before its single synthesis (was a second harvest/cheaptrick/d4c/synthesize pass on the output) | −0.5 → −1.4 | +0.2 → −0.6 | +0 → +0 | +4.0 → +3.5 | +0.8 → −0.0 | 0.8286 | pass | pass |
+| change6 | `tests/golden/test_10s_C4/sine_spectral__na__C5.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +5.1 → −2.9 | +0.1 → +0.0 | −1009 → +0 | +31.7 → −2.3 | −37.8 → +0.9 | 2.2444 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_10s_C4/sine_spectral__na__F3.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +5.2 → −1.2 | +0.0 → +0.0 | +1184 → +0 | +27.7 → −0.2 | −28.2 → −0.2 | 2.2854 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_10s_C4/sine_spectral__na__F4.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +5.1 → −2.5 | +0.0 → +0.0 | +1170 → +0 | +28.4 → −2.1 | −27.5 → +0.4 | 2.2336 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__C5.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +6.8 → −2.0 | +0.1 → +0.0 | −977 → +0 | +31.7 → −2.6 | −38.5 → +0.9 | 2.6319 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__F3.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +4.7 → +1.6 | +0.0 → +0.0 | +1186 → +0 | +28.6 → +0.3 | −32.0 → −0.2 | 2.4400 | peak, f0, inharm | peak |
+| change6 | `tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__F4.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +6.1 → −0.4 | +0.1 → +0.0 | −692 → +0 | +29.3 → −2.3 | −28.6 → +0.4 | 2.5483 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_2s_C4/pipe_mode_sine_spectral__na__F4.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +4.1 → −2.6 | +0.0 → −0.0 | −1191 → +0 | +28.5 → −2.0 | −26.7 → +0.4 | 2.0589 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_2s_C4/pipe_mode_sine_spectral_shift__na__F4.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +5.0 → −2.5 | +0.0 → −0.0 | +1170 → +0 | +29.3 → −2.3 | −26.9 → +0.2 | 2.1819 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_2s_C4/sine_spectral__na__C5.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +5.1 → −2.9 | +0.1 → +0.0 | −1011 → +0 | +31.7 → −1.5 | −38.2 → +0.9 | 2.0528 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_2s_C4/sine_spectral__na__F3.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +4.6 → −0.5 | +0.0 → +0.0 | +1184 → +0 | +27.7 → −0.2 | −27.4 → −0.2 | 2.1865 | peak, f0, inharm | pass |
+| change6 | `tests/golden/test_2s_C4/sine_spectral__na__F4.wav` | sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz) | +4.1 → −2.6 | +0.0 → −0.0 | −1191 → +0 | +28.5 → −2.0 | −26.7 → +0.4 | 2.0589 | peak, f0, inharm | pass |
 
 ## Suspected bugs: before / after
 
@@ -485,32 +505,49 @@ A = `lead_G3`, then B (same 300 ms of leading zeros for `lead_A4`) without reset
 | lead_G3 | world_hard | 100 | −3.4 → −5.0 | 316.37 → 719.43 | −3.4 | yes → no |
 
 
+## A/B listening: the 10 previous-worst renders
+
+In `tests/sweep/out/ab/`: `…__before.wav` (pre-fix render, saved by the pre-fix run), `…__after.wav` (this code) and `…__after_pitch_only.wav`. All are clipped to ±1.0 for safe listening; the true peaks are in the table.
+
+| # | combination | files | post-pitch fails before → after | peak dBFS | f0 ¢ | inharm Δ dB |
+|---|---|---|---|---|---|---|
+| 1 | `harm_A4|praat_soft|+12|x1|lc0|cl100|rb0|br1|hb0` | after, after_pitch_only | peak, f0, inharm, tail → pass | +64.6 → −7.7 | −1276 → +0 | +44.7 → −12.1 |
+| 2 | `harm_A5|praat_soft|+5|x1|lc0|cl100|rb0|br1|hb0` | after, after_pitch_only | peak, f0, inharm, tail → pass | +56.8 → −8.0 | −1197 → −1 | +42.9 → −3.8 |
+| 3 | `vowel_D3|praat_soft|+12|x1|lc50|cl100|rb50|br1|hb1` | after, after_pitch_only | peak, f0, tail → pass | +73.2 → −8.5 | +715 → +0 | −7.5 → −6.7 |
+| 4 | `vowel_D3|stft_pitchshift|+0|x1|lc0|cl100|rb0|br1|hb0` | after, after_pitch_only | peak, f0, tail → pass | +53.4 → −7.5 | +380 → −0 | −0.6 → +0.2 |
+| 5 | `harm_A5|sine_spectral|+0|x1|lc0|cl75|rb0|br1|hb0` | after, after_pitch_only | peak, f0 → pass | +52.9 → −7.0 | +1179 → +1 | +30.1 → −15.8 |
+| 6 | `harm_G3|sine_spectral|+0|x1|lc0|cl100|rb0|br1|hb0` | after, after_pitch_only | peak, f0, inharm, tail → pass | +58.3 → −7.6 | +97 → +0 | +33.8 → −0.2 |
+| 7 | `harm_A4|stft_pitchshift|-12|x1|lc0|cl25|rb0|br5|hb0` | after, after_pitch_only | peak, f0, inharm, tail, rms → pass | +0.3 → −2.1 | +1194 → −7 | +40.3 → +13.5 |
+| 8 | `test_10s_C4|sine_spectral|-12|x1|lc0|cl100|rb0|br1|hb0` | after, after_pitch_only | peak → pass | +84.7 → −2.4 | +476 → +0 | +31.6 → −1.5 |
+| 9 | `harm_A4|stft_pitchshift|+12|x1|lc0|cl100|rb0|br5|hb0` | after, after_pitch_only | peak, f0, inharm, tail → pass | +1.8 → −7.2 | +47 → −2 | +46.8 → −5.2 |
+| 10 | `harm_A4|world_hnm|+12|x1|lc0|cl0|rb0|br0.5|hb0` | after, after_pitch_only | peak, inharm, tail → pass | +5.1 → −5.1 | −1 → +1 | +45.6 → +2.8 |
+
 ## Root causes in the latest run
 
-Post-pitch failures (1803):
+Post-pitch failures (1646):
 
 | rank | cause | explains | sole | renders | meaning |
 |---|---|---|---|---|---|
 | 1 | breath_intended | 1459 | 1436 | 1331 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
-| 2 | clean | 327 | 308 | 295 | cleanliness stage (failure clears with cleanliness off) |
-| 3 | lowcut | 21 | 17 | 18 | smart low cut stage (clears with low cut off) |
+| 2 | clean | 171 | 152 | 150 | cleanliness stage (failure clears with cleanliness off) |
+| 3 | lowcut | 20 | 16 | 17 | smart low cut stage (clears with low cut off) |
 | 4 | breath | 19 | 19 | 19 | breathiness < 1 (clears with breathiness 1) |
 
-All failures (14237):
+All failures (10750):
 
 | rank | cause | explains | sole | renders | meaning |
 |---|---|---|---|---|---|
-| 1 | pitch:tail | 3969 | 3969 | 3969 | pitch stage: energy past the source offset (the mode's release smear) |
-| 2 | pitch:inharm | 3517 | 3517 | 3517 | pitch stage: mode adds inharmonic energy |
-| 3 | pitch:peak | 2104 | 2104 | 2104 | pitch stage: output above 0 dBFS (onset spikes, hot real fixture) |
-| 4 | pitch:f0 | 1787 | 1787 | 1787 | pitch stage: mode misses the target note |
-| 5 | breath_intended | 1459 | 1436 | 1331 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
+| 1 | pitch:tail | 3321 | 3321 | 3321 | pitch stage: energy past the source offset (the mode's release smear) |
+| 2 | pitch:inharm | 2183 | 2183 | 2183 | pitch stage: mode adds inharmonic energy |
+| 3 | pitch:peak | 1722 | 1722 | 1722 | pitch stage: output above 0 dBFS (onset spikes, hot real fixture) |
+| 4 | breath_intended | 1459 | 1436 | 1331 | breathiness > 1 adds aperiodicity by design (fails the inharmonic rule) |
+| 5 | pitch:f0 | 951 | 951 | 951 | pitch stage: mode misses the target note |
 | 6 | pitch:length | 859 | 859 | 859 | pitch/stretch stage: output length off by more than the tolerance |
-| 7 | clean | 327 | 308 | 295 | cleanliness stage (failure clears with cleanliness off) |
-| 8 | pitch_miss | 148 | 148 | 148 | pitch stage missed the target note; f0/inharm after it are measured against a pitch the post stages never received |
-| 9 | pitch:rms | 50 | 50 | 50 | pitch stage: level drop |
-| 10 | lowcut | 21 | 17 | 18 | smart low cut stage (clears with low cut off) |
-| 11 | breath | 19 | 19 | 19 | breathiness < 1 (clears with breathiness 1) |
+| 7 | clean | 171 | 152 | 150 | cleanliness stage (failure clears with cleanliness off) |
+| 8 | pitch:rms | 50 | 50 | 50 | pitch stage: level drop |
+| 9 | lowcut | 20 | 16 | 17 | smart low cut stage (clears with low cut off) |
+| 10 | breath | 19 | 19 | 19 | breathiness < 1 (clears with breathiness 1) |
+| 11 | pitch_miss | 18 | 18 | 18 | pitch stage missed the target note; f0/inharm after it are measured against a pitch the post stages never received |
 
 ## Pass/fail rules (unchanged)
 
@@ -584,67 +621,67 @@ Ranked by post-pitch severity (sum of value / threshold over post-pitch failures
 | `world_vt` | 55 | 49 | 10 | 6 |  |  | 33 | 6 | 8 | 15 | 32 | 3 |
 | `world_hnm` | 55 | 43 | 11 | 3 |  |  | 37 | 5 | 6 | 25 | 23 |  |
 | `praat_soft` | 66 | 31 | 3 | 3 |  |  | 11 |  | 8 | 25 | 9 |  |
-| `sine_spectral` | 66 | 66 | 9 | 9 |  |  | 44 | 7 | 43 | 64 | 39 | 2 |
+| `sine_spectral` | 66 | 47 | 3 | 3 |  |  | 44 | 2 | 4 | 2 | 28 |  |
 | `stft_pitchshift` | 88 | 73 | 5 | 5 |  |  | 44 | 3 | 15 | 39 | 43 | 2 |
 
 **shift**
 
 | shift | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -12 | 88 | 75 | 10 | 7 |  |  | 46 | 17 | 23 | 39 | 42 |  |
-| -7 | 88 | 69 | 5 | 5 |  |  | 44 | 8 | 18 | 34 | 41 |  |
-| 0 | 110 | 76 | 4 | 4 |  |  | 46 | 6 | 15 | 29 | 46 |  |
-| 5 | 77 | 63 | 4 | 3 |  |  | 44 | 2 | 17 | 28 | 44 | 2 |
-| 12 | 99 | 85 | 26 | 12 |  |  | 44 | 2 | 20 | 56 | 44 | 10 |
+| -12 | 88 | 75 | 7 | 4 |  |  | 46 | 14 | 13 | 30 | 41 |  |
+| -7 | 88 | 69 | 4 | 4 |  |  | 44 | 8 | 9 | 23 | 41 |  |
+| 0 | 110 | 67 | 4 | 4 |  |  | 46 | 4 | 12 | 9 | 42 |  |
+| 5 | 77 | 63 | 2 | 1 |  |  | 44 | 2 | 6 | 17 | 44 |  |
+| 12 | 99 | 75 | 26 | 12 |  |  | 44 | 2 | 14 | 45 | 38 | 10 |
 
 **stretch**
 
 | stretch | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | 242 | 148 | 12 | 11 |  |  | 4 | 27 | 34 | 76 | 79 | 5 |
-| 1.5 | 220 | 220 | 37 | 20 |  |  | 220 | 8 | 59 | 110 | 138 | 7 |
+| 1 | 242 | 129 | 12 | 11 |  |  | 4 | 25 | 25 | 55 | 69 | 5 |
+| 1.5 | 220 | 220 | 31 | 14 |  |  | 220 | 5 | 29 | 69 | 137 | 5 |
 
 **lowcut**
 
 | lowcut | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 165 | 137 | 16 | 3 |  |  | 99 | 7 | 25 | 64 | 81 | 2 |
-| 50 | 121 | 95 | 12 | 12 |  |  | 57 | 12 | 36 | 47 | 54 | 3 |
-| 100 | 176 | 136 | 21 | 16 |  |  | 68 | 16 | 32 | 75 | 82 | 7 |
+| 0 | 165 | 128 | 16 | 3 |  |  | 99 | 5 | 22 | 54 | 77 | 2 |
+| 50 | 121 | 95 | 7 | 7 |  |  | 57 | 9 | 15 | 27 | 53 | 1 |
+| 100 | 176 | 126 | 20 | 15 |  |  | 68 | 16 | 17 | 43 | 76 | 7 |
 
 **clean**
 
 | clean | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 99 | 83 | 22 | 10 |  |  | 44 | 13 | 28 | 63 | 45 | 3 |
-| 25 | 99 | 83 | 10 | 8 |  |  | 55 | 6 | 22 | 38 | 51 | 7 |
-| 50 | 99 | 83 | 3 | 3 |  |  | 66 | 1 | 13 | 35 | 52 | 2 |
-| 75 | 77 | 59 | 4 | 4 |  |  | 24 | 11 | 12 | 22 | 35 |  |
-| 100 | 88 | 60 | 10 | 6 |  |  | 35 | 4 | 18 | 28 | 34 |  |
+| 0 | 99 | 74 | 19 | 7 |  |  | 44 | 8 | 15 | 44 | 40 | 3 |
+| 25 | 99 | 83 | 8 | 6 |  |  | 55 | 6 | 11 | 27 | 51 | 5 |
+| 50 | 99 | 83 | 3 | 3 |  |  | 66 | 1 | 13 | 25 | 52 | 2 |
+| 75 | 77 | 49 | 4 | 4 |  |  | 24 | 11 | 6 | 11 | 29 |  |
+| 100 | 88 | 60 | 9 | 5 |  |  | 35 | 4 | 9 | 17 | 34 |  |
 
 **hfrb**
 
 | hfrb | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 187 | 128 | 16 | 13 |  |  | 79 | 10 | 27 | 55 | 77 | 6 |
-| 50 | 275 | 240 | 33 | 18 |  |  | 145 | 25 | 66 | 131 | 140 | 6 |
+| 0 | 187 | 128 | 13 | 10 |  |  | 79 | 7 | 17 | 36 | 76 | 6 |
+| 50 | 275 | 221 | 30 | 15 |  |  | 145 | 23 | 37 | 88 | 130 | 4 |
 
 **breath**
 
 | breath | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 99 | 83 | 6 | 6 |  |  | 44 | 7 | 11 | 31 | 51 | 4 |
-| 0.5 | 77 | 59 | 3 | 3 |  |  | 35 | 3 | 20 | 35 | 35 |  |
-| 1 | 88 | 79 | 5 | 5 |  |  | 44 | 14 | 15 | 33 | 45 |  |
-| 2 | 99 | 83 | 18 | 7 |  |  | 66 | 7 | 30 | 53 | 50 | 3 |
-| 5 | 99 | 64 | 17 | 10 |  |  | 35 | 4 | 17 | 34 | 36 | 5 |
+| 0 | 99 | 83 | 6 | 6 |  |  | 44 | 7 | 11 | 21 | 51 | 4 |
+| 0.5 | 77 | 59 | 2 | 2 |  |  | 35 | 3 | 11 | 24 | 35 |  |
+| 1 | 88 | 70 | 5 | 5 |  |  | 44 | 12 | 12 | 23 | 41 |  |
+| 2 | 99 | 83 | 13 | 2 |  |  | 66 | 4 | 9 | 33 | 49 | 1 |
+| 5 | 99 | 54 | 17 | 10 |  |  | 35 | 4 | 11 | 23 | 30 | 5 |
 
 **hfbias**
 
 | hfbias | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 242 | 197 | 25 | 14 |  |  | 121 | 16 | 54 | 120 | 117 | 5 |
-| 1 | 220 | 171 | 24 | 17 |  |  | 103 | 19 | 39 | 66 | 100 | 7 |
+| 0 | 242 | 187 | 21 | 10 |  |  | 121 | 13 | 29 | 79 | 110 | 5 |
+| 1 | 220 | 162 | 22 | 15 |  |  | 103 | 17 | 25 | 45 | 96 | 5 |
 
 ### Grid set
 
@@ -657,54 +694,54 @@ Ranked by post-pitch severity (sum of value / threshold over post-pitch failures
 | `world_vt` | 1375 | 1167 | 348 | 5 |  |  |  | 423 | 143 | 504 | 770 | 14 |
 | `world_hnm` | 1375 | 976 | 278 | 22 |  |  | 250 | 407 | 178 | 720 | 35 |  |
 | `praat_soft` | 1375 | 465 | 0 | 0 |  |  |  | 5 | 130 | 420 |  |  |
-| `sine_spectral` | 1375 | 1345 | 180 | 180 |  |  |  | 440 | 905 | 1245 | 740 | 90 |
+| `sine_spectral` | 1375 | 150 | 40 | 40 |  |  |  | 60 | 65 | 25 |  |  |
 | `stft_pitchshift` | 1375 | 920 | 70 | 70 |  |  |  | 140 | 250 | 650 | 605 | 25 |
 
 **shift**
 
 | shift | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| -12 | 1925 | 1547 | 242 | 11 |  |  | 50 | 777 | 465 | 915 | 803 |  |
-| -7 | 1925 | 1612 | 324 | 45 |  |  | 50 | 512 | 421 | 1069 | 810 | 10 |
-| 0 | 1925 | 1261 | 290 | 23 |  |  | 50 | 317 | 206 | 695 | 617 | 5 |
-| 5 | 1925 | 1427 | 348 | 87 |  |  | 50 | 303 | 394 | 926 | 776 | 35 |
-| 12 | 1925 | 1320 | 389 | 136 |  |  | 50 | 245 | 337 | 873 | 725 | 109 |
+| -12 | 1925 | 1347 | 262 | 31 |  |  | 50 | 707 | 245 | 700 | 653 |  |
+| -7 | 1925 | 1377 | 314 | 35 |  |  | 50 | 457 | 176 | 799 | 635 |  |
+| 0 | 1925 | 1051 | 290 | 23 |  |  | 50 | 277 | 206 | 480 | 532 | 5 |
+| 5 | 1925 | 1152 | 298 | 37 |  |  | 50 | 188 | 164 | 671 | 621 | 10 |
+| 12 | 1925 | 1045 | 289 | 36 |  |  | 50 | 145 | 192 | 608 | 550 | 54 |
 
 **clean**
 
 | clean | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1925 | 1625 | 349 | 6 |  |  | 50 | 581 | 449 | 1166 | 761 | 14 |
-| 25 | 1925 | 1504 | 343 | 68 |  |  | 50 | 483 | 393 | 989 | 749 | 65 |
-| 50 | 1925 | 1453 | 342 | 81 |  |  | 50 | 431 | 367 | 911 | 744 | 80 |
-| 75 | 1925 | 1317 | 280 | 60 |  |  | 50 | 344 | 316 | 750 | 740 |  |
-| 100 | 1925 | 1268 | 279 | 87 |  |  | 50 | 315 | 298 | 662 | 737 |  |
+| 0 | 1925 | 1380 | 349 | 6 |  |  | 50 | 496 | 214 | 906 | 611 | 14 |
+| 25 | 1925 | 1264 | 313 | 38 |  |  | 50 | 408 | 213 | 729 | 599 | 25 |
+| 50 | 1925 | 1208 | 302 | 41 |  |  | 50 | 356 | 202 | 651 | 599 | 30 |
+| 75 | 1925 | 1087 | 255 | 35 |  |  | 50 | 274 | 181 | 515 | 595 |  |
+| 100 | 1925 | 1033 | 234 | 42 |  |  | 50 | 240 | 173 | 457 | 587 |  |
 
 **breath**
 
 | breath | renders | failing | post-pitch | post excl. intended | exception | nonfinite | length | peak | f0 | inharm | tail | rms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 0 | 1925 | 1337 | 65 | 65 |  |  | 50 | 414 | 360 | 634 | 744 | 32 |
-| 0.5 | 1925 | 1349 | 56 | 56 |  |  | 50 | 423 | 352 | 635 | 744 | 32 |
-| 1 | 1925 | 1359 | 58 | 58 |  |  | 50 | 430 | 360 | 650 | 743 | 32 |
-| 2 | 1925 | 1504 | 462 | 61 |  |  | 50 | 426 | 362 | 1077 | 744 | 32 |
-| 5 | 1925 | 1618 | 952 | 62 |  |  | 50 | 461 | 389 | 1482 | 756 | 31 |
+| 0 | 1925 | 1098 | 37 | 37 |  |  | 50 | 338 | 192 | 390 | 596 | 14 |
+| 0.5 | 1925 | 1110 | 28 | 28 |  |  | 50 | 347 | 184 | 391 | 596 | 14 |
+| 1 | 1925 | 1120 | 30 | 30 |  |  | 50 | 354 | 192 | 406 | 595 | 14 |
+| 2 | 1925 | 1265 | 434 | 33 |  |  | 50 | 350 | 194 | 833 | 596 | 14 |
+| 5 | 1925 | 1379 | 924 | 34 |  |  | 50 | 385 | 221 | 1238 | 608 | 13 |
 
 ### Per fixture
 
 | fixture | renders | failing | post-pitch | post excl. intended |
 |---|---|---|---|---|
-| `harm_C2` | 948 | 813 | 138 | 15 |
-| `harm_G3` | 948 | 736 | 167 | 0 |
-| `harm_A4` | 948 | 784 | 190 | 48 |
-| `harm_A5` | 948 | 898 | 64 | 55 |
-| `vowel_D3` | 948 | 792 | 172 | 11 |
-| `breathy_A3` | 948 | 741 | 198 | 158 |
-| `short_C4` | 948 | 587 | 161 | 1 |
-| `lead_G3` | 948 | 761 | 167 | 5 |
-| `test_2s_C4` | 948 | 577 | 132 | 13 |
-| `test_10s_C4` | 948 | 590 | 127 | 13 |
-| `test_10s_C4_Fs4_tuned` | 948 | 624 | 125 | 13 |
+| `harm_C2` | 948 | 687 | 134 | 11 |
+| `harm_G3` | 948 | 609 | 167 | 0 |
+| `harm_A4` | 948 | 692 | 143 | 1 |
+| `harm_A5` | 948 | 771 | 13 | 4 |
+| `vowel_D3` | 948 | 665 | 161 | 0 |
+| `breathy_A3` | 948 | 680 | 203 | 163 |
+| `short_C4` | 948 | 460 | 160 | 0 |
+| `lead_G3` | 948 | 634 | 162 | 0 |
+| `test_2s_C4` | 948 | 465 | 121 | 2 |
+| `test_10s_C4` | 948 | 473 | 116 | 2 |
+| `test_10s_C4_Fs4_tuned` | 948 | 553 | 115 | 3 |
 
 <!-- frozen copy of the pre-fix report; tests/sweep/baseline/prefix_report.md -->
 ## Appendix: pre-fix report (frozen)

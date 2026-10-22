@@ -1,16 +1,93 @@
-"""sine_spectral: cepstral spectral envelope x phase-vocoder resampled
-excitation, with the shared soft-retune trajectory (pYIN F0)."""
+"""sine_spectral: per-peak spectral relocation (phase-locked vocoder) with a
+cepstral formant correction, and the shared soft-retune trajectory (YIN F0)."""
 
 from __future__ import annotations
 
 import numpy as np
 
-from server.audio.modes._dsp import _apply_hf_rolloff, _apply_rms_envelope
+from server.audio.modes._dsp import _apply_rms_envelope, _improved_lifter
 from server.audio.modes._retune import retune_log2
 from server.utils.note_utils import note_name_to_freq
 
 NAME = "sine_spectral"
 USES_WORLD_CACHE = False
+
+F0_MIN = 50.0
+F0_MAX = 2000.0
+YIN_THRESHOLD = 0.15
+VOICED_APERIODICITY = 0.3    # CMND at the chosen lag; above this a frame is unvoiced
+MAX_VOICING_GAP_S = 0.025    # unvoiced runs this short inside a note count as voiced
+REFINE_HARMONICS = 8         # harmonics used to refine the YIN F0
+REFINE_TOL = 0.03            # ... when within 3 % (~50 cents) of h * F0
+FORMANT_GAIN_DB = (-60.0, 24.0)
+
+
+def _fill_short_gaps(mask: np.ndarray, max_gap: int) -> np.ndarray:
+    """Set runs of False no longer than *max_gap* that lie between two True runs."""
+    out = mask.copy()
+    idx = np.flatnonzero(mask)
+    if idx.size < 2:
+        return out
+    gaps = np.diff(idx) - 1
+    for start, gap in zip(idx[:-1], gaps):
+        if 0 < gap <= max_gap:
+            out[start + 1:start + 1 + gap] = True
+    return out
+
+
+def _refine_f0(Zxx: np.ndarray, f0: np.ndarray, frames: np.ndarray, sr: int,
+               hop_size: int, n_harmonics: int = REFINE_HARMONICS) -> np.ndarray:
+    """Refine YIN F0 on *frames* from the phase-vocoder frequencies of the
+    first harmonics: least-squares fit f_h = h * f0 over the harmonic peaks
+    found within REFINE_TOL of h * f0, weighted by peak power.  YIN's lag
+    interpolation is biased by aperiodic energy; the harmonics' phase
+    advance is not.  Frames without a usable harmonic keep their YIN value.
+    """
+    n_bins, n_frames = Zxx.shape
+    fft_size = 2 * (n_bins - 1)
+    omega_bin = 2.0 * np.pi * hop_size / fft_size
+    frames = frames[frames > 0]
+    if frames.size == 0:
+        return f0
+    mag = np.abs(Zxx)
+    h = np.arange(1, n_harmonics + 1, dtype=np.float64)
+    centre = np.rint(np.outer(f0[frames], h) * fft_size / sr).astype(np.int64)   # (F, H)
+    valid = (centre >= 2) & (centre < n_bins - 2)
+    centre = np.clip(centre, 2, n_bins - 3)
+    cols = frames[:, None]
+    # Loudest of the three bins around each expected harmonic, if it is a local maximum
+    cand = centre[..., None] + np.arange(-1, 2)                                 # (F, H, 3)
+    peak = np.take_along_axis(cand, mag[cand, cols[..., None]].argmax(axis=-1)[..., None], -1)[..., 0]
+    a = mag[peak, cols]
+    valid &= (a > mag[peak - 1, cols]) & (a >= mag[peak + 1, cols])
+    dphi = np.angle(Zxx[peak, cols]) - np.angle(Zxx[peak, cols - 1]) - omega_bin * peak
+    dphi = np.mod(dphi + np.pi, 2.0 * np.pi) - np.pi
+    f_h = (peak + dphi / omega_bin) * sr / fft_size                             # Hz
+    valid &= np.abs(f_h / h - f0[frames, None]) <= REFINE_TOL * f0[frames, None]
+    w = np.where(valid, a * a, 0.0)
+    num = np.sum(w * h * f_h, axis=1)
+    den = np.sum(w * h * h, axis=1)
+    out = f0.copy()
+    ok = den > 0
+    out[frames[ok]] = num[ok] / den[ok]
+    return out
+
+
+def _peak_regions(mag: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Split one frame's bins into peak regions.
+
+    A region runs from one spectral valley to the next, so it holds exactly
+    one local maximum.  Returns (region id per bin, peak bin per region);
+    region ids and peak bins are both ascending.
+    """
+    n = mag.size
+    valley = np.zeros(n, dtype=bool)
+    valley[1:-1] = (mag[1:-1] <= mag[:-2]) & (mag[1:-1] < mag[2:])
+    region = np.cumsum(valley)
+    order = np.lexsort((-mag, region))          # by region, loudest bin first
+    first = np.ones(n, dtype=bool)
+    first[1:] = region[order][1:] != region[order][:-1]
+    return region, order[first]
 
 
 def autotune_sine_spectral(
@@ -23,41 +100,49 @@ def autotune_sine_spectral(
     preserve_formants: bool = True,
     formant_shift_cents: int = 0,
     fft_size: int = 2048,
-    hop_size: int = 256,
+    hop_size: int = 128,
     max_sines: int = 80,
     threshold_db: float = -80.0,
     return_f0: bool = False,
 ):
     """
-    Spectral Envelope + Excitation pitch correction.
+    Harmonic relocation with spectral envelope preservation.
 
-    For each voiced STFT frame the algorithm is:
-      1. Estimate the spectral envelope E[k] via cepstral smoothing of the
-         original frame magnitude.  E[k] is a smooth function that covers
-         EVERY FFT bin — it represents formants, not individual harmonics.
-      2. Generate a Hann-windowed harmonic excitation signal: a sum of
-         unit-amplitude cosines at TARGET_F0 * 1, 2, 3 ... up to Nyquist,
-         with per-harmonic phase accumulators for continuity across frames.
-      3. Take the rfft of the excitation → Exc[k].
-      4. Output spectrum = E[k] * exp(j * angle(Exc[k])).
-         * E[k] gives FULL spectral density — smooth, non-zero at every bin,
-           shaped like the vocal tract formants.  No hollow gaps.
-         * angle(Exc[k]) encodes the target pitch via harmonic phase
-           structure; the Hann window causes sinc-like spectral spreading
-           so the phase is well-defined between harmonics too.
-      5. ISTFT overlap-add over all frames.
-      6. RMS envelope correction to match the original dynamics.
+    For each voiced STFT frame:
+      1. Split the spectrum into peak regions (each spectral peak plus the
+         bins down to the neighbouring valleys).  Every harmonic, and every
+         noise peak between harmonics, is one region.
+      2. Measure each peak's true frequency from its phase advance since the
+         previous frame (phase vocoder), and move the whole region by the
+         whole number of bins nearest to (ratio - 1) * that frequency.  The
+         region keeps its complex shape, so the window's main lobe and the
+         time envelope inside the frame survive the move.
+      3. Rotate the region's phase by an accumulator that advances by
+         (ratio - 1) * omega_peak * hop per frame (Laroche & Dolson's
+         phase-locked pitch shift), so across frames the peak advances at
+         ratio * omega_peak: the target frequency.  Peaks inherit the
+         accumulator of the nearest peak in the previous frame.
+      4. Scale every moved bin by E(destination) / E(source), E being the
+         cepstral envelope of the source frame (lifter below the harmonic
+         spacing), so harmonics move and formants stay.  formant_shift_cents
+         shifts the destination envelope.
+      5. ISTFT overlap-add, then an RMS envelope match to the input.
 
-    Unvoiced frames (no pYIN detection within ±1.5 hops) pass through
-    unmodified directly in the STFT domain.
+    The source F0 comes from YIN on the same frame grid (frames centred on
+    the STFT frames, search range 50-2000 Hz), refined from the phase
+    advance of the first harmonics.  Frames whose CMND at the chosen lag
+    exceeds VOICED_APERIODICITY are unvoiced and pass through unmodified in
+    the STFT domain.  The hop is fft_size / 16: with 8x overlap the frame
+    rate (172 Hz) aliases region-boundary leakage next to the harmonics of
+    low notes.
 
     With return_f0, returns (audio, target F0 per STFT frame with 0 on
     unvoiced frames, frame times in s); F0 is None when the audio is passed
     through.
     """
-    from server.audio.pitch_detector import detect_pitch
-    from server.audio.sinusoidal import estimate_spectral_envelope
-    from scipy.signal import stft, istft
+    from scipy.ndimage import median_filter
+    from scipy.signal import istft, stft
+    from server.audio.pitch_yin import yin_track
 
     # ── validate ──────────────────────────────────────────────────────────
     if sr <= 0:
@@ -73,56 +158,41 @@ def autotune_sine_spectral(
     target_freq = float(note_name_to_freq(target_note))
     amount_f    = float(np.clip(amount, 0.0, 1.0))
     vib_f       = float(np.clip(preserve_vibrato, 0.0, 1.0))
-    nyquist     = sr / 2.0
-
-    # ── pYIN F0 detection ─────────────────────────────────────────────────
-    det      = detect_pitch(audio_arr, sr=sr, fast=False)
-    f0_array = np.asarray(det["f0_array"], dtype=np.float64)
-    f0_times = np.asarray(det["times"],    dtype=np.float64)
-
-    if f0_array.size == 0 or not np.any(np.isfinite(f0_array)):
-        # fully unvoiced — pass through
-        return (audio_arr, None, None) if return_f0 else audio_arr
 
     # ── STFT analysis ─────────────────────────────────────────────────────
     noverlap = fft_size - hop_size
-    _, stft_times, Zxx = stft(
+    _, _, Zxx = stft(
         audio_arr, sr,
         window='hann', nperseg=fft_size, noverlap=noverlap,
         boundary='zeros', padded=True,
     )
     # Zxx: complex, shape (n_bins, n_frames);  n_bins = fft_size//2+1
     n_bins, n_frames = Zxx.shape
+    # Frame i is centred on sample i*hop (boundary='zeros' pads fft_size/2)
+    stft_times = np.arange(n_frames) * hop_size / sr
 
-    # ── Interpolate F0 onto the STFT frame grid ───────────────────────────
-    voiced_mask = np.isfinite(f0_array) & (f0_array > 50.0)
-    if np.sum(voiced_mask) < 2:
+    # ── Source F0 on the STFT frame grid (YIN) ────────────────────────────
+    f0_max = min(F0_MAX, 0.25 * sr)
+    yin_len = 1 << int(np.ceil(np.log2(2.0 * sr / F0_MIN)))
+    f0_raw, aperiodicity = yin_track(audio_arr, sr, hop_size, n_frames=n_frames,
+                                     fmin=F0_MIN, fmax=f0_max, frame_length=yin_len,
+                                     threshold=YIN_THRESHOLD)
+    voiced_frames = ((f0_raw >= F0_MIN) & (f0_raw <= f0_max)
+                     & (aperiodicity < VOICED_APERIODICITY))
+    if np.sum(voiced_frames) < 2:
         return (audio_arr, None, None) if return_f0 else audio_arr
 
-    # Extend stft_times to cover all frames (stft may return fewer times
-    # than frame columns due to boundary handling)
-    if len(stft_times) < n_frames:
-        stft_times = np.arange(n_frames) * hop_size / sr
+    # Refine from the harmonics' phase advance, median-smooth the voiced
+    # values (kills isolated octave slips), then fill short unvoiced gaps
+    # inside a note so they don't pass through
+    voiced_idx = np.flatnonzero(voiced_frames)
+    f0_raw = _refine_f0(Zxx, f0_raw, voiced_idx, sr, hop_size)
+    f0_voiced = 2.0 ** median_filter(np.log2(f0_raw[voiced_idx]), size=5, mode='nearest')
+    voiced_frames = _fill_short_gaps(voiced_frames, int(round(MAX_VOICING_GAP_S * sr / hop_size)))
 
-    f0_voiced_vals = f0_array[voiced_mask]
-    f0_interp = np.interp(
-        stft_times,
-        f0_times[voiced_mask],
-        f0_voiced_vals,
-        left=float(f0_voiced_vals[0]),    # hold first voiced value leftward
-        right=float(f0_voiced_vals[-1]),  # hold last voiced value rightward
-    )
-    # f0_interp is now always a plausible F0 (no zeros), so log2 stays in
-    # a sane range and the vibrato-separation moving average can't be
-    # contaminated by log2(0) = -inf spikes at unvoiced gaps.
-
-    # ── Voiced-frame gate ─────────────────────────────────────────────────
-    # A frame is voiced if pYIN has a real detection within ±1.5 hops.
-    voiced_frames = np.zeros(n_frames, dtype=bool)
-    t_voiced      = f0_times[voiced_mask]
-    tol           = 1.5 * hop_size / sr
-    for i in range(n_frames):
-        voiced_frames[i] = np.any(np.abs(t_voiced - stft_times[i]) <= tol)
+    # Interpolate across unvoiced frames, holding the end values, so log2
+    # stays sane and the vibrato split isn't contaminated by gaps
+    f0_interp = np.interp(np.arange(n_frames), voiced_idx, f0_voiced)
 
     # ── Soft retune: exponential smoothing in log2 space ─────────────────
     hop_s    = hop_size / sr
@@ -133,104 +203,69 @@ def autotune_sine_spectral(
     ratio_per_frame  = np.power(2.0, new_x - x)          # shape (n_frames,)
     f0_target_frames = f0_interp * ratio_per_frame        # shape (n_frames,)
 
-    # ── Per-frame spectral resampling pitch shift ─────────────────────────
-    # For each voiced frame we RELOCATE the original spectral content to the
-    # target pitch rather than generating new cosine excitation.
-    #
-    # For output bin k (at frequency k*sr/fft_size), we sample the ORIGINAL
-    # complex STFT spectrum at input bin k/ratio (where ratio = f0_tgt/f0_orig).
-    # This shifts every frequency component — harmonics AND inter-harmonic
-    # noise/breath — proportionally to the new pitch.
-    #
-    # The phase at each output bin comes directly from the original signal,
-    # preserving the natural waveform complexity (glottal pulse shape, jitter,
-    # shimmer) instead of synthetic cosine phases.
-    #
-    # The magnitude is replaced by the cepstral spectral envelope E[k] to
-    # decouple pitch from formants: harmonics move, formants stay.
+    # ── Formant envelopes (cepstral lifter below the harmonic spacing) ────
+    envelopes = np.ones((n_frames, n_bins))
+    envelopes[voiced_frames] = _improved_lifter(np.abs(Zxx[:, voiced_frames]).T,
+                                                f0_interp[voiced_frames], sr)
 
     formant_ratio = (2.0 ** (float(formant_shift_cents) / 1200.0)
                      if formant_shift_cents != 0 else 1.0)
+    gain_lo, gain_hi = (10.0 ** (g / 20.0) for g in FORMANT_GAIN_DB)
 
-    out_bins = np.arange(n_bins, dtype=np.float64)   # [0, 1, ..., n_bins-1]
-    Zout     = Zxx.copy()   # unvoiced frames stay exactly as original
+    # ── Per-peak relocation ───────────────────────────────────────────────
+    bins      = np.arange(n_bins)
+    omega_bin = 2.0 * np.pi * hop_size / fft_size    # phase advance per hop of one bin
+    Zout      = Zxx.copy()   # unvoiced frames stay exactly as original
 
-    # ── Phase vocoder accumulators ────────────────────────────────────────
-    # expected_advance[k]: how much bin k's phase should advance per hop if
-    # the signal were a pure tone exactly at that bin's centre frequency.
-    # This is 2π * (k * sr/fft_size) * hop_size/sr = 2π * k * hop/fft_size.
-    expected_advance = 2.0 * np.pi * out_bins * hop_size / fft_size
-
-    # phase_accum[k]: running output phase per bin, propagated across frames.
-    phase_accum    = np.zeros(n_bins, dtype=np.float64)
-    # X_shifted_prev: resampled spectrum from the previous voiced frame,
-    # needed to measure the frame-to-frame phase advance in the source signal.
-    X_shifted_prev = np.zeros(n_bins, dtype=np.complex128)
-    first_voiced   = True   # seed the accumulator on the first voiced frame
+    prev_peaks = None        # peak bins of the previous shifted frame
+    prev_theta = None        # their phase-rotation accumulators
 
     for i in range(n_frames):
-        ratio = ratio_per_frame[i] if i < len(ratio_per_frame) else 1.0
-
-        if not voiced_frames[i] or ratio <= 0.0 or not np.isfinite(ratio):
-            # Unvoiced — pass through; refresh the prev-frame reference so
-            # the PV doesn't see a stale phase when voice resumes.
-            X_shifted_prev = Zxx[:, i].copy()
-            first_voiced   = True   # treat next voiced frame as a fresh start
+        ratio = ratio_per_frame[i]
+        if not voiced_frames[i] or not np.isfinite(ratio) or ratio <= 0.0:
+            prev_peaks = None    # next voiced frame starts fresh
             continue
 
-        X = Zxx[:, i]   # original complex spectrum, shape (n_bins,)
+        X = Zxx[:, i]
+        region, peaks = _peak_regions(np.abs(X))
 
-        # ── 1. Spectral envelope E[k] from original frame ─────────────
-        # Cepstral smoothing (order 150) gives a smooth formant envelope that
-        # covers every bin — full spectral density, no hollow gaps.
-        A    = np.abs(X)
-        A_db = 20.0 * np.log10(np.maximum(A, 1e-10))
-        E_db = estimate_spectral_envelope(A_db, sr, cepstral_order=150)
-        E    = 10.0 ** (E_db / 20.0)
-
-        # Natural HF rolloff: real voice energy drops sharply above ~5-8 kHz
-        E = _apply_hf_rolloff(E, sr, fft_size)
-
-        # Normalise so output frame has the same spectral energy as the input
-        E_power = float(np.mean(E ** 2))
-        A_power = float(np.mean(A ** 2))
-        if E_power > 0.0:
-            E = E * np.sqrt(A_power / E_power)
-
-        # Optional independent formant shift
-        if formant_shift_cents != 0:
-            E = np.interp(out_bins / formant_ratio, out_bins, E,
-                          left=0.0, right=0.0)
-
-        # ── 2. Resample original complex spectrum to target pitch ──────
-        # in_bins[k] = k / ratio  — the input bin whose frequency maps to
-        # output frequency k*sr/fft_size after the pitch-ratio scaling.
-        in_bins   = out_bins / ratio
-        X_re      = np.interp(in_bins, out_bins, np.real(X), left=0.0, right=0.0)
-        X_im      = np.interp(in_bins, out_bins, np.imag(X), left=0.0, right=0.0)
-        X_shifted = X_re + 1j * X_im
-
-        # ── 3. Phase vocoder phase propagation ────────────────────────
-        # Measure how much the resampled spectrum's phase actually advanced
-        # since the last frame, subtract the expected advance to get the
-        # instantaneous deviation (true frequency offset), then integrate
-        # into the output accumulator.  This makes consecutive output frames
-        # phase-coherent at each bin's true frequency — no ISTFT smearing.
-        if first_voiced:
-            # Seed: start accumulator at the resampled signal's own phase so
-            # the first output frame is anchored to the real signal.
-            phase_accum = np.angle(X_shifted).copy()
-            first_voiced = False
+        # True peak frequency (in bins) from the phase advance since the
+        # previous input frame
+        if i > 0:
+            dphi = np.angle(X[peaks]) - np.angle(Zxx[peaks, i - 1]) - omega_bin * peaks
+            dphi = np.mod(dphi + np.pi, 2.0 * np.pi) - np.pi
+            peak_freq = peaks + dphi / omega_bin
         else:
-            actual_advance  = np.angle(X_shifted) - np.angle(X_shifted_prev)
-            deviation       = np.angle(np.exp(1j * (actual_advance - expected_advance)))
-            inst_freq       = expected_advance + deviation
-            phase_accum    += inst_freq
+            peak_freq = peaks.astype(np.float64)
 
-        X_shifted_prev = X_shifted.copy()
+        shift = np.rint((ratio - 1.0) * peak_freq).astype(np.int64)
+        advance = (ratio - 1.0) * omega_bin * peak_freq
 
-        # ── 4. Output = envelope magnitude × propagated phase ─────────
-        Zout[:, i] = E * np.exp(1j * phase_accum)
+        if prev_peaks is None:
+            theta = np.zeros(peaks.size)
+        else:
+            j = np.searchsorted(prev_peaks, peaks)
+            lo = np.clip(j - 1, 0, prev_peaks.size - 1)
+            hi = np.clip(j, 0, prev_peaks.size - 1)
+            nearest = np.where(np.abs(peaks - prev_peaks[lo]) <= np.abs(prev_peaks[hi] - peaks), lo, hi)
+            theta = prev_theta[nearest] + advance
+
+        dest = bins + shift[region]
+        inside = (dest >= 0) & (dest < n_bins)
+        dest_c = np.clip(dest, 0, n_bins - 1)
+
+        env = envelopes[i]
+        if formant_ratio != 1.0:
+            env_dest = np.interp(dest_c / formant_ratio, bins, env)
+        else:
+            env_dest = env[dest_c]
+        gain = np.clip(env_dest / np.maximum(env, 1e-30), gain_lo, gain_hi)
+
+        moved = X * gain * np.exp(1j * theta[region])
+        Zout[:, i] = (np.bincount(dest[inside], weights=moved.real[inside], minlength=n_bins)
+                      + 1j * np.bincount(dest[inside], weights=moved.imag[inside], minlength=n_bins))
+
+        prev_peaks, prev_theta = peaks, np.mod(theta, 2.0 * np.pi)
 
     # ── ISTFT synthesis ───────────────────────────────────────────────────
     _, output = istft(

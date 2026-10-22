@@ -129,6 +129,88 @@ def pyin(
     return f0, voiced_flag, voiced_probs
 
 
+def yin_track(
+    audio: np.ndarray,
+    sr: int,
+    hop_length: int,
+    n_frames: int | None = None,
+    fmin: float = 50.0,
+    fmax: float = 2000.0,
+    frame_length: int = 2048,
+    threshold: float = 0.15,
+    chunk_frames: int = 256,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorised YIN on frames *centred* at ``i * hop_length``.
+
+    Same difference function, CMND, absolute threshold (with the global
+    minimum fallback) and parabolic interpolation as :func:`yin`, computed
+    for a chunk of frames at a time through an FFT autocorrelation.  Frame
+    *i* covers ``audio[i*hop - frame_length//2 : i*hop + frame_length//2]``
+    (zero-padded), which is the frame grid of ``scipy.signal.stft`` with
+    ``boundary='zeros'``.
+
+    Returns ``(f0, aperiodicity)`` per frame: f0 in Hz (0.0 when no lag
+    qualifies) and the CMND value at the chosen lag (1.0 when none), which
+    the caller thresholds for voicing.
+    """
+    x = np.asarray(audio, dtype=np.float64)
+    half = frame_length // 2
+    if n_frames is None:
+        n_frames = 1 + len(x) // hop_length
+    tau_min = max(2, int(sr / fmax))
+    tau_max = min(half, int(sr / fmin))
+
+    need = (n_frames - 1) * hop_length + frame_length
+    padded = np.zeros(max(need, half + len(x)), dtype=np.float64)
+    padded[half:half + len(x)] = x
+    windows = np.lib.stride_tricks.sliding_window_view(padded, frame_length)[::hop_length][:n_frames]
+
+    taus = np.arange(tau_max + 1)
+    f0 = np.zeros(n_frames, dtype=np.float64)
+    aper = np.ones(n_frames, dtype=np.float64)
+    for c0 in range(0, n_frames, chunk_frames):
+        frames = windows[c0:c0 + chunk_frames]
+        rows = np.arange(frames.shape[0])
+
+        # Difference function d(tau) = E_head + E_tail - 2 r(tau)
+        cs = np.zeros((frames.shape[0], frame_length + 1))
+        np.cumsum(frames * frames, axis=1, out=cs[:, 1:])
+        spec = np.fft.rfft(frames, n=2 * frame_length, axis=1)
+        r = np.fft.irfft(spec.real ** 2 + spec.imag ** 2, n=2 * frame_length, axis=1)[:, :tau_max + 1]
+        d = cs[:, frame_length - taus] + cs[:, frame_length:frame_length + 1] - cs[:, taus] - 2.0 * r
+        d[:, 0] = 0.0
+        np.maximum(d, 0.0, out=d)
+
+        # Cumulative mean normalised difference
+        running = np.cumsum(d[:, 1:], axis=1)
+        dp = np.ones_like(d)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            dp[:, 1:] = np.where(running > 0.0, d[:, 1:] * taus[1:] / running, 1.0)
+
+        # Absolute threshold: first lag below it that is not above its successor
+        seg = dp[:, tau_min:tau_max]
+        cand = (seg[:, :-1] < threshold) & (seg[:, :-1] <= seg[:, 1:])
+        has = cand.any(axis=1)
+        tau = np.where(has, tau_min + cand.argmax(axis=1), 0)
+        best = tau_min + seg.argmin(axis=1)
+        fallback = ~has & (dp[rows, best] < 1.0)
+        tau = np.where(fallback, best, tau)
+
+        # Parabolic interpolation around the chosen lag
+        ok = (tau > 0) & (tau < tau_max)
+        t = np.clip(tau, 1, tau_max - 1)
+        s0, s1, s2 = dp[rows, t - 1], dp[rows, t], dp[rows, t + 1]
+        denom = 2.0 * (2.0 * s1 - s2 - s0)
+        safe = np.abs(denom) >= 1e-10
+        frac = np.where(safe, (s2 - s0) / np.where(safe, denom, 1.0), 0.0)
+        tau_f = np.where(ok, t + frac, tau.astype(np.float64))
+
+        voiced = tau > 0
+        f0[c0:c0 + frames.shape[0]] = np.where(voiced, sr / np.maximum(tau_f, 1e-9), 0.0)
+        aper[c0:c0 + frames.shape[0]] = np.where(voiced, dp[rows, np.maximum(tau, 0)], 1.0)
+    return f0, aper
+
+
 # ------------------------------------------------------------------
 # YIN internals
 # ------------------------------------------------------------------

@@ -86,5 +86,359 @@
    "fails": []
   },
   "max_abs_diff": 0.8285593747828429
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4-sine_spectral-na-C5",
+  "file": "tests/golden/test_10s_C4/sine_spectral__na__C5.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 5.083629376743381,
+   "rms_change_db": 0.08973199404142296,
+   "f0_cents": -1008.8463334571518,
+   "inharm_worse_db": 31.699803254421056,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -37.812508446680724,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.9196462476475684,
+   "rms_change_db": 0.0036018819296588234,
+   "f0_cents": 0.13518978435156684,
+   "inharm_worse_db": -2.2890295101839726,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.8593072777612445,
+   "fails": []
+  },
+  "max_abs_diff": 2.2444310982429827,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4-sine_spectral-na-F3",
+  "file": "tests/golden/test_10s_C4/sine_spectral__na__F3.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 5.177628703008745,
+   "rms_change_db": 0.025068011427964443,
+   "f0_cents": 1183.9332110644962,
+   "inharm_worse_db": 27.650671715826256,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -28.16777766196152,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -1.1803665620345638,
+   "rms_change_db": 0.0009220817317858732,
+   "f0_cents": 0.14973751295849902,
+   "inharm_worse_db": -0.1959755675293806,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -0.18125405441735154,
+   "fails": []
+  },
+  "max_abs_diff": 2.285399911402946,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4-sine_spectral-na-F4",
+  "file": "tests/golden/test_10s_C4/sine_spectral__na__F4.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 5.0919326360790365,
+   "rms_change_db": 0.032393353944351055,
+   "f0_cents": 1169.6829492667982,
+   "inharm_worse_db": 28.35475965282803,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -27.484171682151807,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.53333745107636,
+   "rms_change_db": 5.139474017656909e-05,
+   "f0_cents": 0.094597940888386,
+   "inharm_worse_db": -2.09693581026049,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.36502541219043927,
+   "fails": []
+  },
+  "max_abs_diff": 2.2336180389575198,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4_Fs4_tuned-sine_spectral-na-C5",
+  "file": "tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__C5.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 6.784952231137625,
+   "rms_change_db": 0.10789499240487999,
+   "f0_cents": -976.9428667577514,
+   "inharm_worse_db": 31.65223144635315,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -38.52439129418398,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -1.9813640634191136,
+   "rms_change_db": 0.002834558196194159,
+   "f0_cents": 0.22484250673306183,
+   "inharm_worse_db": -2.5823573627936014,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.9005701481717683,
+   "fails": []
+  },
+  "max_abs_diff": 2.6318604820448526,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4_Fs4_tuned-sine_spectral-na-F3",
+  "file": "tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__F3.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 4.680100294838807,
+   "rms_change_db": 0.04686405809974925,
+   "f0_cents": 1186.0814523035294,
+   "inharm_worse_db": 28.596787933774447,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -31.963291068878654,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": 1.6453057207595938,
+   "rms_change_db": 0.0003295632490365463,
+   "f0_cents": 0.0436924970529194,
+   "inharm_worse_db": 0.33923215693229025,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -0.21935630831371888,
+   "fails": [
+    "peak"
+   ]
+  },
+  "max_abs_diff": 2.439996731477639,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_10s_C4_Fs4_tuned-sine_spectral-na-F4",
+  "file": "tests/golden/test_10s_C4_Fs4_tuned/sine_spectral__na__F4.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 6.124310129683089,
+   "rms_change_db": 0.07053765836978254,
+   "f0_cents": -691.8953282872516,
+   "inharm_worse_db": 29.301397495379994,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -28.60843583412713,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -0.4231616755669817,
+   "rms_change_db": 7.318849154280826e-05,
+   "f0_cents": 0.2816417914590413,
+   "inharm_worse_db": -2.326013397707591,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.3938958254896914,
+   "fails": []
+  },
+  "max_abs_diff": 2.5482800571300928,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_2s_C4-pipe_mode_sine_spectral-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_mode_sine_spectral__na__F4.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 4.078325022709902,
+   "rms_change_db": 0.02440972020852783,
+   "f0_cents": -1191.060934006214,
+   "inharm_worse_db": 28.536147942666403,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -26.696009048559066,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.645633415199341,
+   "rms_change_db": -0.0006382444870034476,
+   "f0_cents": 0.10511165735089655,
+   "inharm_worse_db": -1.9658723126311415,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.36617074458045806,
+   "fails": []
+  },
+  "max_abs_diff": 2.058936672035618,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_2s_C4-pipe_mode_sine_spectral_shift-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_mode_sine_spectral_shift__na__F4.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 4.979918251347079,
+   "rms_change_db": 0.014848395925422864,
+   "f0_cents": 1170.1677715701867,
+   "inharm_worse_db": 29.27889446127216,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -26.87715542672562,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.498207025586417,
+   "rms_change_db": -0.0009302409711287041,
+   "f0_cents": 0.08922760064925643,
+   "inharm_worse_db": -2.253319467017981,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.24956057071046978,
+   "fails": []
+  },
+  "max_abs_diff": 2.1818890551999486,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_2s_C4-sine_spectral-na-C5",
+  "file": "tests/golden/test_2s_C4/sine_spectral__na__C5.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 5.074437255198948,
+   "rms_change_db": 0.07438152219473704,
+   "f0_cents": -1011.0668259911097,
+   "inharm_worse_db": 31.718797185401456,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -38.240306072519004,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.866604717901391,
+   "rms_change_db": 0.0034072430586338243,
+   "f0_cents": 0.09793407813568564,
+   "inharm_worse_db": -1.539472642017941,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.861543906133388,
+   "fails": []
+  },
+  "max_abs_diff": 2.0527854252538535,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_2s_C4-sine_spectral-na-F3",
+  "file": "tests/golden/test_2s_C4/sine_spectral__na__F3.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 4.619904810769447,
+   "rms_change_db": 0.01009860557654818,
+   "f0_cents": 1183.974285738126,
+   "inharm_worse_db": 27.703526481361333,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -27.367919645568907,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -0.5269895937651968,
+   "rms_change_db": 0.0009913136251515908,
+   "f0_cents": 0.030228399790450795,
+   "inharm_worse_db": -0.15810882888803235,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -0.18278801393717892,
+   "fails": []
+  },
+  "max_abs_diff": 2.186513915602356,
+  "pitch_mode": "sine_spectral"
+ },
+ {
+  "change": "change6",
+  "case": "test_2s_C4-sine_spectral-na-F4",
+  "file": "tests/golden/test_2s_C4/sine_spectral__na__F4.wav",
+  "reason": "sine_spectral lands on the target note: per-peak relocation with phase rotation to the target frequency (was envelope magnitude x source-rate phase), YIN source F0 refined from the harmonics (was pYIN capped at 500 Hz)",
+  "before": {
+   "peak_dbfs": 4.078325022709902,
+   "rms_change_db": 0.02440972020852783,
+   "f0_cents": -1191.060934006214,
+   "inharm_worse_db": 28.536147942666403,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": -26.696009048559066,
+   "fails": [
+    "peak",
+    "f0",
+    "inharm"
+   ]
+  },
+  "after": {
+   "peak_dbfs": -2.645633415199341,
+   "rms_change_db": -0.0006382444870034476,
+   "f0_cents": 0.10511165735089655,
+   "inharm_worse_db": -1.9658723126311415,
+   "tail_db": null,
+   "length_delta_ms": 0.0,
+   "h1_vs_input_db": 0.36617074458045806,
+   "fails": []
+  },
+  "max_abs_diff": 2.058936672035618,
+  "pitch_mode": "sine_spectral"
  }
 ]

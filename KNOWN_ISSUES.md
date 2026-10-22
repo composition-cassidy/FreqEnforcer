@@ -8,8 +8,6 @@
 
 - [Severity: Low] **Stretch factor snap-to-1.0** — The stretch factor slider snaps to exactly 1.0 in a small deadband near center. Users who want values like 0.99x or 1.01x need to use the manual text input.
 
-- [Severity: High] **`sine_spectral` lands on the wrong pitch** — Output pitch does not follow the target note. On the C4 test fixtures, targets F3 / F4 / C5 are detected at ~346 Hz / ~58 Hz / ~55 Hz. Recorded as-is in the golden regression references (`tests/golden`), so a fix will need regenerated references.
-
 - [Severity: Medium] **TD-PSOLA stretch shifts pitch** — `tdpsola` at ×1.5 on a voice tuned to F4 (349 Hz) comes out detected at ~120 Hz.
 
 - [Severity: Low] **`world_hnm` output is not repeatable** — The HNM synthesizer uses unseeded random phases and noise, so two renders of the same settings differ slightly. (The regression tests seed the RNG.)

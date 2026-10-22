@@ -232,11 +232,14 @@ def sec_before_after(rows, cl, base, bcl) -> str:
         cache: dict = {}
         why = Counter(reason_of(r, m, cl, cache) for r, _b in reg_rows for m in cl.post_ex_fails(r))
         out += ["Why renders that passed before fail now (failed metrics, by the documented reasons of "
-                "*Remaining failures*): mostly the fixes working as specified on inputs the pitch stage "
-                "already got wrong - cleanliness now masks the *target's* harmonics, so it removes the body "
-                "of a mis-pitched render (before, the original f0 happened to match it); the low cut now "
-                "keys on the real output f0, so on upward shifts the 100 % setting cuts where its design "
-                "says instead of under-cutting.", "",
+                "*Remaining failures*): the fixes working as specified, and the f0 metric misreading a "
+                "pitch that is now right. *yin_bias*: once sine_spectral lands on the target, cleanliness "
+                "strips the breathy fixture's pitch-locked aspiration noise and YIN reads the result sharp, "
+                "though its harmonics sit on the target (before, the pitch-only render missed the note, so "
+                "these f0 failures were the pitch stage's). *pitch_miss_body*: cleanliness now masks the "
+                "*target's* harmonics, so it removes the body of a mis-pitched render (before, the original "
+                "f0 happened to match it). *lowcut_100*: the low cut now keys on the real output f0, so on "
+                "upward shifts the 100 % setting cuts where its design says instead of under-cutting.", "",
                 table(["reason", "failed metrics"], [[k, n] for k, n in why.most_common()]), ""]
         reg_rows.sort(key=lambda t: -cl.post_severity(t[0]))
         out += ["Newly failing renders (worst 20):", "",
@@ -297,8 +300,8 @@ def sec_remaining(rows, cl) -> str:
     out += [f"{total} failed (render, metric) pairs in the latest run:", "",
             table(["category", "failures", "why it remains"], [
                 ["inherited from the pitch stage", n_inh,
-                 "The pitch-only render fails the same metric. Fixing pitch modes is out of scope for this "
-                 "change set (see the per-mode table)."],
+                 "The pitch-only render fails the same metric. Fixing pitch modes other than sine_spectral "
+                 "is out of scope for this change set (see the per-mode table)."],
                 ["pitch stage missed the note (f0/inharm)", sum(miss.values()),
                  "Measured against a target the post stages never received."],
                 ["breathiness > 1 (intended)", sum(intended.values()),
@@ -334,7 +337,7 @@ REASONS = {
     "pitch_miss_body": (
         "Pitch-only render already misses the target note. Cleanliness masks the target's harmonics, so it "
         "removes most of the (off-target) body; tail and rms are measured relative to that body. Fix belongs "
-        "to the pitch mode (mostly sine_spectral / stft_pitchshift), not the post stages."),
+        "to the pitch mode (mostly stft_pitchshift), not the post stages."),
     "yin_bias": (
         "YIN (the sweep's f0 metric) misreads the note: the spectral peaks of harmonics 1-4 sit within 2 cents "
         "of the target. Seen on the breathy fixture once its pitch-locked aspiration noise is removed. The "
@@ -443,11 +446,14 @@ def sec_intentional(changes) -> str:
                      f"{f(b.get('h1_vs_input_db'), 1, True)} → {f(a.get('h1_vs_input_db'), 1, True)}",
                      f(c.get("max_abs_diff"), 4), ", ".join(b.get("fails", [])) or "pass",
                      ", ".join(a.get("fails", [])) or "pass"])
+    fixed = sorted({c["pitch_mode"] for c in changes if c.get("pitch_mode")})
+    why = "because their render has cleanliness, breathiness or low cut active"
+    if fixed:
+        why += f", or because a change fixed their pitch mode: {', '.join(f'`{m}`' for m in fixed)}"
     return ("## Intentional output changes\n\n"
-            "Golden references regenerated because their render has cleanliness, breathiness or low cut "
-            "active (`tests/sweep/intentional_changes.json`). Pitch-only references are unchanged. Metrics "
-            "use the sweep's definitions on the 2 s C4 fixture; *H1 vs input* is the fundamental's level "
-            "relative to the source's.\n\n"
+            f"Golden references regenerated {why} (`tests/sweep/intentional_changes.json`). "
+            "Every other pitch-only reference is unchanged. Metrics use the sweep's definitions on the "
+            "reference's own fixture; *H1 vs input* is the fundamental's level relative to the source's.\n\n"
             + table(["change", "file", "why", "peak dBFS", "RMS Δ dB", "f0 ¢", "inharm Δ dB", "H1 vs input dB",
                      "max\\|old−new\\|", "sweep fails before", "sweep fails after"], body))
 
