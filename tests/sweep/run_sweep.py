@@ -1,8 +1,10 @@
 """Post-pitch combination sweep for FreqEnforcer (measures; fixes nothing).
 
-    python tests/sweep/run_sweep.py              # full sweep + probes + report
-    python tests/sweep/run_sweep.py --quick      # smoke subset (~1 min)
-    python tests/sweep/report.py                 # rebuild the report from out/
+    python tests/sweep/run_sweep.py --tag change1   # full sweep + probes + report;
+                                                    # appends a pass-rate entry to history.json
+    python tests/sweep/run_sweep.py --quick         # smoke subset (~1 min), no history entry
+    python tests/sweep/run_sweep.py --probes-only   # probes only -> out/probes.json
+    python tests/sweep/report.py                    # rebuild the report from out/
 
 Renders every combination through server.routes.audio._run_pipeline directly
 (no HTTP) in a process pool:
@@ -102,12 +104,46 @@ def _git_head() -> str:
         return "unknown"
 
 
+def _git_dirty() -> bool:
+    try:
+        return bool(subprocess.check_output(["git", "status", "--porcelain", "--", "server", "src"],
+                                            cwd=cfg.ROOT, text=True).strip())
+    except Exception:
+        return True
+
+
+def append_history(tag: str, summary: dict) -> None:
+    """One pass-rate entry per full run (history.json is committed with each change)."""
+    import classify
+    from collections import Counter
+    rows = [json.loads(line) for line in open(cfg.OUT_DIR / "results.jsonl")]
+    cl = classify.Classifier(rows)
+    causes = Counter()
+    for r in rows:
+        for m in cl.post_fails(r):
+            for c in cl.causes(r, m):
+                for lab in classify.expand(c):
+                    causes[lab] += 1
+    entry = {"tag": tag, "date": time.strftime("%Y-%m-%d %H:%M"), "git_head": _git_head(),
+             "server_or_ui_dirty": _git_dirty(), "elapsed_min": summary["elapsed_min"],
+             **cl.pass_rates(rows),
+             "post_failures": sum(len(cl.post_fails(r)) for r in rows),
+             "post_failures_by_cause": dict(causes.most_common())}
+    hist = json.loads(cfg.HISTORY_PATH.read_text()) if cfg.HISTORY_PATH.exists() else []
+    hist = [h for h in hist if h["tag"] != tag] + [entry]
+    cfg.HISTORY_PATH.write_text(json.dumps(hist, indent=1) + "\n")
+    print(f"history: {tag} raw {entry['raw_pct']:.1f} %  post {entry['post_pct']:.1f} %  "
+          f"post excl. intended {entry['post_ex_pct']:.1f} %")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--workers", type=int, default=cfg.WORKERS)
     ap.add_argument("--quick", action="store_true", help="small smoke subset")
     ap.add_argument("--no-probes", action="store_true")
     ap.add_argument("--no-report", action="store_true")
+    ap.add_argument("--probes-only", action="store_true")
+    ap.add_argument("--tag", default=None, help="history.json label for this run")
     args = ap.parse_args()
 
     from server.audio.modes import MODES
@@ -115,6 +151,13 @@ def main() -> int:
 
     t_start = time.perf_counter()
     cfg.OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if args.probes_only:
+        with ProcessPoolExecutor(max_workers=min(args.workers, len(probes.PROBES))) as pool:
+            res = dict(pool.map(probes.run_probe, probes.PROBES))
+        (cfg.OUT_DIR / "probes.json").write_text(json.dumps(res, indent=1, default=_jsonable))
+        print("probes:", {k: v.get("elapsed_s") for k, v in res.items()},
+              "errors:", [k for k, v in res.items() if "error" in v])
+        return 0
     tasks, meta = build_tasks(args.quick)
     print(f"pairwise: {meta['pairwise_rows']} rows, pair coverage {meta['pairwise_coverage']:.1%}")
 
@@ -188,6 +231,8 @@ def main() -> int:
     if probe_res:
         (cfg.OUT_DIR / "probes.json").write_text(json.dumps(probe_res, indent=1, default=_jsonable))
     print(f"wrote {n_rows} rows to {results_path} in {summary['elapsed_min']} min")
+    if args.tag and not args.quick:
+        append_history(args.tag, summary)
 
     if not args.no_report:
         import report

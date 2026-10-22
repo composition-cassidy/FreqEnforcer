@@ -23,6 +23,9 @@ for _p in (str(ROOT / "server"), str(ROOT)):
         sys.path.insert(1, _p)
 warnings.filterwarnings("ignore", message=r"pkg_resources is deprecated")
 OUT_DIR = SWEEP_DIR / "out"
+BASELINE_DIR = SWEEP_DIR / "baseline"          # frozen pre-fix data (committed)
+HISTORY_PATH = SWEEP_DIR / "history.json"      # pass rate per full run (committed)
+INTENTIONAL_PATH = SWEEP_DIR / "intentional_changes.json"   # regenerated goldens (committed)
 REPORT_PATH = ROOT / "docs" / "SWEEP_REPORT.md"
 REAL_FIXTURE_DIR = ROOT / "tests" / "fixtures"
 

@@ -1,14 +1,15 @@
 """Process-pool task: render one group (fixture, mode, shift, stretch) through
 the real _run_pipeline, measure every render, and attribute each failure.
 
-Attribution of a failed (render, metric):
-  1. inherited  - the pitch-only baseline of the group fails the same metric
-                  and the render is not worse by more than WORSE_MARGIN.
-  2. B1/B3/B4   - the single counterfactual toggle F1/F3/F4 makes it pass.
-  3. joint:...  - only all relevant toggles together make it pass.
-  4. B2 / clean_mask_N / breath_resynth / breath_intended / lowcut_design
-                - with all toggles on, switching that stage off makes it pass.
-  5. unexplained.
+Attribution of a failed (render, metric), using only real _run_pipeline
+calls so it keeps working as the pipeline changes:
+  1. inherited       - the group's pitch-only render fails the same metric and
+                       the render is not worse by more than WORSE_MARGIN.
+  2. stage labels    - switching one post-pitch stage off (cleanliness,
+                       smart low cut, breathiness) makes it pass:
+                       clean / lowcut / breath / breath_intended (> 1).
+  3. multi:a+b       - only switching several stages off makes it pass.
+  4. unexplained.
 """
 
 from __future__ import annotations
@@ -23,7 +24,6 @@ import warnings
 
 import numpy as np
 
-import counterfactual as cf
 import fixtures
 import metrics
 import sweep_config as cfg
@@ -114,14 +114,12 @@ def run_group(task: dict) -> dict:
             entry["sets"].append(set_name)
 
     rows = []
-    outputs: dict[tuple, np.ndarray | None] = {}
     for key, entry in combos.items():
         settings = make_settings(mode, tnote, stretch, entry["post"])
         t0 = time.perf_counter()
         out, timings, warns, exc = run_pipeline_once(fx, settings, det)
         elapsed = time.perf_counter() - t0
         m, fails, ex, sev = measure(out, fx, stretch, target_f0, settings, exc)
-        outputs[key] = out
         p = entry["post"]
         rows.append({
             "id": (f"{fx.name}|{mode}|{shift:+d}|x{stretch:g}|lc{p['clean_lowcut_percent']:g}"
@@ -130,145 +128,82 @@ def run_group(task: dict) -> dict:
             "sets": entry["sets"], "fixture": fx.name, "mode": mode, "shift": shift,
             "stretch": stretch, "lowcut": p["clean_lowcut_percent"], "clean": p["cleanliness_percent"],
             "hfrb": p["clean_hf_rollback_percent"], "breath": p["breathiness"], "hfbias": p["hf_bias"],
-            "target_note": tnote, "target_f0": target_f0, "cache_used": cf.app_has_cache(settings),
+            "target_note": tnote, "target_f0": target_f0,
             "metrics": m, "fails": fails, "exceed": ex, "severity": sev, "warnings": warns,
             "traceback": exc, "elapsed_s": round(elapsed, 3), "attribution": {},
             "_key": key, "_settings": settings,
         })
 
-    base = rows[0]
-    fidelity: list[dict] = []
-    _attribute(rows, base, fx, task, target_f0, outputs, fidelity)
+    _attribute(rows, rows[0], fx, task, tnote, target_f0)
 
     for r in rows:
         r.pop("_key", None)
         r.pop("_settings", None)
-    return {"rows": rows, "fidelity": fidelity, "librosa": "librosa" in sys.modules,
+    return {"rows": rows, "fidelity": [], "librosa": "librosa" in sys.modules,
             "group": f"{fx.name}|{mode}|{shift:+d}|x{stretch:g}",
             "elapsed_s": round(time.perf_counter() - t_group, 2)}
 
 
-def _attribute(rows, base, fx, task, target_f0, outputs, fidelity) -> None:
-    from server.state import state
+STAGE_OFF = {
+    "clean": {"cleanliness_percent": 0.0, "clean_hf_rollback_percent": 0.0},
+    "lowcut": {"clean_lowcut_percent": 0.0},
+    "breath": {"breathiness": 1.0, "hf_bias": 0.0},
+}
+
+
+def active_stages(post: dict) -> list[str]:
+    out = []
+    if post["cleanliness_percent"] > 0.0:
+        out.append("clean")
+    if post["clean_lowcut_percent"] > 0.0:
+        out.append("lowcut")
+    if post["breathiness"] != 1.0:
+        out.append("breath")
+    return out
+
+
+def stage_label(stage: str, post: dict) -> str:
+    if stage == "breath" and post["breathiness"] > 1.0:
+        return "breath_intended"
+    return stage
+
+
+def _attribute(rows, base, fx, task, tnote, target_f0) -> None:
+    import classify
 
     stretch = float(task["stretch"])
     det = task["detected_pitch"]
-    reg = metrics.regions(fx, stretch)
-    note_span = reg["note"]
-    pitched = None
-    world_cache = None
-    pitch_error = None
-    memo: dict[tuple, tuple[list, dict]] = {}
+    memo = {r["_key"]: (r["fails"], r["metrics"]) for r in rows}
 
-    def ensure_pitched(settings):
-        nonlocal pitched, world_cache, pitch_error
-        if pitched is None and pitch_error is None:
-            try:
-                state.detected_pitch = dict(det)
-                with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
-                    warnings.simplefilter("ignore")
-                    pitched, world_cache = cf.pitch_stage(fx.audio, fx.sr, settings)
-            except Exception:
-                pitch_error = traceback.format_exc()
-        return pitched is not None
-
-    def replica(settings, fixes=frozenset(), diags=frozenset()):
-        eff = dict(settings)
-        if "no_clean" in diags:
-            eff["cleanliness_percent"] = 0.0
-        if "no_breath" in diags:
-            eff["breathiness"] = 1.0
-        if "no_lowcut" in diags:
-            eff["clean_lowcut_percent"] = 0.0
-        fixes = frozenset(f for f in fixes if f in cf.relevant_fixes(eff))
-        key = (post_key(eff), fixes)
-        if key in memo:
-            return memo[key]
-        try:
-            with warnings.catch_warnings(), contextlib.redirect_stdout(io.StringIO()):
-                warnings.simplefilter("ignore")
-                y = cf.post_stage(pitched, fx.sr, eff, world_cache, det, target_f0, note_span, fixes)
-            m, fails, _ex, _sev = measure(y, fx, stretch, target_f0, eff)
-        except Exception:
-            m, fails, _ex, _sev = measure(None, fx, stretch, target_f0, eff, traceback.format_exc())
-            y = None
-        memo[key] = (fails, m, y)
+    def render(post: dict):
+        key = post_key(post)
+        if key not in memo:
+            settings = make_settings(task["mode"], tnote, stretch, post)
+            out, _t, _w, exc = run_pipeline_once(fx, settings, det)
+            m, fails, _ex, _sev = measure(out, fx, stretch, target_f0, settings, exc)
+            memo[key] = (fails, m)
         return memo[key]
 
-    # Fidelity: replica without toggles must equal _run_pipeline (two post-processed combos)
-    checked = 0
-    for r in rows[1:]:
-        if checked >= 2 or r["traceback"] or outputs.get(r["_key"]) is None:
-            continue
-        s = r["_settings"]
-        if not (s["cleanliness_percent"] > 0 or s["breathiness"] != 1.0 or s["clean_lowcut_percent"] > 0):
-            continue
-        if not ensure_pitched(s):
-            break
-        _f, _m, y = replica(s)
-        ref = outputs[r["_key"]]
-        same_len = y is not None and y.shape == ref.shape
-        diff = float(np.max(np.abs(np.asarray(y, np.float64) - np.asarray(ref, np.float64)))) if same_len else None
-        fidelity.append({"id": r["id"], "same_len": same_len, "max_abs_diff": diff})
-        checked += 1
+    def cleared(metric, fails, m) -> bool:
+        return metric not in fails or classify.inherited(metric, m, base)
 
-    base_fails = set(base["fails"])
     for r in rows[1:]:
-        if not r["fails"]:
-            continue
-        s = r["_settings"]
+        post = {k: r["_settings"][k] for k in POST_KEYS}
         for metric in r["fails"]:
+            if classify.inherited(metric, r["metrics"], base):
+                r["attribution"][metric] = ["inherited"]
+                continue
+            stages = active_stages(post)
             causes = []
-            if metric in base_fails:
-                if metric in ("exception", "nonfinite"):
-                    causes = ["inherited"]
-                else:
-                    v, vb = metrics.metric_value(r["metrics"], metric), metrics.metric_value(base["metrics"], metric)
-                    if v is None or vb is None or v - vb <= metrics.WORSE_MARGIN[metric]:
-                        causes = ["inherited"]
-            if not causes:
-                if not ensure_pitched(s):
-                    causes = ["pitch_stage_error"]
-                else:
-                    causes = _explain(s, metric, replica, base)
-            r["attribution"][metric] = causes
-
-
-def _cleared(metric: str, fails: list, m: dict, base: dict) -> bool:
-    """A counterfactual clears a failure when the metric passes, or - if the
-    pitch-only baseline already fails it - when it is back within
-    WORSE_MARGIN of the baseline (the post stages no longer add to it)."""
-    if metric not in fails:
-        return True
-    if metric in base["fails"] and metric not in ("exception", "nonfinite"):
-        v, vb = metrics.metric_value(m, metric), metrics.metric_value(base["metrics"], metric)
-        return v is not None and vb is not None and v - vb <= metrics.WORSE_MARGIN[metric]
-    return False
-
-
-def _explain(s, metric, replica, base) -> list[str]:
-    rel = cf.relevant_fixes(s)
-    causes = []
-    for f in rel:
-        fails, m, _y = replica(s, frozenset([f]))
-        if _cleared(metric, fails, m, base):
-            causes.append(cf.FIX_LABEL[f])
-    if causes:
-        return causes
-    if len(rel) >= 2:
-        fails, m, _y = replica(s, frozenset(rel))
-        if _cleared(metric, fails, m, base):
-            return ["joint:" + "+".join(cf.FIX_LABEL[f] for f in rel)]
-    stages = cf.active_stages(s)
-    for d in stages:
-        fails, m, _y = replica(s, frozenset(rel), frozenset([d]))
-        if _cleared(metric, fails, m, base):
-            causes.append(cf.diag_label(d, s))
-    if causes:
-        return causes
-    if len(stages) >= 2:
-        # Each stage alone is enough to fail: only removing them together clears it
-        fails, m, _y = replica(s, frozenset(rel), frozenset(stages))
-        if _cleared(metric, fails, m, base):
-            return ["multi:" + "+".join(cf.diag_label(d, s) for d in stages)]
-    return ["unexplained"]
+            for st in stages:
+                fails, m = render(dict(post, **STAGE_OFF[st]))
+                if cleared(metric, fails, m):
+                    causes.append(stage_label(st, post))
+            if not causes and len(stages) >= 2:
+                off = dict(post)
+                for st in stages:
+                    off.update(STAGE_OFF[st])
+                fails, m = render(off)
+                if cleared(metric, fails, m):
+                    causes = ["multi:" + "+".join(stage_label(st, post) for st in stages)]
+            r["attribution"][metric] = causes or ["unexplained"]
