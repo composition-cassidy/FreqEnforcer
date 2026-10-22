@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:8765';
+import { API_BASE } from '../config/api';
 
 // -- Settings to backend parameter mapping --
 // Formulas verified against PyQt6 SettingsPanel.get_settings()

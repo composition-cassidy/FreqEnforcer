@@ -9,17 +9,39 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow = null;
 let splashWindow = null;
 let backendProcess = null;
+let backendPort = null;
+
+// ── Single instance ───────────────────────────────────────────────────────
+// A second launch focuses the existing window instead of starting another
+// backend.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 // ── Backend process management ───────────────────────────────────────────
+// The backend binds an OS-assigned port (--port 0) and announces it on stdout
+// as "FREQENFORCER_PORT=<n>", so several backends never collide on 8765.
+const BACKEND_ARGS = ['--port', '0'];
+const PORT_LINE_RE = /^FREQENFORCER_PORT=(\d+)\s*$/m;
+
 function getBackendConfig() {
   if (isDev) {
-    return { exe: 'python', args: ['server/main.py'], cwd: path.join(__dirname, '..') };
+    return { exe: 'python', args: ['server/main.py', ...BACKEND_ARGS], cwd: path.join(__dirname, '..') };
   }
 
   // Production: find the PyInstaller bundle
   const primary = path.join(process.resourcesPath, 'backend', 'freqenforcer-backend.exe');
   if (fs.existsSync(primary)) {
-    return { exe: primary, args: [], cwd: path.dirname(primary) };
+    return { exe: primary, args: BACKEND_ARGS, cwd: path.dirname(primary) };
   }
 
   // Fallback locations
@@ -31,7 +53,7 @@ function getBackendConfig() {
   for (const alt of alternatives) {
     if (fs.existsSync(alt)) {
       console.log(`Backend found at fallback: ${alt}`);
-      return { exe: alt, args: [], cwd: path.dirname(alt) };
+      return { exe: alt, args: BACKEND_ARGS, cwd: path.dirname(alt) };
     }
   }
 
@@ -39,34 +61,55 @@ function getBackendConfig() {
   return null;
 }
 
-function startBackend() {
-  const config = getBackendConfig();
-  if (!config) {
-    dialog.showErrorBox('FreqEnforcer', 'Backend executable not found. Please reinstall the application.');
-    return;
-  }
+// Spawns the backend and resolves with the port it announces on stdout.
+function startBackend(timeout = 60000) {
+  return new Promise((resolve, reject) => {
+    const config = getBackendConfig();
+    if (!config) {
+      reject(new Error('Backend executable not found'));
+      return;
+    }
 
-  backendProcess = spawn(config.exe, config.args, {
-    cwd: config.cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
-  });
+    backendProcess = spawn(config.exe, config.args, {
+      cwd: config.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
 
-  backendProcess.stdout.on('data', (data) => {
-    console.log(`[backend] ${data}`);
-  });
+    let stdoutBuf = '';
+    let settled = false;
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(
+      () => settle(reject, new Error('Timed out waiting for backend port')), timeout);
 
-  backendProcess.stderr.on('data', (data) => {
-    console.error(`[backend] ${data}`);
-  });
+    backendProcess.stdout.on('data', (data) => {
+      console.log(`[backend] ${data}`);
+      if (!settled) {
+        stdoutBuf += data.toString();
+        const m = stdoutBuf.match(PORT_LINE_RE);
+        if (m) settle(resolve, Number(m[1]));
+      }
+    });
 
-  backendProcess.on('error', (err) => {
-    console.error('Failed to start backend:', err);
-  });
+    backendProcess.stderr.on('data', (data) => {
+      console.error(`[backend] ${data}`);
+    });
 
-  backendProcess.on('exit', (code) => {
-    console.log(`[backend] exited with code ${code}`);
-    backendProcess = null;
+    backendProcess.on('error', (err) => {
+      console.error('Failed to start backend:', err);
+      settle(reject, err);
+    });
+
+    backendProcess.on('exit', (code) => {
+      console.log(`[backend] exited with code ${code}`);
+      backendProcess = null;
+      settle(reject, new Error(`Backend exited with code ${code} before reporting its port`));
+    });
   });
 }
 
@@ -167,6 +210,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // File.path requires sandbox off; contextIsolation still protects the renderer
+      additionalArguments: [`--fe-backend-port=${backendPort}`],
     },
   });
 
@@ -192,6 +236,7 @@ function createWindow() {
 
 // ── App ready ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;
   initUserDataPaths();
 
   // ── Window IPC ────────────────────────────────────────────────────────
@@ -371,12 +416,10 @@ app.whenReady().then(async () => {
   // ── Show splash immediately ──────────────────────────────────────────
   createSplashWindow();
 
-  // Start the Python backend
-  startBackend();
-
-  // Wait for backend to be ready
+  // Start the Python backend and wait for it to be ready
   try {
-    await pollFor('http://127.0.0.1:8765/health');
+    backendPort = await startBackend();
+    await pollFor(`http://127.0.0.1:${backendPort}/health`);
   } catch (err) {
     console.error('Backend failed to start:', err.message);
     dialog.showErrorBox('FreqEnforcer', 'Backend failed to start. Please reinstall or contact support.');

@@ -14,12 +14,12 @@ import { useProcessing } from './hooks/useProcessing';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import VS from './config/visualSettings.json';
+import { API_BASE } from './config/api';
 import './index.css';
 
 // ── Layout constants ───────────────────────────────────────────────────────
 const PLAYBACK_ROW_H = 32;
 const SPLITTER_H     = 4;
-const API_BASE       = 'http://localhost:8765';
 
 // ── Default options (UI/app-level preferences, separate from audio settings) ─
 const DEFAULT_OPTIONS = {

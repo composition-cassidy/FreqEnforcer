@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './MultiSampleDialog.css';
 
-const API_BASE = 'http://localhost:8765';
+import { API_BASE } from '../config/api';
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OCTAVES = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];

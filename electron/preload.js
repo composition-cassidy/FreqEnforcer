@@ -16,7 +16,15 @@ document.addEventListener('drop', (e) => {
   }
 }, true);  // capture phase — fires before renderer handlers
 
+// Backend port chosen by the OS at spawn time; main.js passes it via
+// webPreferences.additionalArguments.
+const _portArg = process.argv.find((a) => a.startsWith('--fe-backend-port='));
+const _backendPort = _portArg ? Number(_portArg.split('=')[1]) : NaN;
+
 contextBridge.exposeInMainWorld('electronAPI', {
+  backendUrl: Number.isInteger(_backendPort) && _backendPort > 0
+    ? `http://127.0.0.1:${_backendPort}`
+    : null,
   getLastDroppedFilePath: () => _lastDroppedPath,
   // ── Window controls ──────────────────────────────────────────────────
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
