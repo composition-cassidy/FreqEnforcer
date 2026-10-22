@@ -29,8 +29,6 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXE = ROOT / "build-backend" / "freqenforcer-backend" / "freqenforcer-backend.exe"
 FIXTURE = ROOT / "tests" / "fixtures" / "test_2s_C4.wav"
-if not FIXTURE.exists():  # before fixtures moved
-    FIXTURE = ROOT / "test_2s_C4.wav"
 
 MODES = ["world_hard", "world_soft", "world_vt", "world_hnm", "praat_soft",
          "sine_spectral", "stft_pitchshift"]

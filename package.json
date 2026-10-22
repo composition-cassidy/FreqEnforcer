@@ -7,7 +7,7 @@
   "main": "electron/main.js",
   "homepage": "https://github.com/composition-cassidy/FreqEnforcer",
   "scripts": {
-    "dev": "concurrently -n py,vite,electron -c blue,green,yellow \"python server/main.py\" \"npx vite\" \"node -e \\\"setTimeout(()=>require('child_process').execSync('npx electron electron/main.js',{stdio:'inherit'}),3000)\\\"\"",
+    "dev": "concurrently -n vite,electron -c green,yellow \"npx vite\" \"npx electron electron/main.js\"",
     "dev:vite": "npx vite",
     "dev:server": "python server/main.py",
     "dev:electron": "npx electron electron/main.js",

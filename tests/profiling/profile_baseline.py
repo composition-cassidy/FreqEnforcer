@@ -324,7 +324,7 @@ def section_http(warm_repeats: int = 3) -> dict:
     try:
         with httpx.Client(base_url=BASE, timeout=600) as c:
             t0 = time.perf_counter()
-            r = c.post("/api/load-audio", json={"file_path": str(ROOT / FIXTURE)})
+            r = c.post("/api/load-audio", json={"file_path": str(matrix.FIXTURE_DIR / FIXTURE)})
             r.raise_for_status()
             out["load_audio"] = {"client_s": time.perf_counter() - t0,
                                  "server_timings_ms": r.json()["timings"],
@@ -491,7 +491,7 @@ def section_multisample() -> dict:
         proc, _ = start_server([sys.executable, str(ROOT / "server" / "main.py")])
         try:
             with httpx.Client(base_url=BASE, timeout=600) as c:
-                c.post("/api/load-audio", json={"file_path": str(ROOT / MS_FIXTURE)}).raise_for_status()
+                c.post("/api/load-audio", json={"file_path": str(matrix.FIXTURE_DIR / MS_FIXTURE)}).raise_for_status()
                 d3 = tmp_root / "http"
                 t0 = time.perf_counter()
                 last = None

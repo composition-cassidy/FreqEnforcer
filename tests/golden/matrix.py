@@ -26,6 +26,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_DIR = Path(__file__).resolve().parent
 MANIFEST_PATH = GOLDEN_DIR / "manifest.json"
+FIXTURE_DIR = ROOT / "tests" / "fixtures"
 
 # Same import roots the app has at runtime: repo root for ``server.*`` and
 # ``server/`` for the bare ``audio.*`` imports used by sine_spectral/stft.
@@ -35,7 +36,7 @@ for _p in (str(ROOT / "server"), str(ROOT)):
 
 warnings.filterwarnings("ignore", message=r"pkg_resources is deprecated")
 
-FIXTURES = ["test_2s_C4.wav", "test_10s_C4.wav", "test_10s_C4_Fs4_tuned.wav"]
+FIXTURES = ["test_2s_C4.wav", "test_10s_C4.wav", "test_10s_C4_Fs4_tuned.wav"]  # in FIXTURE_DIR
 SEMITONES = [-7, 5, 12]
 VOICINGS = ["strict", "force", "dilate"]
 RNG_SEED = 0
@@ -131,7 +132,7 @@ _pitch_cache: dict[str, tuple] = {}
 def load_fixture(name: str) -> tuple[np.ndarray, int]:
     if name not in _audio_cache:
         from server.audio.loader import load_audio
-        audio, sr, _ = load_audio(str(ROOT / name))
+        audio, sr, _ = load_audio(str(FIXTURE_DIR / name))
         _audio_cache[name] = (audio, sr)
     audio, sr = _audio_cache[name]
     return audio.copy(), sr

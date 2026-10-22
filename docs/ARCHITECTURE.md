@@ -127,6 +127,7 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
 
 ## Regression and profiling harness
 
+- `tests/fixtures/`: the three input WAVs (Git LFS).
 - `tests/golden/matrix.py`: render matrix (3 fixtures × 8 pitch modes × voicing
   where it applies × targets −7/+5/+12 semitones = 162 cases, plus 19 full-pipeline
   cases on `test_2s_C4.wav`, 181 in total). The `pipe_mode_*` cases send every
