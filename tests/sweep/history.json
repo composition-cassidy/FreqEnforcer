@@ -25,5 +25,26 @@
    "lowcut_design": 35,
    "B3": 21
   }
+ },
+ {
+  "tag": "change1: output F0 contour",
+  "date": "2026-10-22 21:19",
+  "git_head": "b32a998",
+  "server_or_ui_dirty": true,
+  "elapsed_min": 61.69,
+  "n": 10428,
+  "raw": 458,
+  "post": 1935,
+  "post_ex": 3216,
+  "raw_pct": 4.392021480629076,
+  "post_pct": 18.555811277330264,
+  "post_ex_pct": 30.84004602991945,
+  "post_failures": 13893,
+  "post_failures_by_cause": {
+   "clean": 8032,
+   "breath_intended": 5397,
+   "breath": 3399,
+   "lowcut": 87
+  }
  }
 ]

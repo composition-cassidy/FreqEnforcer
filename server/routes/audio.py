@@ -94,17 +94,16 @@ def _push_progress(loop: Optional[asyncio.AbstractEventLoop], progress: float, s
 # ---------------------------------------------------------------------------
 
 def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) -> Optional[dict]:
-    """WORLD analysis shared by pitch correction + breathiness (step 0 of the
+    """WORLD analysis of the input for the WORLD pitch modes (step 0 of the
     pipeline).  Reuses state.world_cache when it belongs to this audio;
-    returns None when the settings don't need WORLD."""
+    returns None when the pitch mode doesn't use WORLD."""
     from server.audio.modes import MODES
 
     pitch_mode = str(settings.get("pitch_mode", "world_hard"))
     needs_world = pitch_mode in MODES and MODES[pitch_mode].USES_WORLD_CACHE
-    needs_breathiness = (float(settings.get("breathiness", 1.0)) != 1.0)
     world_cache = None
 
-    if needs_world or needs_breathiness:
+    if needs_world:
         import hashlib
         audio_hash = hashlib.md5(audio[:min(1000, len(audio))].tobytes()).hexdigest()
         cached = state.world_cache
@@ -137,7 +136,12 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     from server.audio.autotuner import apply_breathiness
     from server.audio.modes import render_pitch_mode
     from server.audio.normalizer import normalize_audio
-    from server.audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut, compute_smart_lowcut
+    from server.audio.cleanliness import (
+        apply_cleanliness,
+        apply_low_cut,
+        compute_smart_lowcut,
+        lowcut_reference_f0,
+    )
     from server.audio.time_stretch import STRETCHERS
     from server.audio.harmonic_limiter import (
         analyze_harmonics,
@@ -161,8 +165,11 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     _t = time.perf_counter()
     progress(0.05, "Autotuning...")
 
-    # world_hard is the default for unknown modes (server/audio/modes)
-    result = render_pitch_mode(pitch_mode, result, sr, settings, world_cache=world_cache)
+    # world_hard is the default for unknown modes (server/audio/modes).
+    # out_f0/out_times: F0 contour of the corrected audio (None = passed through),
+    # the only F0 the post-pitch stages may use.
+    result, out_f0, out_times = render_pitch_mode(pitch_mode, result, sr, settings,
+                                                  world_cache=world_cache)
 
     timings['pitch_correction'] = round((time.perf_counter() - _t) * 1000, 1)
 
@@ -179,17 +186,18 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
         if fn is None:
             raise ValueError(f"Unknown stretching method: {stretch_method}")
         result = fn(result, int(sr), float(stretch_factor))
+        if out_times is not None:
+            out_times = out_times * float(stretch_factor)
 
     timings['time_stretch'] = round((time.perf_counter() - _t) * 1000, 1)
 
     if not state.is_current_token(token):
         return result, {}, timings
 
-    # 3. Smart fundamental-aware low cut
+    # 3. Smart fundamental-aware low cut, kept below the OUTPUT's lowest
+    #    fundamental (compute_smart_lowcut falls back to 50 Hz without one)
     _t = time.perf_counter()
-    f0_hz = float((state.detected_pitch or {}).get("freq_hz", 0.0))
-    if not np.isfinite(f0_hz) or f0_hz <= 0.0:
-        f0_hz = 50.0
+    f0_hz = lowcut_reference_f0(out_f0) or 0.0
     lowcut_pct = float(settings.get("clean_lowcut_percent", 0.0))
     if np.isfinite(lowcut_pct) and lowcut_pct > 0.0:
         lowcut_hz = compute_smart_lowcut(f0_hz, lowcut_pct)
@@ -203,16 +211,16 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     _t = time.perf_counter()
     cleanliness_pct = float(settings.get("cleanliness_percent", 0.0))
     hf_rollback_pct = float(settings.get("clean_hf_rollback_percent", 0.0))
-    if np.isfinite(cleanliness_pct) and cleanliness_pct > 0.0:
+    # Harmonics are masked around the output contour; with no voiced output
+    # F0 (the mode passed the audio through) there is nothing to clean against.
+    if (np.isfinite(cleanliness_pct) and cleanliness_pct > 0.0
+            and out_f0 is not None and np.any(out_f0 > 0)):
         progress(0.58, f"Applying {cleanliness_pct:.0f}% cleanliness...")
-        # Pass cached f0 from WORLD analysis to skip redundant pyin
-        _cached_f0 = world_cache['f0'] if world_cache and world_cache.get('f0') is not None else None
-        _cached_voiced = (_cached_f0 > 0) if _cached_f0 is not None else None
         result = apply_cleanliness(
             result, int(sr), float(cleanliness_pct),
             hf_rollback_percent=float(hf_rollback_pct) if np.isfinite(hf_rollback_pct) else 0.0,
-            cached_f0=_cached_f0,
-            cached_voiced=_cached_voiced,
+            f0_contour=out_f0,
+            f0_times=out_times,
         )
     # Note: high shelf removed — replaced by HF rollback inside apply_cleanliness
     timings['cleanliness'] = round((time.perf_counter() - _t) * 1000, 1)

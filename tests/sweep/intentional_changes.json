@@ -1,0 +1,34 @@
+[
+ {
+  "change": "change1",
+  "case": "test_2s_C4-pipe_clean-na-F4",
+  "file": "tests/golden/test_2s_C4/pipe_clean__na__F4.wav",
+  "reason": "cleanliness masks the output F0 contour (was the input's cached WORLD F0); smart low cut keyed to the output contour",
+  "before": {
+   "peak_dbfs": -2.1111713020740366,
+   "rms_change_db": -13.354012943450462,
+   "f0_cents": 0.772186082220411,
+   "inharm_worse_db": 9.190076208050566,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -16.020876140915487,
+   "fails": [
+    "inharm",
+    "rms"
+   ]
+  },
+  "after": {
+   "peak_dbfs": 57.3152919546085,
+   "rms_change_db": -1.2043834030810672,
+   "f0_cents": 0.3888822438288919,
+   "inharm_worse_db": -3.7850041893468642,
+   "tail_db": null,
+   "length_delta_ms": 4.988662131519274,
+   "h1_vs_input_db": -0.6872445637869475,
+   "fails": [
+    "peak"
+   ]
+  },
+  "max_abs_diff": 734.1271027158946
+ }
+]

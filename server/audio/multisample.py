@@ -111,8 +111,8 @@ def _init_worker(source_audio, sr, settings_base, options, detected_pitch, world
 
     _exit_with_parent()
 
-    # The pipeline reads the detected source pitch (smart low-cut) and the
-    # WORLD F0 cache from the process-global state.
+    # The WORLD pitch modes read the F0 cache from the process-global state;
+    # detected_pitch mirrors what /api/load-audio stored (not used by the DSP).
     state.detected_pitch = detected_pitch
     if world_cache is not None:
         state.world_cache = world_cache

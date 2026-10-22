@@ -32,7 +32,8 @@ def autotune_stft_pitchshift(
     window_size: int = 1024,
     fft_size: int = 4096,
     hop_size: int = 256,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
     """Per-frame STFT phase vocoder pitch correction (v12).
 
     v12 improvements over v11:
@@ -44,6 +45,10 @@ def autotune_stft_pitchshift(
         windowed lifter, adaptive quefrency based on per-frame F0.
       - Voiced/unvoiced transition blending using pYIN voicing probability
         with sigmoid crossfade (eliminates clicks at word boundaries).
+
+    With return_f0, returns (audio, corrected F0 per STFT frame with 0 where
+    the V/UV blend is mostly unvoiced, frame times in s); F0 is None when the
+    audio is passed through.
     """
     from stftpitchshift.vocoder import encode, decode
     from server.audio.pitch_detector import detect_pitch
@@ -70,7 +75,7 @@ def autotune_stft_pitchshift(
 
     voiced_mask = np.isfinite(f0_array) & (f0_array > 50.0)
     if np.sum(voiced_mask) < 2:
-        return audio_arr
+        return (audio_arr, None, None) if return_f0 else audio_arr
 
     # ── Zero-padded STFT ──────────────────────────────────────────────────
     audio_f32 = audio_arr.astype(np.float32)
@@ -182,10 +187,13 @@ def autotune_stft_pitchshift(
     else:
         output = np.pad(output, (0, orig_len - len(output)))
 
+    if return_f0:
+        out_f0 = np.where(blend >= 0.5, np.power(2.0, new_x), 0.0)
+        return output, out_f0, stft_times
     return output
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_stft_pitchshift(
         audio,
         int(sr),
@@ -195,4 +203,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
         preserve_formants=bool(settings.get("preserve_formants", True)),
         formant_shift_cents=int(settings.get("formant_shift_cents", 0)),
+        return_f0=True,
     )

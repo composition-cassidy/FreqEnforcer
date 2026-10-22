@@ -18,6 +18,19 @@ def lowcut_curve(amount_percent: float) -> float:
     return float(np.interp(float(amount_percent), _LC_X, _LC_Y))
 
 
+def lowcut_reference_f0(f0_contour) -> float | None:
+    """Lowest sustained fundamental of an output F0 contour (5th percentile of
+    its voiced frames), the f0 the smart low cut must stay below. None when
+    the contour has no voiced frame."""
+    if f0_contour is None:
+        return None
+    f0 = np.asarray(f0_contour, dtype=np.float64)
+    voiced = f0[np.isfinite(f0) & (f0 > 0)]
+    if voiced.size == 0:
+        return None
+    return float(np.percentile(voiced, 5))
+
+
 def compute_smart_lowcut(f0_hz: float, amount_percent: float) -> float:
     """
     Fundamental-aware high-pass cutoff.
@@ -65,6 +78,32 @@ def apply_hf_rollback(
     return (mask * fade2d + (1.0 - fade2d)).astype(np.float32)
 
 
+def contour_on_frames(f0_contour, f0_times, frame_times) -> tuple[np.ndarray, np.ndarray]:
+    """Sample an F0 contour (Hz, 0 = unvoiced; times in s) at STFT frame
+    centres.  Voicing comes from the nearest contour point; the value is
+    interpolated over voiced points only, so unvoiced zeros never drag a
+    voiced frame's F0 down.  Frames outside the contour are unvoiced."""
+    ft = np.asarray(frame_times, dtype=np.float64)
+    f0 = np.asarray(f0_contour, dtype=np.float64)
+    tc = np.asarray(f0_times, dtype=np.float64)
+    n = min(f0.size, tc.size)
+    out = np.zeros(ft.size, dtype=np.float64)
+    if n == 0:
+        return out, out > 0
+    f0, tc = f0[:n], tc[:n]
+    good = np.isfinite(f0) & (f0 > 0)
+    if not np.any(good):
+        return out, out > 0
+    idx = np.clip(np.searchsorted(tc, ft), 0, n - 1)
+    prev = np.clip(idx - 1, 0, n - 1)
+    idx = np.where(np.abs(tc[prev] - ft) < np.abs(tc[idx] - ft), prev, idx)
+    step = float(np.median(np.diff(tc))) if n > 1 else 0.0
+    inside = (ft >= tc[0] - step) & (ft <= tc[-1] + step)
+    voiced = good[idx] & inside
+    out[voiced] = np.interp(ft[voiced], tc[good], f0[good])
+    return out, voiced
+
+
 def apply_cleanliness(
     audio: np.ndarray,
     sr: int,
@@ -75,8 +114,8 @@ def apply_cleanliness(
     n_harmonics: int = 30,
     preserve_unvoiced: bool = True,
     hf_rollback_percent: float = 0.0,
-    cached_f0: np.ndarray = None,
-    cached_voiced: np.ndarray = None,
+    f0_contour: np.ndarray = None,
+    f0_times: np.ndarray = None,
 ) -> np.ndarray:
     from scipy.ndimage import gaussian_filter1d
 
@@ -97,6 +136,9 @@ def apply_cleanliness(
         f0_floor: Minimum f0 to detect (Hz)
         f0_ceil: Maximum f0 to detect (Hz)
         n_harmonics: Number of harmonics to preserve (including fundamental)
+        f0_contour, f0_times: F0 of THIS audio (Hz, 0 = unvoiced) and its
+            times in s, e.g. the pitch mode's output contour.  When omitted,
+            F0 is estimated with pyin (f0_floor..f0_ceil).
 
     Returns:
         Processed audio as numpy array
@@ -141,28 +183,8 @@ def apply_cleanliness(
 
     freqs = _f
 
-    if cached_f0 is not None:
-        # Use cached f0 from WORLD analysis — resample to STFT frame rate
-        n_frames = S.shape[1]
-        stft_hop_s = float(hop_length) / float(sr)
-        stft_times = np.arange(n_frames) * stft_hop_s
-
-        cached_hop_s = stft_times[-1] / max(1, len(cached_f0) - 1) if len(cached_f0) > 1 else stft_hop_s
-        cached_times = np.arange(len(cached_f0)) * cached_hop_s
-
-        from scipy.interpolate import interp1d
-        f0_interp = interp1d(cached_times, cached_f0, kind='nearest',
-                             fill_value='extrapolate', bounds_error=False)
-        f0 = f0_interp(stft_times)
-        f0 = np.where(np.isfinite(f0) & (f0 > 0), f0, 0.0)
-
-        if cached_voiced is not None:
-            voiced_interp = interp1d(cached_times[:len(cached_voiced)],
-                                     cached_voiced.astype(np.float64),
-                                     kind='nearest', fill_value=0, bounds_error=False)
-            voiced_flag = voiced_interp(stft_times) > 0.5
-        else:
-            voiced_flag = f0 > 0
+    if f0_contour is not None:
+        f0, voiced_flag = contour_on_frames(f0_contour, f0_times, _t)
     else:
         from server.audio.pitch_yin import pyin
         f0, voiced_flag, _voiced_prob = pyin(

@@ -26,7 +26,8 @@ def autotune_sine_spectral(
     hop_size: int = 256,
     max_sines: int = 80,
     threshold_db: float = -80.0,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
     """
     Spectral Envelope + Excitation pitch correction.
 
@@ -49,6 +50,10 @@ def autotune_sine_spectral(
 
     Unvoiced frames (no pYIN detection within ±1.5 hops) pass through
     unmodified directly in the STFT domain.
+
+    With return_f0, returns (audio, target F0 per STFT frame with 0 on
+    unvoiced frames, frame times in s); F0 is None when the audio is passed
+    through.
     """
     from server.audio.pitch_detector import detect_pitch
     from server.audio.sinusoidal import estimate_spectral_envelope
@@ -76,7 +81,8 @@ def autotune_sine_spectral(
     f0_times = np.asarray(det["times"],    dtype=np.float64)
 
     if f0_array.size == 0 or not np.any(np.isfinite(f0_array)):
-        return audio_arr  # fully unvoiced — pass through
+        # fully unvoiced — pass through
+        return (audio_arr, None, None) if return_f0 else audio_arr
 
     # ── STFT analysis ─────────────────────────────────────────────────────
     noverlap = fft_size - hop_size
@@ -91,7 +97,7 @@ def autotune_sine_spectral(
     # ── Interpolate F0 onto the STFT frame grid ───────────────────────────
     voiced_mask = np.isfinite(f0_array) & (f0_array > 50.0)
     if np.sum(voiced_mask) < 2:
-        return audio_arr
+        return (audio_arr, None, None) if return_f0 else audio_arr
 
     # Extend stft_times to cover all frames (stft may return fewer times
     # than frame columns due to boundary handling)
@@ -244,10 +250,12 @@ def autotune_sine_spectral(
     else:
         output = np.pad(output, (0, orig_len - len(output)))
 
+    if return_f0:
+        return output, np.where(voiced_frames, f0_target_frames, 0.0), np.asarray(stft_times, dtype=np.float64)
     return output
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_sine_spectral(
         audio,
         int(sr),
@@ -257,4 +265,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
         preserve_formants=bool(settings.get("preserve_formants", True)),
         formant_shift_cents=int(settings.get("formant_shift_cents", 0)),
+        return_f0=True,
     )

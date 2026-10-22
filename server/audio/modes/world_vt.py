@@ -39,7 +39,8 @@ def autotune_world_vt(
     world_cache: dict = None,
     dilation_frames: int = 3,
     use_hnm: bool = False,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
     """
     WORLD vocoder with pitch-adaptive vocal tract modeling.
 
@@ -59,6 +60,9 @@ def autotune_world_vt(
         0.1 -> natural / anatomically-motivated (default, matches Vovious)
         0.5 -> exaggerated shift
         1.0 -> full shift at low frequencies
+
+    return_f0: also return the synthesised F0 contour and its time axis (s);
+        F0 is None when the audio is passed through.
     """
     import pyworld as pw
 
@@ -75,7 +79,7 @@ def autotune_world_vt(
     new_f0 = soft_target_f0(analysis_f0, time_axis, new_voiced_mask, target_freq,
                             amount, retune_speed_ms, preserve_vibrato)
     if new_f0 is None:
-        return audio_arr
+        return (audio_arr, None, None) if return_f0 else audio_arr
 
     # --- Frequency-dependent spectral envelope warping (NEW vs WORLD Soft) ---
     beta = max(0.0, min(1.0, float(formant_shift_beta)))
@@ -112,10 +116,10 @@ def autotune_world_vt(
         output = pw.synthesize(new_f0, new_sp, ap, sr)
     output = _repair_world_artifacts(output, sr,
                                      world_f0=new_f0, world_time_axis=time_axis)
-    return output
+    return (output, new_f0, time_axis) if return_f0 else output
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_world_vt(
         audio,
         int(sr),
@@ -127,4 +131,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
+        return_f0=True,
     )

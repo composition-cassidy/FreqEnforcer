@@ -30,7 +30,8 @@ def autotune_to_note(
     voicing_mode: str = "force",
     dilation_frames: int = 3,
     world_cache: dict = None,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
     """
     Flatten all pitched content in audio to a single target note.
 
@@ -39,9 +40,10 @@ def autotune_to_note(
         sr: Sample rate
         target_note: Target note name like "C4", "F#3", etc.
         preserve_formants: If True, keeps original voice character. If False, formants shift with pitch.
+        return_f0: also return the synthesised F0 contour and its time axis (s)
 
     Returns:
-        Autotuned audio as float64 numpy array
+        Autotuned audio as float64 numpy array, or (audio, f0, time_axis)
     """
     import pyworld as pw
 
@@ -72,7 +74,8 @@ def autotune_to_note(
                 ratio = target_freq / f0[i]
                 new_sp[i] = _shift_spectral_envelope(sp[i], float(ratio))
 
-    return pw.synthesize(new_f0, new_sp, ap, sr)
+    out = pw.synthesize(new_f0, new_sp, ap, sr)
+    return (out, new_f0, time_axis) if return_f0 else out
 
 
 def autotune_with_formant_shift(
@@ -83,7 +86,8 @@ def autotune_with_formant_shift(
     voicing_mode: str = "force",
     dilation_frames: int = 3,
     world_cache: dict = None,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
     """
     Autotune to target note with optional formant shifting.
 
@@ -95,9 +99,10 @@ def autotune_with_formant_shift(
                             0 = no shift (preserve original formants)
                             Positive = brighter/smaller vocal tract
                             Negative = darker/larger vocal tract
+        return_f0: also return the synthesised F0 contour and its time axis (s)
 
     Returns:
-        Autotuned audio as float64 numpy array
+        Autotuned audio as float64 numpy array, or (audio, f0, time_axis)
     """
     import pyworld as pw
 
@@ -122,19 +127,21 @@ def autotune_with_formant_shift(
     else:
         new_sp = sp
 
-    return pw.synthesize(new_f0, new_sp, ap, sr)
+    out = pw.synthesize(new_f0, new_sp, ap, sr)
+    return (out, new_f0, time_axis) if return_f0 else out
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     voicing = settings.get("voicing_mode") or "force"
     if settings.get("preserve_formants", True):
         return autotune_to_note(audio, sr, settings["target_note"],
                                 preserve_formants=True, voicing_mode=voicing,
-                                world_cache=world_cache)
+                                world_cache=world_cache, return_f0=True)
     return autotune_with_formant_shift(
         audio, sr,
         settings["target_note"],
         settings.get("formant_shift_cents", 0),
         voicing_mode=voicing,
         world_cache=world_cache,
+        return_f0=True,
     )

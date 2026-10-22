@@ -21,8 +21,15 @@ def autotune_praat_soft_to_note(
     time_step_s: float = 0.01,
     pitch_floor: float = 75.0,
     pitch_ceiling: float = 600.0,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
+    """Praat PSOLA soft retune. With return_f0, returns (audio, corrected F0
+    on Praat's time grid, times in s); F0 is None when the audio is passed
+    through (no voiced frame)."""
     import sys
+
+    def done(out, f0=None, times=None):
+        return (out, f0, times) if return_f0 else out
 
     try:
         import parselmouth
@@ -43,7 +50,7 @@ def autotune_praat_soft_to_note(
 
     audio_arr = np.asarray(audio_arr, dtype=np.float64)
     if audio_arr.size == 0:
-        return audio_arr
+        return done(audio_arr)
 
     snd = parselmouth.Sound(audio_arr, sampling_frequency=float(sr))
 
@@ -63,12 +70,12 @@ def autotune_praat_soft_to_note(
     xmin = float(snd.xmin)
     xmax = float(snd.xmax)
     if not np.isfinite(xmax) or not np.isfinite(xmin) or xmax <= xmin:
-        return audio_arr
+        return done(audio_arr)
 
     hop_s = float(ts)
     times = np.arange(xmin, xmax, hop_s, dtype=np.float64)
     if times.size < 3:
-        return audio_arr
+        return done(audio_arr)
 
     f0 = np.zeros_like(times, dtype=np.float64)
     voiced = np.zeros_like(times, dtype=bool)
@@ -82,7 +89,7 @@ def autotune_praat_soft_to_note(
             voiced[i] = True
 
     if not np.any(voiced):
-        return audio_arr
+        return done(audio_arr)
 
     amount_f = clamp_unit(amount)
     vib_f = clamp_unit(preserve_vibrato)
@@ -115,12 +122,13 @@ def autotune_praat_soft_to_note(
 
     out = call(manip, "Get resynthesis (overlap-add)")
     values = np.asarray(out.values, dtype=np.float64)
+    out_f0 = np.where(np.isfinite(new_f0) & (new_f0 > 0), new_f0, 0.0)
     if values.ndim == 2 and values.shape[0] >= 1:
-        return values[0]
-    return np.asarray(values).reshape(-1)
+        return done(values[0], out_f0, times)
+    return done(np.asarray(values).reshape(-1), out_f0, times)
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_praat_soft_to_note(
         audio,
         int(sr),
@@ -128,4 +136,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         amount=float(settings.get("pitch_amount", 1.0)),
         retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
+        return_f0=True,
     )

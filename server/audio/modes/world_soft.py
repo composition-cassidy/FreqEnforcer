@@ -65,7 +65,11 @@ def autotune_soft_to_note(
     voicing_mode: str = "strict",
     dilation_frames: int = 3,
     world_cache: dict = None,
-) -> np.ndarray:
+    return_f0: bool = False,
+):
+    """Soft-retuned WORLD resynthesis. With return_f0, returns
+    (audio, synthesised F0, time axis in s); F0 is None when no frame had a
+    usable F0 and the audio is passed through."""
     import pyworld as pw
 
     audio_arr = validate_world_input(audio, sr)
@@ -80,7 +84,7 @@ def autotune_soft_to_note(
     new_f0 = soft_target_f0(analysis_f0, time_axis, new_voiced_mask, target_freq,
                             amount, retune_speed_ms, preserve_vibrato)
     if new_f0 is None:
-        return audio_arr
+        return (audio_arr, None, None) if return_f0 else audio_arr
 
     new_sp = sp
 
@@ -91,10 +95,10 @@ def autotune_soft_to_note(
     output = pw.synthesize(new_f0, new_sp, ap, sr)
     output = _repair_world_artifacts(output, sr,
                                      world_f0=new_f0, world_time_axis=time_axis)
-    return output
+    return (output, new_f0, time_axis) if return_f0 else output
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_soft_to_note(
         audio,
         int(sr),
@@ -106,4 +110,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
+        return_f0=True,
     )

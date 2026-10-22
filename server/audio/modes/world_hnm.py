@@ -11,7 +11,7 @@ NAME = "world_hnm"
 USES_WORLD_CACHE = True
 
 
-def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None) -> np.ndarray:
+def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None):
     return autotune_world_vt(
         audio,
         int(sr),
@@ -24,4 +24,5 @@ def render(audio: np.ndarray, sr: int, settings: dict, world_cache: dict = None)
         preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
         voicing_mode=settings.get("voicing_mode") or "strict",
         world_cache=world_cache,
+        return_f0=True,
     )
