@@ -1,0 +1,3 @@
+# Root .gitignore ignores *.wav; golden references must be tracked (via LFS).
+!*.wav
+!**/*.wav
