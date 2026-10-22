@@ -77,6 +77,22 @@ PIPELINE_CASES: dict[str, dict] = {
     "pipe_stretch_tdpsola": {"stretch_factor": 1.5, "stretch_method": "tdpsola"},
     "pipe_normalize": {"normalize": True},
     "pipe_loop": {"_loop": True},
+    # Route dispatch for every pitch_mode, plus branches the direct-call
+    # matrix does not reach (formant shifts, preserve_formants=False, beta).
+    "pipe_mode_world_hard_noformant": {"preserve_formants": False, "formant_shift_cents": 200},
+    "pipe_mode_world_soft": {"pitch_mode": "world_soft"},
+    "pipe_mode_world_soft_shift": {"pitch_mode": "world_soft", "formant_shift_cents": -150},
+    "pipe_mode_world_vt": {"pitch_mode": "world_vt"},
+    "pipe_mode_world_vt_beta": {"pitch_mode": "world_vt", "formant_shift_beta": 0.3,
+                                "pitch_amount": 0.7, "retune_speed_ms": 80.0,
+                                "preserve_vibrato": 0.5},
+    "pipe_mode_world_hnm": {"pitch_mode": "world_hnm"},
+    "pipe_mode_praat_soft": {"pitch_mode": "praat_soft"},
+    "pipe_mode_sine_spectral": {"pitch_mode": "sine_spectral"},
+    "pipe_mode_sine_spectral_shift": {"pitch_mode": "sine_spectral", "formant_shift_cents": 150},
+    "pipe_mode_stft_pitchshift": {"pitch_mode": "stft_pitchshift"},
+    "pipe_mode_stft_pitchshift_shift": {"pitch_mode": "stft_pitchshift", "formant_shift_cents": 150},
+    "pipe_mode_stft_pitchshift_nopf": {"pitch_mode": "stft_pitchshift", "preserve_formants": False},
 }
 
 # ProcessRequest defaults from server/routes/audio.py

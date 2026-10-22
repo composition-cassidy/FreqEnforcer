@@ -93,16 +93,8 @@ def _push_progress(loop: asyncio.AbstractEventLoop, progress: float, stage: str)
 
 def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
                   loop: asyncio.AbstractEventLoop) -> np.ndarray:
-    from server.audio.autotuner import (
-        autotune_to_note,
-        autotune_with_formant_shift,
-        autotune_soft_to_note,
-        autotune_world_vt,
-        autotune_praat_soft_to_note,
-        autotune_sine_spectral,
-        autotune_stft_pitchshift,
-        apply_breathiness,
-    )
+    from server.audio.autotuner import apply_breathiness
+    from server.audio.modes import MODES, render_pitch_mode
     from server.audio.normalizer import normalize_audio
     from server.audio.cleanliness import apply_cleanliness, apply_high_shelf, apply_low_cut, compute_smart_lowcut
     from server.audio.time_stretch import STRETCHERS
@@ -123,7 +115,7 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     # 0. Pre-compute WORLD analysis (shared by pitch correction + breathiness)
     _t = time.perf_counter()
     pitch_mode = str(settings.get("pitch_mode", "world_hard"))
-    needs_world = pitch_mode in ("world_hard", "world_soft", "world_vt", "world_hnm")
+    needs_world = pitch_mode in MODES and MODES[pitch_mode].USES_WORLD_CACHE
     needs_breathiness = (float(settings.get("breathiness", 1.0)) != 1.0)
     world_cache = None
 
@@ -157,89 +149,8 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     _t = time.perf_counter()
     progress(0.05, "Autotuning...")
 
-    if pitch_mode == "world_soft":
-        result = autotune_soft_to_note(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            preserve_formants=bool(settings.get("preserve_formants", True)),
-            formant_shift_cents=int(settings.get("formant_shift_cents", 0)),
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-            voicing_mode="strict",
-            world_cache=world_cache,
-        )
-    elif pitch_mode == "world_vt":
-        result = autotune_world_vt(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            formant_shift_beta=float(settings.get("formant_shift_beta", 0.1)),
-            crossover_freq=3000.0,
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-            voicing_mode="strict",
-            world_cache=world_cache,
-        )
-    elif pitch_mode == "world_hnm":
-        result = autotune_world_vt(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            use_hnm=True,
-            formant_shift_beta=0.2,
-            crossover_freq=3000.0,
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-            voicing_mode="strict",
-            world_cache=world_cache,
-        )
-    elif pitch_mode == "praat_soft":
-        result = autotune_praat_soft_to_note(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-        )
-    elif pitch_mode == "sine_spectral":
-        result = autotune_sine_spectral(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-            preserve_formants=bool(settings.get("preserve_formants", True)),
-            formant_shift_cents=int(settings.get("formant_shift_cents", 0)),
-        )
-    elif pitch_mode == "stft_pitchshift":
-        result = autotune_stft_pitchshift(
-            result,
-            int(sr),
-            str(settings["target_note"]),
-            amount=float(settings.get("pitch_amount", 1.0)),
-            retune_speed_ms=float(settings.get("retune_speed_ms", 40.0)),
-            preserve_vibrato=float(settings.get("preserve_vibrato", 1.0)),
-            preserve_formants=bool(settings.get("preserve_formants", True)),
-            formant_shift_cents=int(settings.get("formant_shift_cents", 0)),
-        )
-    else:
-        # world_hard (default) and unknown modes
-        if settings.get("preserve_formants", True):
-            result = autotune_to_note(result, sr, settings["target_note"],
-                                      preserve_formants=True, world_cache=world_cache)
-        else:
-            result = autotune_with_formant_shift(
-                result, sr,
-                settings["target_note"],
-                settings.get("formant_shift_cents", 0),
-                world_cache=world_cache,
-            )
+    # world_hard is the default for unknown modes (server/audio/modes)
+    result = render_pitch_mode(pitch_mode, result, sr, settings, world_cache=world_cache)
 
     timings['pitch_correction'] = round((time.perf_counter() - _t) * 1000, 1)
 

@@ -76,12 +76,22 @@ Typical session:
 
 ## Pitch modes
 
-Dispatched by `pitch_mode` in `_run_pipeline`. All take `target_note`; F0 targets
-are flat (hard modes) or smoothed in log2 space with a one-pole filter
-(`retune_speed_ms`), with vibrato residual re-added (`preserve_vibrato`) and
-`pitch_amount` blending.
+Each mode is a module in `server/audio/modes/<pitch_mode>.py` with the same
+interface: `NAME`, `USES_WORLD_CACHE`, and `render(audio, sr, settings,
+world_cache=None)`. `render` maps the `/api/process` settings onto the mode's
+DSP function. `_run_pipeline` dispatches through
+`modes.render_pitch_mode()`; unknown modes fall back to `world_hard`. Shared
+code lives in `modes/_world.py` (input validation, DIO/StoneMask with cache,
+CheapTrick/D4C, strict/force/dilate voicing, unvoiced F0 fill),
+`modes/_retune.py` (soft-retune trajectory) and `modes/_dsp.py` (spectral
+helpers). `server/audio/autotuner.py` keeps `apply_breathiness` and re-exports
+the `autotune_*` functions for existing callers.
 
-| `pitch_mode` | Function (server/audio/autotuner.py) | Analysis | Synthesis | Voicing used by app | Libraries |
+All modes take `target_note`. F0 targets are either flat (hard modes) or
+smoothed in log2 space: a one-pole filter (`retune_speed_ms`), with the
+vibrato residual re-added (`preserve_vibrato`) and `pitch_amount` blending.
+
+| `pitch_mode` | Function (server/audio/modes/) | Analysis | Synthesis | Voicing used by app | Libraries |
 |---|---|---|---|---|---|
 | `world_hard` (default), `preserve_formants=true` | `autotune_to_note` | WORLD dio/stonemask (cached), cheaptrick, d4c | `pw.synthesize`, flat F0 | `force` (function default) | pyworld |
 | `world_hard`, `preserve_formants=false` | `autotune_with_formant_shift(formant_shift_cents)` | same | `pw.synthesize` + per-frame envelope resample (`_shift_spectral_envelope`) | `force` | pyworld, numpy |
@@ -105,8 +115,10 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
 ## Regression and profiling harness
 
 - `tests/golden/matrix.py`: render matrix (3 fixtures × 8 pitch modes × voicing
-  where it applies × targets −7/+5/+12 semitones = 162 cases, plus 7 full-pipeline
-  cases on `test_2s_C4.wav`, 169 in total). Calls DSP functions directly and
+  where it applies × targets −7/+5/+12 semitones = 162 cases, plus 19 full-pipeline
+  cases on `test_2s_C4.wav`, 181 in total). The `pipe_mode_*` cases send every
+  `pitch_mode` through `_run_pipeline` dispatch and cover the formant-shift,
+  `preserve_formants=false` and non-default-beta branches. Calls DSP functions directly and
   seeds `np.random` with 0 before each render. Targets are relative to the
   *detected* source note. All three fixtures detect as C4, including
   `test_10s_C4_Fs4_tuned.wav` (261.6 Hz), so every fixture renders F3/F4/C5.
@@ -121,7 +133,7 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
   while float32-level noise scores 0.000 % and passes. Length changes always
   fail. Prints a per-mode summary table, and checks that the manifest still
   matches the matrix and that librosa is never imported. On the reference
-  machine all 169 cases are bit-identical (max |diff| = 0). Runtime is about 4 min.
+  machine all cases are bit-identical (max |diff| = 0). Runtime is about 4 min.
 - `tests/profiling/profile_baseline.py`: see [PROFILE.md](PROFILE.md).
 
 ## Dead / duplicated code (found, **not deleted**)
@@ -139,14 +151,14 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
 3. `_run_pipeline` computes `_t` for step 0 and never uses it.
 
 ### Duplicated code
-4. Voicing-mask selection (`strict`/`force`/`dilate` + `np.interp` fill) is
-   copy-pasted 4× (`autotune_to_note`, `autotune_soft_to_note`,
-   `autotune_world_vt`, `autotune_with_formant_shift`).
-5. Soft-retune F0 trajectory (log2, 120 ms moving-average vibrato split,
-   amount blend, Python-loop one-pole smoother) is copy-pasted 3× (soft, vt,
-   praat). The one-pole smoother is a per-frame Python `for` loop each time.
-6. Input validation preamble (sr > 0, mono, ≥0.1 s, float64 cast) repeated in
-   every autotune function.
+4. *Resolved:* the voicing-mask selection (strict/force/dilate + `np.interp`
+   fill) was copy-pasted 4×. It is now `modes/_world.voiced_masks` and
+   `fill_unvoiced_f0`.
+5. *Resolved:* the soft-retune F0 trajectory was copy-pasted 5× (soft, vt,
+   praat, sine, stft). It is now `modes/_retune.retune_log2`. The one-pole
+   smoother is still a per-frame Python loop (cheap; outputs unchanged).
+6. *Resolved:* the WORLD input validation and DIO/StoneMask/CheapTrick/D4C
+   analysis are now `modes/_world.py` helpers.
 7. `ProcessRequest` and `RenderMultisampleRequest` duplicate all 20 processing
    fields and the `round_formant_cents` validator. `ProcessRequest` also has
    `stretch_positive` and `clean_range`, which the multisample request does not.
@@ -160,13 +172,12 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
 11. Two STFT implementations: `harmonic_limiter._centered_stft/_centered_istft`
     ("matching librosa defaults"), `autotuner._zp_stft/_zp_istft`, plus
     `scipy.signal.stft` in cleanliness and sine_spectral.
-12. **Dual module identity:** `sine_spectral` and `stft_pitchshift` import
-    `audio.sinusoidal` / `audio.pitch_detector` (bare package, only resolvable
-    because `server/` is on `sys.path`: script dir in dev, `--add-data
-    server\audio;audio` in PyInstaller), while everything else imports
-    `server.audio.*`. Python loads two copies of those modules. The
-    `spartan_tuner.*` and `utils.*` import fallbacks in autotuner and
-    pitch_detector are leftovers from the PyQt6 app.
+12. *Mostly resolved:* dual module identity. All modes now import
+    `server.audio.*`; `sine_spectral` and `stft_pitchshift` used to import the
+    bare `audio.*` package, which loaded two copies. The `spartan_tuner.*` /
+    `utils.*` import fallbacks in `pitch_detector.py` are still there, and the
+    PyInstaller `--add-data server\audio;audio` copy is now unused (kept for
+    now).
 
 ### Unused or unreachable
 13. `voicing_mode` is never exposed to the frontend; `dilate` and `strict`
@@ -183,9 +194,10 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
 18. `loader.set_wav_loop_points`, `pitch_detector.get_target_frequency`, and
     `server/utils/harmonic_cli.py` are unused.
 19. `/api/stretch-methods` and `/api/warmup` are not called by the frontend.
-20. The "docstrings" in `autotune_to_note`, `autotune_with_formant_shift` and
-    `apply_cleanliness` come after an import statement, so they are dead string
-    expressions, not docstrings.
+20. The "docstring" in `apply_cleanliness` comes after an import statement, so
+    it is a dead string expression, not a docstring. (The same problem in
+    `autotune_to_note` and `autotune_with_formant_shift` was fixed when they
+    moved to `modes/world_hard.py`.)
 
 ### Dependency and config drift
 21. `requirements.txt` still lists **librosa** (the code no longer imports it;
