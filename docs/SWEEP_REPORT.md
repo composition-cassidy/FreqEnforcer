@@ -41,6 +41,14 @@ Renders passing: raw **6.1 % → 24.2 %**, post-pitch **30.2 % → 84.3 %**, pos
 
 Per render (post-pitch, excl. intended): **5621 fixed**, **74 newly failing**, 258 failing before and after.
 
+Why renders that passed before fail now (failed metrics, by the documented reasons of *Remaining failures*): mostly the fixes working as specified on inputs the pitch stage already got wrong - cleanliness now masks the *target's* harmonics, so it removes the body of a mis-pitched render (before, the original f0 happened to match it); the low cut now keys on the real output f0, so on upward shifts the 100 % setting cuts where its design says instead of under-cutting.
+
+| reason | failed metrics |
+|---|---|
+| pitch_miss_body | 60 |
+| yin_bias | 12 |
+| lowcut_100 | 8 |
+
 Newly failing renders (worst 20):
 
 | combination | fails now | causes now | f0 ¢ | inharm Δ | tail | RMS Δ | peak | len Δ |
@@ -80,8 +88,8 @@ Post-pitch failures by cause. The pre-fix harness named bugs through counterfact
 | clean |  | 327 | cleanliness stage (failure clears with cleanliness off) |
 | E2 | 55 |  | cleanliness's own pyin f0 wrong (50-500 Hz range) |
 | lowcut_design | 35 |  | smart low cut with correct f0 |
-| B3 | 21 |  | smart low cut keyed to the original f0 (state.detected_pitch) |
 | lowcut |  | 21 | smart low cut stage (clears with low cut off) |
+| B3 | 21 |  | smart low cut keyed to the original f0 (state.detected_pitch) |
 | breath |  | 19 | breathiness < 1 (clears with breathiness 1) |
 
 The 30 worst pre-fix combinations by post-pitch severity (these are the permanent cases in `tests/test_pipeline_combos.py`), before → after:

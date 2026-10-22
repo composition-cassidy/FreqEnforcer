@@ -229,6 +229,15 @@ def sec_before_after(rows, cl, base, bcl) -> str:
     out += [f"Per render (post-pitch, excl. intended): **{fixed} fixed**, **{regressed} newly failing**, "
             f"{still} failing before and after.", ""]
     if reg_rows:
+        cache: dict = {}
+        why = Counter(reason_of(r, m, cl, cache) for r, _b in reg_rows for m in cl.post_ex_fails(r))
+        out += ["Why renders that passed before fail now (failed metrics, by the documented reasons of "
+                "*Remaining failures*): mostly the fixes working as specified on inputs the pitch stage "
+                "already got wrong - cleanliness now masks the *target's* harmonics, so it removes the body "
+                "of a mis-pitched render (before, the original f0 happened to match it); the low cut now "
+                "keys on the real output f0, so on upward shifts the 100 % setting cuts where its design "
+                "says instead of under-cutting.", "",
+                table(["reason", "failed metrics"], [[k, n] for k, n in why.most_common()]), ""]
         reg_rows.sort(key=lambda t: -cl.post_severity(t[0]))
         out += ["Newly failing renders (worst 20):", "",
                 table(["combination", "fails now", "causes now", "f0 ¢", "inharm Δ", "tail", "RMS Δ", "peak", "len Δ"],
