@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import Segmented from './controls/Segmented';
 import { PlayIcon, StopIcon, UndoIcon, RedoIcon } from './Icons';
@@ -9,6 +10,21 @@ export default function Footer({
   history, audioLoaded, busy, onAction,
 }) {
   const { t } = useTranslation();
+  // Position text is written straight from the player's frame callback, so
+  // playback does not re-render the app. Text changes cost a style + layout
+  // pass, so the readout updates at most every 50 ms (the playhead itself is
+  // drawn every frame); a stop or seek always lands immediately.
+  const posRef = useRef(null);
+  const lastWrite = useRef(0);
+  const { subscribe, playing } = player;
+  const playingRef = useRef(playing); playingRef.current = playing;
+  useEffect(() => subscribe?.((pos) => {
+    const now = performance.now();
+    if (playingRef.current && pos > 0 && now - lastWrite.current < 50) return;
+    lastWrite.current = now;
+    const text = formatTime(pos);
+    if (posRef.current && posRef.current.textContent !== text) posRef.current.textContent = text;
+  }), [subscribe]);
   return (
     <div className="footer">
       <div className="transport">
@@ -21,7 +37,7 @@ export default function Footer({
           {player.playing ? <StopIcon /> : <PlayIcon />}
         </button>
         <span className="transport__time" aria-live="off">
-          {formatTime(player.position)} <span>/ {formatTime(player.duration)}</span>
+          <span ref={posRef} className="transport__pos">{formatTime(0)}</span> <span>/ {formatTime(player.duration)}</span>
         </span>
         <Segmented
           ariaLabel={t('footer.ab')} value={abMode} onChange={onAB}

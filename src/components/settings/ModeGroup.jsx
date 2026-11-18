@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { signed } from '../../utils/note_utils';
 import Group from './Group';
 import Select from '../controls/Select';
 import Slider from '../controls/Slider';
@@ -7,7 +8,7 @@ import Dwell from '../controls/Dwell';
 import { DEFAULT_SETTINGS as D, PITCH_MODE_GROUPS, modeCaps } from '../../config/settings';
 
 const pct = (v) => `${Math.round(v)} %`;
-const cents = (v) => `${v > 0 ? '+' : ''}${Math.round(v)} ¢`;
+const cents = (v) => `${signed(Math.round(v))} ¢`;
 
 /** Pitch mode select plus the controls that mode uses. */
 export default function ModeGroup({ settings, onChange, drag }) {

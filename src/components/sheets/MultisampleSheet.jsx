@@ -126,7 +126,7 @@ export default function MultisampleSheet({ settings, audio, notation, onBack, on
           {rendering && (
             <>
               <div className="row"><span className="status-line">{t('ms.rendering', { note: run.note, done: run.done, total: run.total })}</span><span className="mono dim">{run.pct} %</span></div>
-              <div className="pbar"><i style={{ width: `${run.pct}%` }} /></div>
+              <div className="pbar"><i style={{ transform: `scaleX(${run.pct / 100})` }} /></div>
             </>
           )}
           {run.status === 'complete'  && <div className="status-line status-line--ok">{t('ms.complete', { count: run.result?.notes_rendered ?? total, dir: run.result?.output_dir ?? outputDir })}</div>}

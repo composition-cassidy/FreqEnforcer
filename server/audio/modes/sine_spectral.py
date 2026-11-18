@@ -101,8 +101,6 @@ def autotune_sine_spectral(
     formant_shift_cents: int = 0,
     fft_size: int = 2048,
     hop_size: int = 128,
-    max_sines: int = 80,
-    threshold_db: float = -80.0,
     return_f0: bool = False,
 ):
     """

@@ -16,15 +16,15 @@ document.addEventListener('drop', (e) => {
   }
 }, true);  // capture phase — fires before renderer handlers
 
-// Backend port chosen by the OS at spawn time; main.js passes it via
-// webPreferences.additionalArguments.
-const _portArg = process.argv.find((a) => a.startsWith('--fe-backend-port='));
-const _backendPort = _portArg ? Number(_portArg.split('=')[1]) : NaN;
-
 contextBridge.exposeInMainWorld('electronAPI', {
-  backendUrl: Number.isInteger(_backendPort) && _backendPort > 0
-    ? `http://127.0.0.1:${_backendPort}`
-    : null,
+  // Backend base URL. The backend starts in parallel with this window, so
+  // these resolve once it has announced its OS-assigned port (null = failed).
+  backendUrl:     () => ipcRenderer.invoke('backend:url'),
+  restartBackend: () => ipcRenderer.invoke('backend:restart'),
+  // Global UI scale. The main process clamps it to what fits the screen and
+  // zooms the page (not CSS zoom, so devicePixelRatio changes and the
+  // canvases stay sharp). Returns the applied factor.
+  setZoomFactor: (want) => ipcRenderer.sendSync('ui:scale', want),
   getLastDroppedFilePath: () => _lastDroppedPath,
   // Sample passed on the command line (--fe-open=<path>), if any.
   initialFile: (process.argv.find((a) => a.startsWith('--fe-initial-file=')) ?? '').slice('--fe-initial-file='.length) || null,

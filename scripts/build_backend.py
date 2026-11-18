@@ -28,7 +28,11 @@ HIDDEN_IMPORTS = ["soundfile", "pyworld", "scipy.signal", "scipy.ndimage",
                   "parselmouth", "pylibrb", "soxr"]
 
 EXCLUDES = ["PyQt6", "PyQt5", "matplotlib", "PIL", "Pillow", "sklearn", "tkinter",
-            "librosa", "numba", "llvmlite", "joblib", "pooch", "decorator", "mypy"]
+            "librosa", "numba", "llvmlite", "joblib", "pooch", "decorator", "mypy",
+            # uvicorn[standard] extras the backend never loads: no websockets
+            # (ws="none" in server/main.py), no YAML/.env log config, no HTTPS
+            # client, no time zones
+            "websockets", "wsproto", "yaml", "dotenv", "certifi", "tzdata"]
 
 # Leftovers PyInstaller drags in via optional imports.
 BLOAT_FILES = ["opengl32sw.dll", "_avif*.pyd", "Qt6*.dll", "Qt6*.pyd", "QtCore.pyd",
@@ -67,8 +71,6 @@ def main() -> int:
         "--distpath", str(DIST),
         "--workpath", str(WORK),
         "--specpath", str(WORK),
-        "--add-data", f"{SERVER / 'audio'};audio",
-        "--add-data", f"{SERVER / 'utils'};utils",
     ]
     for m in HIDDEN_IMPORTS:
         args += ["--hidden-import", m]

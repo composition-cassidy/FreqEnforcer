@@ -12,7 +12,10 @@
 .title__menus button { background: none; border: 0; padding: 0 var(--s3); color: var(--fg-2); cursor: pointer; }
 .title__menus button:hover, .title__menus button[aria-expanded="true"] { background: var(--bg-3); color: var(--fg-1); }
 .title__spacer { flex: 1; }
-.title__status { display: flex; align-items: center; gap: var(--s2); color: var(--fg-2); padding: 0 var(--s3); white-space: nowrap; }
+.title__status { display: flex; align-items: center; gap: var(--s3); color: var(--fg-2); padding: 0 var(--s3); white-space: nowrap; -webkit-app-region: no-drag; }
+.title__engine { display: flex; align-items: center; gap: var(--s2); }
+.title__engine--err { color: var(--err); }
+.title__engine .btn { height: 22px; }
 .title__wc { display: flex; -webkit-app-region: no-drag; }
 .title__wc button { width: 46px; background: none; border: 0; color: var(--fg-2); cursor: pointer; font-size: var(--fs-13); }
 .title__wc button:hover { background: var(--bg-3); color: var(--fg-1); }
@@ -42,8 +45,9 @@
   background: var(--bg-1); border-top: var(--bw) solid var(--line-1);
 }
 .transport { display: flex; align-items: center; gap: var(--s3); }
-.transport__time { font-family: var(--font-mono); font-size: var(--fs-13); min-width: 150px; }
+.transport__time { font-family: var(--font-mono); font-size: var(--fs-13); min-width: 150px; contain: layout paint; } /* readout updates during playback stay local */
 .transport__time span { color: var(--fg-3); }
+.transport__time .transport__pos { color: var(--fg-1); }
 .levels { font-family: var(--font-mono); color: var(--fg-2); display: flex; gap: var(--s3); }
 .levels b { font-weight: 400; color: var(--fg-3); }
 .levels i { font-style: normal; display: inline-block; min-width: 64px; text-align: right; }

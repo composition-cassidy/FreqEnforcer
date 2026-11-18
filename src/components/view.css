@@ -17,9 +17,9 @@
 .legend .corr i { background: var(--accent); }
 .viewbar__spacer { flex: 1; }
 .viewbar__zoom { display: flex; gap: 2px; align-items: center; }
-.viewbar__zoom button { background: none; border: var(--bw) solid var(--line-2); border-radius: var(--r); color: var(--fg-2); width: 22px; height: 20px; cursor: pointer; }
+.viewbar__zoom button { background: none; border: var(--bw) solid var(--line-ctl); border-radius: var(--r); color: var(--fg-2); width: var(--hit); height: var(--hit); cursor: pointer; }
 .viewbar__zoom button:hover { color: var(--fg-1); background: var(--bg-3); }
-.viewbar__zoom button:disabled { color: var(--fg-3); background: none; cursor: default; }
+.viewbar__zoom button:disabled { color: var(--fg-off); border-color: var(--line-2); background: none; cursor: default; }
 .viewbar__zoom .mono { min-width: 40px; text-align: center; }
 
 .wave { position: relative; min-height: 0; overflow: hidden; }
@@ -35,4 +35,4 @@
 .splitter:hover { background: var(--line-2); }
 .harm { position: relative; min-height: 0; }
 .harm__cap { position: absolute; left: var(--s3); top: var(--s2); color: var(--fg-2); font-size: var(--fs-11); z-index: 1; display: flex; gap: var(--s3); align-items: center; }
-.harm__cap .btn { height: 18px; padding: 0 var(--s2); font-size: var(--fs-11); }
+.harm__cap .btn { padding: 0 var(--s2); font-size: var(--fs-11); }

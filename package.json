@@ -1,6 +1,6 @@
 {
   "name": "freqenforcer",
-  "version": "2.0.1",
+  "version": "2.5.0",
   "description": "FreqEnforcer",
   "author": "Krasen",
   "license": "MIT",
@@ -17,14 +17,12 @@
     "build:installer": "cd installer && npm install && npx electron-builder --win portable",
     "build:all": "scripts\\build.bat"
   },
-  "dependencies": {
+  "devDependencies": {
     "concurrently": "^8.2.0",
     "i18next": "^26.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-i18next": "^17.0.1"
-  },
-  "devDependencies": {
+    "react-i18next": "^17.0.1",
     "@vitejs/plugin-react": "^4.2.0",
     "electron": "^41.1.0",
     "electron-builder": "^25.1.8",
@@ -34,6 +32,8 @@
     "appId": "com.freqenforcer.app",
     "productName": "FreqEnforcer",
     "copyright": "Copyright © 2026 Krasen",
+    "compression": "maximum",
+    "afterPack": "scripts/after-pack.js",
     "directories": {
       "output": "dist-electron",
       "buildResources": "build-resources"
@@ -56,10 +56,6 @@
         "filter": [
           "**/*"
         ]
-      },
-      {
-        "from": "build-resources/splash.html",
-        "to": "splash.html"
       }
     ],
     "win": {

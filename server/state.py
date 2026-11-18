@@ -15,25 +15,23 @@ class AppState:
         self.processed_audio: Optional[np.ndarray] = None  # float32 mono
         self.sample_rate: int = 44100
         self.detected_pitch: Optional[dict] = None          # freq_hz, note_name, cents
-        self.harmonic_analysis: Optional[dict] = None
         self.source_path: str = ""
         self.processing_token: int = 0
 
-        # Temp file cleanup: path of last written temp WAV
-        self._last_temp_path: Optional[str] = None
+        # Temp WAVs served by /api/audio-file; each is deleted when replaced
+        self._last_temp_path: Optional[str] = None      # processed
+        self._original_temp_path: Optional[str] = None  # loaded original
 
         # Loop points for the current processed audio (None = no loop)
         self.loop_start: Optional[int] = None
         self.loop_end:   Optional[int] = None
 
-        # Cached WORLD analysis of the loaded audio, reused by the WORLD
-        # pitch modes across /process calls.
+        # Cached WORLD F0 analysis (dio + stonemask) of the loaded audio,
+        # reused by the WORLD pitch modes across /process calls.
         self.world_cache: dict = {
             'audio_hash': None,
             'f0': None,
             'timeaxis': None,
-            'sp': None,
-            'ap': None,
             'sr': None,
         }
 

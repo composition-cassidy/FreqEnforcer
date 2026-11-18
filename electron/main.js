@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, screen } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -7,7 +7,6 @@ const fs   = require('fs');
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow = null;
-let splashWindow = null;
 
 // ── CLI flags ─────────────────────────────────────────────────────────────
 //   --fe-open=<path>            load this sample once the backend is up
@@ -20,7 +19,6 @@ const argValue = (name) => {
 const initialFile = argValue('fe-open');
 const screenshotArg = argValue('fe-screenshot');
 let backendProcess = null;
-let backendPort = null;
 
 // ── Single instance ───────────────────────────────────────────────────────
 // A second launch focuses the existing window instead of starting another
@@ -39,6 +37,8 @@ if (!gotSingleInstanceLock) {
 }
 
 // ── Backend process management ───────────────────────────────────────────
+// The backend is spawned at process start (see the end of this section), in
+// parallel with Electron's own startup and the renderer's first paint.
 // The backend binds an OS-assigned port (--port 0) and announces it on stdout
 // as "FREQENFORCER_PORT=<n>", so several backends never collide on 8765.
 const BACKEND_ARGS = ['--port', '0'];
@@ -73,6 +73,8 @@ function getBackendConfig() {
 }
 
 // Spawns the backend and resolves with the port it announces on stdout.
+// The renderer probes /health itself, so nothing here waits for the DSP
+// imports; the window opens while the backend is still starting.
 function startBackend(timeout = 60000) {
   return new Promise((resolve, reject) => {
     const config = getBackendConfig();
@@ -81,11 +83,12 @@ function startBackend(timeout = 60000) {
       return;
     }
 
-    backendProcess = spawn(config.exe, config.args, {
+    const proc = spawn(config.exe, config.args, {
       cwd: config.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
+    backendProcess = proc;
 
     let stdoutBuf = '';
     let settled = false;
@@ -98,31 +101,41 @@ function startBackend(timeout = 60000) {
     const timer = setTimeout(
       () => settle(reject, new Error('Timed out waiting for backend port')), timeout);
 
-    backendProcess.stdout.on('data', (data) => {
-      console.log(`[backend] ${data}`);
+    proc.stdout.on('data', (data) => {
+      if (isDev) console.log(`[backend] ${data}`);
       if (!settled) {
         stdoutBuf += data.toString();
         const m = stdoutBuf.match(PORT_LINE_RE);
-        if (m) settle(resolve, Number(m[1]));
+        if (m) { stdoutBuf = ''; settle(resolve, Number(m[1])); }
       }
     });
 
-    backendProcess.stderr.on('data', (data) => {
+    proc.stderr.on('data', (data) => {
       console.error(`[backend] ${data}`);
     });
 
-    backendProcess.on('error', (err) => {
+    proc.on('error', (err) => {
       console.error('Failed to start backend:', err);
       settle(reject, err);
     });
 
-    backendProcess.on('exit', (code) => {
+    proc.on('exit', (code) => {
       console.log(`[backend] exited with code ${code}`);
-      backendProcess = null;
+      if (backendProcess === proc) backendProcess = null;
       settle(reject, new Error(`Backend exited with code ${code} before reporting its port`));
     });
   });
 }
+
+// Current backend: a promise of its port. Started as early as possible (see
+// below), restarted on demand from the renderer's Retry / reconnect.
+let backendPort = null;
+function launchBackend() {
+  backendPort = startBackend();
+  backendPort.catch((err) => console.error('Backend failed to start:', err.message));
+  return backendPort;
+}
+const backendUrl = () => backendPort.then((port) => `http://127.0.0.1:${port}`, () => null);
 
 function stopBackend() {
   if (backendProcess) {
@@ -136,8 +149,10 @@ function stopBackend() {
   }
 }
 
+if (gotSingleInstanceLock) launchBackend();
+
 // ── Generic HTTP polling ───────────────────────────────────────────────────
-function pollFor(url, timeout = 60000, interval = 500) {
+function pollFor(url, timeout = 60000, interval = 50) {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeout;
 
@@ -161,27 +176,6 @@ function pollFor(url, timeout = 60000, interval = 500) {
   });
 }
 
-// ── Splash window ──────────────────────────────────────────────────────────
-function createSplashWindow() {
-  splashWindow = new BrowserWindow({
-    width: 420,
-    height: 520,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    center: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
-  splashWindow.on('closed', () => { splashWindow = null; });
-}
-
 // ── Window creation ────────────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -201,8 +195,13 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // File.path requires sandbox off; contextIsolation still protects the renderer
-      additionalArguments: [`--fe-backend-port=${backendPort}`, ...(initialFile ? [`--fe-initial-file=${initialFile}`] : [])],
+      additionalArguments: initialFile ? [`--fe-initial-file=${initialFile}`] : [],
     },
+  });
+  // Chromium restores its own per-origin zoom on navigation, which can land
+  // after the renderer's early ui:scale request; re-assert after every load.
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (Math.abs(mainWindow.webContents.getZoomFactor() - uiZoom) > 1e-3) mainWindow.webContents.setZoomFactor(uiZoom);
   });
 
   if (isDev) {
@@ -212,7 +211,6 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    if (splashWindow) splashWindow.close();
     mainWindow.show();
     if (screenshotArg) {
       const [file, delay] = screenshotArg.split(',');
@@ -232,6 +230,34 @@ function createWindow() {
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12') mainWindow.webContents.toggleDevTools();
   });
+}
+
+// ── UI scale ──────────────────────────────────────────────────────────────
+// The layout is designed for at least 1100 x 700 CSS px. A UI scale is
+// clamped so that minimum still fits the display's work area, and the
+// window's minimum size grows with the scale.
+// The renderer asks for its saved scale synchronously before React's first
+// paint (preload: ipcRenderer.sendSync('ui:scale')).
+const MIN_W = 1100, MIN_H = 700;
+let uiZoom = 1;
+function applyUiScale(want) {
+  if (!mainWindow) return 1;
+  want = Number(want) || 1;
+  const bounds = mainWindow.getBounds();
+  const wa = screen.getDisplayMatching(bounds).workAreaSize;
+  const f = Math.max(1, Math.min(want, wa.width / MIN_W, wa.height / MIN_H));
+  uiZoom = f;
+  const minW = Math.round(MIN_W * f), minH = Math.round(MIN_H * f);
+  mainWindow.setMinimumSize(minW, minH);
+  if (bounds.width < minW || bounds.height < minH) {
+    mainWindow.setSize(Math.max(bounds.width, minW), Math.max(bounds.height, minH));
+  }
+  // Zoom from here, never with webFrame.setZoomFactor in the preload: that,
+  // called while the page loads, leaves the window producing no animation
+  // frames (no playhead) on Electron 41. Skip no-op calls.
+  const wc = mainWindow.webContents;
+  if (Math.abs(wc.getZoomFactor() - f) > 1e-3) wc.setZoomFactor(f);
+  return f;
 }
 
 // ── App ready ─────────────────────────────────────────────────────────────
@@ -269,29 +295,25 @@ app.whenReady().then(async () => {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
   });
 
-  // ── Show splash immediately ──────────────────────────────────────────
-  createSplashWindow();
+  // Synchronous on purpose: the preload applies the zoom before React's
+  // first paint, so the window never shows a frame at the wrong scale.
+  ipcMain.on('ui:scale', (e, want) => { e.returnValue = applyUiScale(want); });
 
-  // Start the Python backend and wait for it to be ready
-  try {
-    backendPort = await startBackend();
-    await pollFor(`http://127.0.0.1:${backendPort}/health`);
-  } catch (err) {
-    console.error('Backend failed to start:', err.message);
-    dialog.showErrorBox('FreqEnforcer', 'Backend failed to start. Please reinstall or contact support.');
-    if (splashWindow) splashWindow.close();
+  // ── Backend handshake ─────────────────────────────────────────────
+  // Resolves with the base URL once the backend has announced its port, or
+  // null if it could not start. 'backend:restart' replaces a dead backend.
+  ipcMain.handle('backend:url', () => backendUrl());
+  ipcMain.handle('backend:restart', () => {
     stopBackend();
-    app.quit();
-    return;
-  }
+    launchBackend();
+    return backendUrl();
+  });
 
   if (isDev) {
-    // Also wait for Vite dev server
     try {
       await pollFor('http://localhost:5174');
     } catch (err) {
       console.error(err.message);
-      if (splashWindow) splashWindow.close();
       stopBackend();
       app.quit();
       return;

@@ -9,7 +9,7 @@ import SettingsColumn from './components/settings/SettingsColumn';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider, useToast } from './components/Toast';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
-import { useProcessing } from './hooks/useProcessing';
+import { useProcessing, settingsToBackend } from './hooks/useProcessing';
 import { useSettingsHistory } from './hooks/useSettingsHistory';
 import { useAudioLoader, EMPTY_AUDIO } from './hooks/useAudioLoader';
 import { useExport } from './hooks/useExport';
@@ -24,6 +24,9 @@ import './components/controls/controls.css';
 import './components/shell.css';
 import './components/view.css';
 import './components/settings/settings.css';
+
+/** What /process would receive for these settings, as a comparable key. */
+const payloadKey = (s) => JSON.stringify(settingsToBackend(s));
 
 const EMPTY_PROCESSED = Object.freeze({ peaks: null, contour: null, duration: 0, peakDb: null, rmsDb: null, harmonic: null });
 
@@ -60,8 +63,9 @@ function AppInner() {
   const audioRef = useRef(audio); audioRef.current = audio;
   const debounce = useRef(null);
   const dragging = useRef(false);
-  const queuedRef = useRef(null);   // settings object already sent (skip the effect for it)
-  const pendingDrop = useRef(null); // file dropped while the backend was starting
+  const queuedRef = useRef(null);   // backend payload (JSON) already sent; identical payloads are skipped
+  const pendingDrop = useRef(null); // file opened/dropped while the backend was starting
+  const backendStatus = useRef(backend.status); backendStatus.current = backend.status;
 
   // ── processing ──────────────────────────────────────────────────────────
   const { queueProcess, cancelProcess } = useProcessing({
@@ -83,7 +87,7 @@ function AppInner() {
       else if (/out of memory/i.test(msg)) showToast(t('toast.out_of_memory'), 'error', 6000);
       else if (/network|fetch|ECONNREFUSED/i.test(msg)) {
         showToast(t('toast.backend_reconnecting'), 'error', 6000);
-        backend.reconnect().then(() => showToast(t('toast.backend_reconnected'), 'success', 3000));
+        backend.reconnect().then((ok) => { if (ok) showToast(t('toast.backend_reconnected'), 'success', 3000); });
       } else showToast(`${t('toast.processing_failed')}: ${msg}`, 'error', 6000);
     }, [showToast, t, backend]),
   });
@@ -91,12 +95,14 @@ function AppInner() {
   const schedule = useCallback(() => {
     clearTimeout(debounce.current);
     debounce.current = setTimeout(() => {
-      if (audioRef.current.loaded) { queuedRef.current = settingsRef.current; queueProcess(settingsRef.current); }
+      if (audioRef.current.loaded) { queuedRef.current = payloadKey(settingsRef.current); queueProcess(settingsRef.current); }
     }, prefs.performance_mode ? 1000 : 600);
   }, [queueProcess, prefs.performance_mode]);
 
   useEffect(() => {
-    if (!audio.loaded || settings === queuedRef.current || dragging.current) return;
+    // Only settings the backend reads trigger a run: the loop-finder sliders
+    // (and anything else not in the /process payload) do not.
+    if (!audio.loaded || payloadKey(settings) === queuedRef.current || dragging.current) return;
     schedule();
   }, [settings, audio.loaded, schedule]);
 
@@ -110,8 +116,8 @@ function AppInner() {
     const det = parseNoteName(a.detectedPitch?.note_name);
     const s = { ...DEFAULT_SETTINGS, ...(det ? { targetNote: det.note, octave: det.octave } : {}) };
     history.reset(s);
-    queuedRef.current = s;
-    player.loadOriginal().catch(() => {});
+    queuedRef.current = payloadKey(s);
+    player.loadOriginal(a.audioFile);
     queueProcess(s);
   }, [history, player, queueProcess]);
   const { loadAudio, abortLoad } = useAudioLoader({ setAudio, onLoaded, showToast });
@@ -127,9 +133,14 @@ function AppInner() {
     setAudio(EMPTY_AUDIO); setProcessed(EMPTY_PROCESSED); setLoop(null); setAbMode('original');
     setProc({ active: false, pct: 0, stage: '' }); history.reset(DEFAULT_SETTINGS);
   }
+  // A file opened or dropped before the engine is up waits in pendingDrop and
+  // loads as soon as it is (see the effect below).
+  function openOrQueue(f) {
+    if (backendStatus.current === 'ok') beginLoad(f); else pendingDrop.current = f;
+  }
   async function openFile() {
     const p = await window.electronAPI?.openFileDialog?.();
-    if (p) beginLoad(p);
+    if (p) openOrQueue(p);
   }
   useEffect(() => {
     if (backend.status !== 'ok') return;
@@ -185,44 +196,38 @@ function AppInner() {
     onDrop: (e) => {
       e.preventDefault(); setDropping(false);
       const file = e.dataTransfer.files[0]; if (!file) return;
-      const f = window.electronAPI?.getLastDroppedFilePath?.() || file;
-      if (backend.status === 'ok') beginLoad(f); else pendingDrop.current = f;
+      openOrQueue(window.electronAPI?.getLastDroppedFilePath?.() || file);
     },
   };
 
   // ── harmonic pane resize ────────────────────────────────────────────────
+  // 1:1 with the pointer: the drag writes the grid row straight onto the
+  // element and commits to React state once, on release.
+  const centerRef = useRef(null);
   function onSplitter(e) {
     const y0 = e.clientY, h0 = harmH;
-    const move = (ev) => setHarmH(clamp(h0 - (ev.clientY - y0), 120, 480));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    let h = h0;
+    const move = (ev) => { h = clamp(h0 - (ev.clientY - y0), 120, 480); centerRef.current?.style.setProperty('--harm-h', `${h}px`); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); setHarmH(h); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
-  }
-
-  if (backend.status !== 'ok') {
-    return (
-      <div className="backend" {...dragProps}>
-        <span className="big">{backend.status === 'checking' ? t('backend.checking') : t('backend.failed')}</span>
-        {backend.status === 'error' && <button type="button" className="btn" onClick={backend.recheck}>{t('backend.retry')}</button>}
-      </div>
-    );
   }
 
   const showHarm = settings.harmonic_limiter_enabled;
   const levels = abMode === 'processed' && processed.peakDb != null ? { peak: processed.peakDb, rms: processed.rmsDb } : { peak: audio.peakDb, rms: audio.rmsDb };
-  const playhead = player.isPlaying && player.duration > 0 ? Math.min(1, player.playbackPosition / player.duration) : null;
+  const engine = backend.status === 'ok' ? 'ready' : backend.status === 'error' ? 'error' : 'starting';
 
   return (
-    <div className={`app${audio.loaded ? '' : ' app--idle'}`} {...dragProps}>
+    <div className={`app${audio.loaded ? '' : ' app--idle'}`} data-engine={engine} {...dragProps}>
       {dropping && <div className="drop"><div>{t('view.drop_now')}</div></div>}
-      <TitleBar audioLoaded={audio.loaded} processing={proc} busy={busy} prefs={prefs} onPrefs={setPrefs} onAction={action} />
+      <TitleBar audioLoaded={audio.loaded} processing={proc} busy={busy} prefs={prefs} onPrefs={setPrefs} onAction={action} engine={engine} onRetryEngine={backend.recheck} />
       <FileHeader audio={audio} notation={prefs.notation} onOpen={openFile} />
-      <div className="progress" aria-hidden="true">{proc.active && <i className={proc.pct > 0 ? '' : 'indeterminate'} style={proc.pct > 0 ? { width: `${proc.pct}%` } : undefined} />}</div>
-      <div className={`center${showHarm ? ' center--harm' : ''}`} style={{ '--harm-h': `${harmH}px` }}>
+      <div className="progress" aria-hidden="true">{proc.active && <i className={proc.pct > 0 ? '' : 'indeterminate'} style={proc.pct > 0 ? { transform: `scaleX(${proc.pct / 100})` } : undefined} />}</div>
+      <div ref={centerRef} className={`center${showHarm ? ' center--harm' : ''}`} style={{ '--harm-h': `${harmH}px` }}>
         <ErrorBoundary label="PitchView">
           <PitchView
             audio={{ loaded: audio.loaded, loading: audio.loading, peaks: audio.peaks, contour: audio.contour, duration: audio.durationSeconds }}
             processed={processed} abMode={abMode} target={{ note: settings.targetNote, octave: settings.octave }} notation={prefs.notation}
-            playhead={playhead} loop={loop} trimFrac={trimFrac} busy={proc.active}
+            playing={player.isPlaying} subscribe={player.subscribe} loop={loop} trimFrac={trimFrac} busy={proc.active}
             onTargetShift={shiftNote} onSeek={(f) => player.seek(f * player.duration)}
           />
         </ErrorBoundary>
@@ -244,7 +249,7 @@ function AppInner() {
         prefs={prefs} onPrefs={setPrefs} loop={loop} onFindLoop={findLoop} busy={busy} onTrimPreview={onTrimPreview}
       />
       <Footer
-        player={{ playing: player.isPlaying, position: player.playbackPosition, duration: player.duration, toggle: player.isPlaying ? player.stop : player.play }}
+        player={{ playing: player.isPlaying, subscribe: player.subscribe, duration: player.duration, toggle: player.isPlaying ? player.stop : player.play }}
         abMode={abMode} onAB={setAB} hasProcessed={hasProcessed} levels={levels}
         history={history} audioLoaded={audio.loaded} busy={busy} onAction={action}
       />

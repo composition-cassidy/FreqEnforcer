@@ -2,28 +2,12 @@ from __future__ import annotations
 
 import numpy as np
 
-try:
-    from server.utils.note_utils import (
-        freq_to_midi,
-        get_pitch_difference,
-        midi_to_note_name,
-        note_name_to_freq,
-    )
-except ImportError:
-    try:
-        from spartan_tuner.utils.note_utils import (
-            freq_to_midi,
-            get_pitch_difference,
-            midi_to_note_name,
-            note_name_to_freq,
-        )
-    except ImportError:
-        from utils.note_utils import (
-            freq_to_midi,
-            get_pitch_difference,
-            midi_to_note_name,
-            note_name_to_freq,
-        )
+from server.utils.note_utils import (
+    freq_to_midi,
+    get_pitch_difference,
+    midi_to_note_name,
+    note_name_to_freq,
+)
 
 
 def detect_pitch(audio: np.ndarray, sr: int = 44100, fast: bool = False) -> dict:
@@ -195,6 +179,3 @@ def get_pitch_summary(audio: np.ndarray, sr: int = 44100, fast: bool = False) ->
     summary.update({"freq_hz": float(freq_hz), "note_name": note_name, "cents": int(cents)})
     return summary
 
-
-def get_target_frequency(note_name: str) -> float:
-    return float(note_name_to_freq(note_name))

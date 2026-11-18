@@ -4,7 +4,8 @@ import { API_BASE } from '../config/api';
 
 // ── useAudioPlayer ─────────────────────────────────────────────────────────
 /**
- * Manages audio playback using HTMLAudioElement + Blob URLs.
+ * Manages audio playback with one HTMLAudioElement streaming the backend's
+ * temp WAVs (GET /api/audio-file/{name}).
  *
  * Uses HTMLAudioElement instead of Web Audio API's decodeAudioData to avoid
  * a Chromium renderer crash (ACCESS_VIOLATION) on some Windows systems.
@@ -12,18 +13,20 @@ import { API_BASE } from '../config/api';
  * Exposed API:
  *   play()            start or resume
  *   stop()            stop and reset position to 0
- *   reset()           stop + release both audio URLs + duration → 0
- *   loadOriginal()    fetch /api/get-audio { which: "original" }, create Blob URL
- *   loadProcessed()   fetch /api/get-audio { which: "processed" }, create Blob URL
+ *   reset()           stop + forget both sources + duration → 0
+ *   loadOriginal(name)           original side = /api/audio-file/<name>
+ *   loadProcessedFromFile(name)  processed side = /api/audio-file/<name>
  *   switchBuffer(which)  change active side; restarts if playing
+ *   subscribe(fn)     fn(positionSec, durationSec) on every animation frame
+ *                     while playing, and once after stop/seek/reset; returns
+ *                     an unsubscribe function. The playhead and time readout
+ *                     draw from this, so playback never re-renders React.
  *   isPlaying         boolean (React state)
- *   playbackPosition  number  (React state, seconds)
  *   duration          number  (React state, seconds; 0 when nothing loaded)
  */
 export function useAudioPlayer() {
   // ── React state (drives renders) ──────────────────────────────────────
   const [isPlaying,        setIsPlaying]        = useState(false);
-  const [playbackPosition, setPlaybackPosition] = useState(0);
   const [duration,         setDuration]         = useState(0);
 
   // ── Internal mutable refs ───────────────────────────────────────────
@@ -33,7 +36,15 @@ export function useAudioPlayer() {
   const activeBufferRef   = useRef('original');    // 'original' | 'processed'
   const isPlayingRef      = useRef(false);
   const rafRef            = useRef(null);
-  const lastFrameRef      = useRef(0);
+  const listenersRef      = useRef(new Set());
+
+  /** Push the current position to every frame listener. */
+  function emit(pos) {
+    const el = audioElRef.current;
+    const p = pos ?? el?.currentTime ?? 0;
+    const d = el && Number.isFinite(el.duration) ? el.duration : 0;
+    for (const fn of listenersRef.current) fn(p, d);
+  }
 
   // ── Get or create the <audio> element ───────────────────────────────
   function getAudioEl() {
@@ -45,14 +56,15 @@ export function useAudioPlayer() {
       el.addEventListener('ended', () => {
         isPlayingRef.current = false;
         setIsPlaying(false);
-        setPlaybackPosition(0);
         cancelRaf();
+        emit(0);
       });
 
       // Track duration when metadata loads
       el.addEventListener('loadedmetadata', () => {
         if (Number.isFinite(el.duration)) {
           setDuration(el.duration);
+          emit();
         }
       });
 
@@ -68,19 +80,14 @@ export function useAudioPlayer() {
     }
   }
 
-  // ── rAF position tracking (throttled to ~15 fps) ────────────────────
+  // ── One rAF loop while playing: engine time -> listeners ────────────
+  // Every frame, unthrottled and unsmoothed: the playhead shows where the
+  // audio element actually is. No React state is touched per frame.
   function startRaf() {
     cancelRaf();
     function tick() {
-      if (!isPlayingRef.current) return;
-      const el = audioElRef.current;
-      if (!el) return;
-
-      const now = performance.now();
-      if (now - lastFrameRef.current >= 66) {
-        lastFrameRef.current = now;
-        setPlaybackPosition(el.currentTime);
-      }
+      if (!isPlayingRef.current || !audioElRef.current) return;
+      emit();
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);
@@ -93,81 +100,29 @@ export function useAudioPlayer() {
       : originalUrlRef.current;
   }
 
-  /** Revoke a Blob URL if it exists. */
-  function revokeUrl(ref) {
-    if (ref.current) {
-      URL.revokeObjectURL(ref.current);
-      ref.current = null;
+  /** Forget a side's URL (the backend deletes the temp file when replaced). */
+  function revokeUrl(ref) { ref.current = null; }
+
+  /**
+   * Point one side at a temp WAV the backend serves from /api/audio-file
+   * (the loaded original or the latest processed result); streamed, no base64.
+   */
+  function setSource(which, filename) {
+    const ref = which === 'original' ? originalUrlRef : processedUrlRef;
+    ref.current = filename ? `${API_BASE}/api/audio-file/${encodeURIComponent(filename)}` : null;
+    if (which === activeBufferRef.current && ref.current) {
+      const el = getAudioEl();
+      el.src = ref.current;
+      el.load();
     }
   }
 
-  // ── fetchAndStore ───────────────────────────────────────────────────
-  /**
-   * Fetch audio from /api/get-audio, convert base64 → Blob URL,
-   * and store in the appropriate ref.
-   */
-  const fetchAndStore = useCallback(async (which) => {
-    const res = await fetch(`${API_BASE}/api/get-audio`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ which }),
-    });
-
-    if (!res.ok) {
-      let detail = res.statusText;
-      try { detail = (await res.json()).detail ?? detail; } catch (_) {}
-      throw new Error(`get-audio (${which}) failed: ${detail}`);
-    }
-
-    const { audio_base64 } = await res.json();
-    if (!audio_base64) {
-      throw new Error(`get-audio (${which}): no audio_base64 in response`);
-    }
-
-    // Base64 → Uint8Array → Blob → URL
-    const binary = atob(audio_base64);
-    const bytes  = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-    const blob = new Blob([bytes], { type: 'audio/wav' });
-    const url  = URL.createObjectURL(blob);
-
-    // Store URL (revoke old one first)
-    if (which === 'original') {
-      revokeUrl(originalUrlRef);
-      originalUrlRef.current = url;
-    } else {
-      revokeUrl(processedUrlRef);
-      processedUrlRef.current = url;
-    }
-
-    // If this is the active side, load it into the audio element
-    if (which === activeBufferRef.current) {
-      const el = getAudioEl();
-      el.src = url;
-      el.load();
-    }
-  }, []);
-
   // ── Public API ─────────────────────────────────────────────────────
 
-  const loadOriginal  = useCallback(() => fetchAndStore('original'),  [fetchAndStore]);
-  const loadProcessed = useCallback(() => fetchAndStore('processed'), [fetchAndStore]);
-
-  /** Load processed audio directly from a temp filename (skips base64). */
-  const loadProcessedFromFile = useCallback((filename) => {
-    const url = `${API_BASE}/api/audio-file/${filename}`;
-
-    revokeUrl(processedUrlRef);
-    processedUrlRef.current = url;
-
-    if (activeBufferRef.current === 'processed') {
-      const el = getAudioEl();
-      el.src = url;
-      el.load();
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const loadOriginal = useCallback((filename) => setSource('original', filename), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadProcessedFromFile = useCallback((filename) => setSource('processed', filename), []);
 
   /** Start or resume playback. */
   const play = useCallback(() => {
@@ -201,7 +156,7 @@ export function useAudioPlayer() {
     if (!el || !getActiveUrl()) return;
     const dur = Number.isFinite(el.duration) ? el.duration : 0;
     el.currentTime = Math.max(0, Math.min(dur || seconds, seconds));
-    setPlaybackPosition(el.currentTime);
+    emit();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -214,8 +169,8 @@ export function useAudioPlayer() {
     }
     isPlayingRef.current = false;
     setIsPlaying(false);
-    setPlaybackPosition(0);
     cancelRaf();
+    emit(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -235,9 +190,9 @@ export function useAudioPlayer() {
     activeBufferRef.current = 'original';
     isPlayingRef.current = false;
     setIsPlaying(false);
-    setPlaybackPosition(0);
     setDuration(0);
     cancelRaf();
+    for (const fn of listenersRef.current) fn(0, 0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -286,6 +241,11 @@ export function useAudioPlayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stop]);
 
+  const subscribe = useCallback((fn) => {
+    listenersRef.current.add(fn);
+    return () => listenersRef.current.delete(fn);
+  }, []);
+
   // ── Cleanup on unmount ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
@@ -303,16 +263,14 @@ export function useAudioPlayer() {
 
   return {
     play,
-    pause: stop,   // pause = stop for our ■ model (stop-to-beginning)
     stop,
     seek,
     reset,
     loadOriginal,
-    loadProcessed,
     loadProcessedFromFile,
     switchBuffer,
+    subscribe,
     isPlaying,
-    playbackPosition,
     duration,
   };
 }

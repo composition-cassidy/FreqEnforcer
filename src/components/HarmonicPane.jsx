@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fitCanvas, token, useRedrawTriggers } from '../utils/canvas';
-import { clamp } from '../utils/note_utils';
+import { clamp, minus } from '../utils/note_utils';
 
 const M = { l: 40, r: 16, t: 28, b: 22 };
 const HIT = 9;
@@ -70,7 +70,7 @@ export default function HarmonicPane({ analysis, offsets, onOffsetChange, onRese
     for (let d = L.dMax; d >= L.dMin; d -= 10) {
       const y = Math.round(L.dy(d)) + 0.5;
       ctx.beginPath(); ctx.moveTo(M.l, y); ctx.lineTo(M.l + L.pw, y); ctx.stroke();
-      ctx.textAlign = 'right'; ctx.fillText(String(d), M.l - 6, y + 3);
+      ctx.textAlign = 'right'; ctx.fillText(minus(d), M.l - 6, y + 3);
     }
     if (!pre) {
       ctx.fillStyle = c('--fg-2'); ctx.textAlign = 'center';
@@ -98,7 +98,7 @@ export default function HarmonicPane({ analysis, offsets, onOffsetChange, onRese
       ctx.beginPath(); ctx.moveTo(n.x, L.dy(n.detected)); ctx.lineTo(n.x, M.t + L.ph); ctx.stroke();
       ctx.fillStyle = modified ? c('--accent') : c('--fg-2');
       ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fill();
-      if (modified) { ctx.fillStyle = c('--fg-1'); ctx.textAlign = 'center'; ctx.fillText(`${n.offset.toFixed(1)} dB`, n.x, n.y - 8); }
+      if (modified) { ctx.fillStyle = c('--fg-1'); ctx.textAlign = 'center'; ctx.fillText(`${minus(n.offset.toFixed(1))} dB`, n.x, n.y - 8); }
     }
   }, [analysis, t]);
   useRedrawTriggers(canvasRef, draw);

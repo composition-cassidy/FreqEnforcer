@@ -8,9 +8,9 @@ upcoming refactor; nothing listed under "Dead / duplicated code" has been remove
 
 ```
 ┌───────────────────────────── Electron main (electron/main.js) ─────────────────────────────┐
-│ splash window → spawn backend exe (resources/backend/freqenforcer-backend.exe)             │
-│ polls GET /health, then opens main window. IPC: window controls, open/save/dir dialogs,    │
-│ theme storage (preload.js exposes window.electronAPI)                                      │
+│ spawns the backend exe at process start, opens the main window in parallel (no splash).    │
+│ IPC: backend:url (port, once announced) / backend:restart, window controls, open/save/dir  │
+│ dialogs, UI zoom (preload.js exposes window.electronAPI). The renderer polls /health.      │
 └──────────────┬──────────────────────────────────────────────────────────────────────────────┘
                │ spawn                                     ▲ file paths via native dialogs
                ▼                                           │
@@ -29,19 +29,20 @@ Typical session:
    soundfile, downmixes, resamples to 44.1 kHz with soxr, peak-limits to ±1.
    `pitch_detector.get_predominant_pitch` (in-house pYIN, `pitch_yin.py`) sets
    `state.detected_pitch`. Response carries 2000-bin waveform peaks. The
-   renderer then pulls the original as base64 WAV via `POST /api/get-audio`.
+   load also writes the original as a temp `fe_original_*.wav` (PCM16), which the
+   renderer streams from `GET /api/audio-file/{name}` like the processed audio.
 2. **Process**: every settings change → `POST /api/process` (renderer
    debounces; `processing_token` cancels superseded jobs between stages). The
    renderer also holds an SSE stream on `GET /api/process-progress`.
    `_run_pipeline` (server/routes/audio.py) runs:
-   0. WORLD analysis cache (`dio`→`stonemask`→`cheaptrick`→`d4c`) when a
+   0. WORLD F0 cache (`dio`→`stonemask`; the modes run their own CheapTrick/D4C) when a
       WORLD mode or breathiness is used, keyed by an md5 of the first 1000 samples
    1. pitch correction (mode table below)
    2. time stretch (`time_stretch.STRETCHERS`) if `stretch_factor != 1`
    3. smart low-cut (`cleanliness.compute_smart_lowcut` + `apply_low_cut`)
    4. cleanliness + HF rollback (`cleanliness.apply_cleanliness`, STFT harmonic mask)
    5. breathiness (`autotuner.apply_breathiness`, a fresh WORLD harvest+resynthesis)
-   6. harmonic analysis (pre) → optional harmonic limiting → analysis (post)
+   6. only with the harmonic limiter on: analysis (pre) → limiting → analysis (post)
       (`harmonic_limiter.py`)
    7. normalize (`normalizer.normalize_audio`, −0.1 dBFS)
 
@@ -73,18 +74,16 @@ Typical session:
 
 | Method | Path | Request | Response / effect | Used by frontend |
 |---|---|---|---|---|
-| GET | `/health` | – | `{status, version}` | yes (splash/startup) |
+| GET | `/health` | – | `{status, version}` | yes (renderer, until the engine is ready) |
 | POST | `/api/load-audio` | `{file_path}` (≤100 MB, must exist) | duration, sr, detected_pitch (note, cents, Hz, `confidence`), `f0_contour` `{times, hz}`, waveform_peaks, peak/rms dB, timings; resets state | yes |
 | POST | `/api/load-audio-upload` | multipart `file` (.wav/.mp3/.flac/.ogg/.aiff) | same as above + `uploaded_path` (temp file kept) | yes (drag-drop) |
 | POST | `/api/process` | `ProcessRequest` (target_note, pitch_mode, pitch_amount, retune_speed_ms, preserve_vibrato, preserve_formants, formant_shift_cents, formant_shift_beta, stretch_factor, stretch_method, clean_lowcut_percent, cleanliness_percent, clean_hf_rollback_percent, breathiness, hf_bias, harmonic_limiter_enabled, harmonic_ceiling_offsets_db, harmonic_knee_db, harmonic_release_ms, normalize, optional `voicing_mode`) | peaks, peak/rms dB, harmonic_analysis, `f0_contour` of the output (decimated YIN, display only), duration, `audio_temp_path`/`_filename`, timings; 409 if superseded | yes |
 | GET | `/api/process-progress` | – | SSE `{progress, stage}` (shared global queue, never closes) | yes |
-| POST | `/api/get-audio` | `{which: original\|processed}` | base64 PCM16 WAV | yes (original) |
-| GET | `/api/audio-file/{filename}` | only `fe_processed_*` / `fe_upload_*` in temp dir | WAV file | yes |
+| GET | `/api/audio-file/{filename}` | only bare `fe_original_*` / `fe_processed_*` / `fe_upload_*` names in the temp dir | WAV file | yes |
 | POST | `/api/export` | `{output_path, target_note}` | writes PCM16 + smpl chunk | yes |
 | POST | `/api/quick-export` | `{target_note, overwrite}` | writes `<src>_<note>_tuned.wav` next to source, or `{exists:true}` | yes |
 | POST | `/api/crossfade-loop` | `{template_periods, min_loop_periods, crossfade_periods, f0_hz?}` | loop_start/end; replaces processed_audio | yes |
 | POST | `/api/render-multisample` | note range + loop options + all ProcessRequest fields + `output_dir` | SSE progress → `{complete, output_dir, sfz_path, notes_rendered}` | yes |
-| GET | `/api/stretch-methods` | – | static list of 7 stretch methods | **no** (frontend hard-codes its own list) |
 | POST | `/api/warmup` | – | runs pitch detect, WORLD, WSOLA and cleanliness on 0.25 s of sine | yes (Preferences › warm-up, default on) |
 
 ## Pitch modes
@@ -151,7 +150,20 @@ Time-stretch methods (`time_stretch.STRETCHERS`): `audiotsm_wsola` (default),
   machine all cases are bit-identical (max |diff| = 0). Runtime is about 4 min.
 - `tests/profiling/profile_baseline.py`: see [PROFILE.md](PROFILE.md).
 
-## Dead / duplicated code (found, **not deleted**)
+## Dead / duplicated code
+
+Removed 2026-11-18 (dead-code pass): the unused WORLD `sp`/`ap` precompute
+(item 1, ~1 s per new file), harmonic analysis while the limiter is off (2),
+`sinusoidal.py`, `dwp_writer.py`, `harmonic_cli.py` (15, 16, 18), the unused
+cleanliness / normalizer / loader / pitch-detector / `_dsp` helpers (10, 15, 17, 18),
+the `spartan_tuner.*` / `utils.*` import fallbacks and the PyInstaller
+`--add-data` source copies (12), `/api/stretch-methods` (19), `/api/get-audio`
+(the original is now streamed from a temp WAV), `state.harmonic_analysis`,
+per-request timing tables on stdout, the duplicated load-endpoint tail (8), and
+the stale warm-up comment (23). The frontend no longer re-runs `/process` when
+only the loop-finder sliders change, and `react`, `i18next` and `concurrently`
+moved to devDependencies (Vite bundles them; they were copied into app.asar).
+Items not mentioned there are still open.
 
 ### Wasted work on the hot path
 1. **WORLD `sp`/`ap` precompute is unused.** `_run_pipeline` step 0 runs

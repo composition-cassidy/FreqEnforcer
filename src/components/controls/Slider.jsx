@@ -23,6 +23,9 @@ export default function Slider({
 
   const modified = defaultValue != null && Math.abs(value - defaultValue) > 1e-9;
   const display = format ? format(value) : String(value);
+  const frac = (v) => (max > min ? (clamp(v, min, max) - min) / (max - min) : 0) * 100;
+  const ref = frac(defaultValue ?? min), cur = frac(value);
+  const fill = { '--lo': `${Math.min(ref, cur)}%`, '--hi': `${Math.max(ref, cur)}%` };
 
   function commitText() {
     const raw = parse ? parse(text) : parseFloat(text);
@@ -62,7 +65,7 @@ export default function Slider({
       )}
       <input
         id={id} type="range" className="ctl__range"
-        min={min} max={max} step={step} value={value}
+        min={min} max={max} step={step} value={value} style={fill}
         onChange={handleRange}
         onPointerDown={startDrag} onPointerUp={endDrag} onPointerCancel={endDrag}
         onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}

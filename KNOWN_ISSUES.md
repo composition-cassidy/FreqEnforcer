@@ -1,4 +1,4 @@
-# FreqEnforcer v2.0.1 — Known Issues
+# FreqEnforcer v2.5.0 — Known Issues
 
 ## Functional Issues
 

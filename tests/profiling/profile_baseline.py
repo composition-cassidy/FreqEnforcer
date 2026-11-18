@@ -264,7 +264,7 @@ def stop_server(proc: subprocess.Popen) -> None:
 def importtime_breakdown() -> dict:
     code = ("import server.main\n"
             "from server.audio import autotuner, cleanliness, harmonic_limiter, hnm_synth, "
-            "loader, normalizer, pitch_detector, sinusoidal, time_stretch\n")
+            "loader, normalizer, pitch_detector, time_stretch\n")
     res = subprocess.run([sys.executable, "-X", "importtime", "-c", code], cwd=str(ROOT),
                          capture_output=True, text=True)
     pkg_self: dict[str, float] = defaultdict(float)

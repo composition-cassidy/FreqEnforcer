@@ -31,33 +31,49 @@ button:focus-visible, select:focus-visible, input:focus-visible,
 }
 .app--idle .side-main, .app--idle .footer .transport { opacity: .45; pointer-events: none; }
 
-.progress { grid-area: progress; background: var(--bg-1); position: relative; }
-.progress i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); transition: width 120ms linear; }
-.progress i.indeterminate { width: 30%; animation: progress-slide 1.2s linear infinite; }
-@keyframes progress-slide { from { left: -30%; } to { left: 100%; } }
+/* Processing progress. Real percentages scale a full-width bar (transform
+   only, linear, no layout); while the stage is unknown a 30 % segment sweeps.
+   With motion off the sweep becomes a steady dim bar. */
+.progress { grid-area: progress; background: var(--bg-1); position: relative; overflow: hidden; }
+.progress i {
+  position: absolute; inset: 0; background: var(--accent);
+  transform-origin: left center; transform: scaleX(0); transition: transform var(--dur-progress) linear;
+}
+.progress i.indeterminate { right: auto; width: 30%; transform: none; transition: none; animation: progress-sweep 1.2s linear infinite; }
+@keyframes progress-sweep { from { transform: translateX(-100%); } to { transform: translateX(334%); } }
+
+/* UI animations: Off (Preferences) and the OS reduced-motion setting.
+   The playhead is drawn per frame from playback time, not animated, so it keeps running. */
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  transition-duration: 0s !important; animation: none !important;
+}
+:root[data-motion="off"] .progress i.indeterminate { width: 100%; opacity: .5; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation: none !important; }
+  .progress i.indeterminate { width: 100%; opacity: .5; }
+}
 
 .drop {
   position: absolute; inset: 0; z-index: 30;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-0);
 }
-.drop div { border: var(--bw) dashed var(--line-2); border-radius: var(--r-lg); padding: var(--s6) var(--s8); color: var(--fg-2); font-size: var(--fs-13); }
+.drop div { border: var(--bw) dashed var(--line-ctl); border-radius: var(--r-lg); padding: var(--s6) var(--s8); color: var(--fg-2); font-size: var(--fs-13); }
 
 /* ── buttons ─────────────────────────────────────────────────────────────── */
 .btn {
   height: var(--h-ctl); padding: 0 var(--s3); border-radius: var(--r);
-  background: var(--bg-2); border: var(--bw) solid var(--line-2); color: var(--fg-1); cursor: pointer;
+  background: var(--bg-2); border: var(--bw) solid var(--line-ctl); color: var(--fg-1); cursor: pointer;
   display: inline-flex; align-items: center; gap: var(--s2); white-space: nowrap;
 }
 .btn:hover { background: var(--bg-3); }
-.btn:active { border-color: var(--fg-3); }
-.btn:disabled { color: var(--fg-3); cursor: default; background: var(--bg-2); }
+.btn:active { border-color: var(--fg-2); }
+.btn:disabled { color: var(--fg-off); border-color: var(--line-2); cursor: default; background: var(--bg-2); }
+.btn:disabled kbd { color: var(--fg-off); }
 .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
 .btn--primary:hover { filter: brightness(1.08); background: var(--accent); }
 .btn--primary:disabled { filter: none; opacity: .5; background: var(--accent); color: var(--accent-fg); }
 .btn--icon { width: 28px; padding: 0; justify-content: center; }
-.btn--quiet { background: none; border-color: transparent; color: var(--fg-2); }
-.btn--quiet:hover { color: var(--fg-1); background: var(--bg-3); }
 .btn kbd { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-3); }
 .btn--primary kbd { color: var(--accent-fg); opacity: .7; }
 .btn svg { width: 12px; height: 12px; fill: currentColor; flex: none; }
@@ -65,7 +81,7 @@ button:focus-visible, select:focus-visible, input:focus-visible,
 /* ── dropdown menu ───────────────────────────────────────────────────────── */
 .menu {
   position: fixed; z-index: 40; min-width: 220px;
-  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-radius: var(--r-lg);
+  background: var(--bg-2); border: var(--bw) solid var(--line-ctl); border-radius: var(--r-lg);
   padding: var(--s1) 0;
 }
 .menu button {
@@ -73,7 +89,8 @@ button:focus-visible, select:focus-visible, input:focus-visible,
   background: none; border: 0; text-align: left; padding: var(--s1) var(--s3); cursor: pointer; min-height: var(--h-ctl);
 }
 .menu button:hover, .menu button:focus-visible { background: var(--bg-3); box-shadow: none; }
-.menu button:disabled { color: var(--fg-3); cursor: default; }
+.menu button:disabled { color: var(--fg-off); cursor: default; }
+.menu button:disabled kbd { color: var(--fg-off); }
 .menu button:disabled:hover { background: none; }
 .menu button > span { flex: 1; }
 .menu button[role="menuitemradio"] > span::before { content: "•"; display: inline-block; width: 12px; color: transparent; }
@@ -84,20 +101,23 @@ button:focus-visible, select:focus-visible, input:focus-visible,
 /* ── toasts ──────────────────────────────────────────────────────────────── */
 .toasts { position: fixed; left: var(--s4); bottom: calc(var(--h-footer) + var(--s3)); z-index: 50; display: flex; flex-direction: column; gap: var(--s2); max-width: 560px; }
 .toast {
-  background: var(--bg-2); border: var(--bw) solid var(--line-2); border-left: 3px solid var(--fg-3);
+  background: var(--bg-2); border: var(--bw) solid var(--line-ctl); border-left: 3px solid var(--fg-3);
   border-radius: var(--r); padding: var(--s2) var(--s3); display: flex; gap: var(--s3); align-items: center;
 }
 .toast--success { border-left-color: var(--ok); }
 .toast--error   { border-left-color: var(--err); }
 .toast--warning { border-left-color: var(--warn); }
 .toast span { flex: 1; user-select: text; }
-.toast .btn { height: 20px; padding: 0 var(--s2); }
-.toast-x { background: none; border: 0; color: var(--fg-2); cursor: pointer; padding: 0 var(--s1); }
+.toast .btn { padding: 0 var(--s2); }
+.toast-x { background: none; border: 0; color: var(--fg-2); cursor: pointer; min-width: var(--hit); min-height: var(--hit); }
 .toast-x:hover { color: var(--fg-1); }
 
-/* ── backend status screens ─────────────────────────────────────────────── */
-.backend { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s3); color: var(--fg-2); background: var(--bg-0); }
-.backend .big { color: var(--fg-1); font-size: var(--fs-13); }
+/* ── themed scrollbars and selection ────────────────────────────────────── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border: 2px solid var(--bg-1); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-ctl); }
+::selection { background: var(--accent); color: var(--accent-fg); }
 
 /* ── error boundary ─────────────────────────────────────────────────────── */
 .boundary { padding: var(--s4); color: var(--err); }

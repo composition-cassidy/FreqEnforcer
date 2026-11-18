@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import Group from './Group';
 import NoteGrid from '../controls/NoteGrid';
 import Dwell from '../controls/Dwell';
-import { formatHz, noteNameToPC, noteToFreq, parseNoteName, pcName, toMidi } from '../../utils/note_utils';
+import { formatHz, noteNameToPC, noteToFreq, parseNoteName, pcName, toMidi, signed } from '../../utils/note_utils';
 
 /** Target note picker with Hz readout and distance from the detected pitch. */
 export default function TargetGroup({ settings, detected, notation, onChange }) {
@@ -15,7 +15,7 @@ export default function TargetGroup({ settings, detected, notation, onChange }) 
     const detMidi = toMidi(det.octave, noteNameToPC(det.note));
     const st = targetMidi - detMidi;
     const cents = (12 * Math.log2(hz / detected.freq_hz) - st) * 100; // residual after the semitone step
-    delta = `Δ ${st > 0 ? '+' : ''}${st} st · ${cents > 0 ? '+' : ''}${cents.toFixed(1)} ¢`;
+    delta = `Δ ${signed(st)} st · ${signed(cents, 1)} ¢`;
   }
 
   return (

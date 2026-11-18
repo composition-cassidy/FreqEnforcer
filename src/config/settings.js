@@ -76,11 +76,16 @@ export function countActiveAdvanced(s) {
 }
 
 export const DEFAULT_PREFS = Object.freeze({
-  theme: 'dark',          // 'dark' | 'light'
+  theme: 'dark',          // one of THEMES
+  ui_scale: 100,          // percent, one of UI_SCALES
+  animations: true,       // false = no UI motion at all (also follows the OS reduced-motion setting)
   language: 'en',
   notation: 'sharps',     // 'sharps' | 'flats'
   performance_mode: false,
   warmup: true,
 });
+
+export const THEMES = ['dark', 'light', 'contrast'];
+export const UI_SCALES = [100, 125, 150, 175, 200];
 
 export const LANGUAGES = ['en', 'es', 'pt_BR', 'ja', 'ru'];

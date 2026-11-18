@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import io
 import json
 import os
 import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import numpy as np
 import soundfile as sf
@@ -66,13 +64,6 @@ def _rms_db(audio: np.ndarray) -> float:
     return float(20.0 * np.log10(rms))
 
 
-def _audio_to_base64_wav(audio: np.ndarray, sr: int) -> str:
-    buf = io.BytesIO()
-    sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode("ascii")
-
-
 def _cleanup_last_temp():
     if state._last_temp_path:
         try:
@@ -80,6 +71,56 @@ def _cleanup_last_temp():
         except OSError:
             pass
         state._last_temp_path = None
+
+
+def _write_original_temp(audio: np.ndarray, sr: int) -> str:
+    """Write the loaded (mono, 44.1 kHz) original as a PCM16 temp WAV that the
+    renderer plays from /api/audio-file, replacing the previous one."""
+    if state._original_temp_path:
+        try:
+            os.unlink(state._original_temp_path)
+        except OSError:
+            pass
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, prefix="fe_original_")
+    tmp.close()
+    sf.write(tmp.name, audio, sr, subtype="PCM_16")
+    state._original_temp_path = tmp.name
+    return tmp.name
+
+
+def _finish_load(audio: np.ndarray, sr: int, pitch: dict, source_path: str) -> dict:
+    """Shared tail of /load-audio and /load-audio-upload: reset the session
+    state for the new audio and build the response."""
+    state.original_audio = audio
+    state.processed_audio = None
+    state.sample_rate = sr
+    state.detected_pitch = _detected_pitch_state(pitch)
+    state.world_cache = {'audio_hash': None}
+    state.loop_start = None
+    state.loop_end = None
+    state.source_path = source_path
+
+    timings = {}
+    _t = time.perf_counter()
+    original_path = _write_original_temp(audio, sr)
+    timings['original_temp_wav'] = round((time.perf_counter() - _t) * 1000, 1)
+    _t = time.perf_counter()
+    waveform_peaks = _compute_waveform_peaks(audio)
+    timings['waveform_peaks'] = round((time.perf_counter() - _t) * 1000, 1)
+
+    duration = float(len(audio)) / float(sr)
+    return {
+        "success": True,
+        "duration_seconds": round(duration, 4),
+        "sample_rate": sr,
+        "detected_pitch": state.detected_pitch,
+        "f0_contour": pitch["f0_contour"],
+        "waveform_peaks": waveform_peaks,
+        "peak_db": round(_peak_db(audio), 2),
+        "rms_db": round(_rms_db(audio), 2),
+        "audio_temp_filename": os.path.basename(original_path),
+        "timings": timings,
+    }
 
 
 def _push_progress(loop: Optional[asyncio.AbstractEventLoop], progress: float, stage: str):
@@ -93,7 +134,8 @@ def _push_progress(loop: Optional[asyncio.AbstractEventLoop], progress: float, s
 # DSP pipeline (mirrors ProcessingThread.run exactly)
 # ---------------------------------------------------------------------------
 
-# WORLD analysis behind state.world_cache (dio + stonemask, cheaptrick, d4c).
+# WORLD F0 analysis behind state.world_cache (dio + stonemask). The modes
+# read only f0/timeaxis from it and run CheapTrick/D4C on their own F0.
 WORLD_F0_FLOOR = 50.0
 WORLD_F0_CEIL = 500.0
 WORLD_FRAME_PERIOD_MS = 5.0     # pyworld default
@@ -108,7 +150,7 @@ def _world_cache_key(audio: np.ndarray, sr: int) -> str:
     a = np.ascontiguousarray(audio)
     h = hashlib.blake2b(digest_size=16)
     h.update(f"{a.dtype.str}|{a.shape}|{int(sr)}|dio+stonemask|{WORLD_F0_FLOOR}|{WORLD_F0_CEIL}|"
-             f"{WORLD_FRAME_PERIOD_MS}|cheaptrick|d4c".encode())
+             f"{WORLD_FRAME_PERIOD_MS}".encode())
     h.update(memoryview(a).cast("B"))
     return h.hexdigest()
 
@@ -136,15 +178,11 @@ def _world_cache_for(audio: np.ndarray, sr: int, settings: dict, timings: dict) 
             w_f0, w_timeaxis = pw.dio(x64, sr, f0_floor=WORLD_F0_FLOOR, f0_ceil=WORLD_F0_CEIL,
                                       frame_period=WORLD_FRAME_PERIOD_MS)
             w_f0 = pw.stonemask(x64, w_f0, w_timeaxis, sr)
-            w_sp = pw.cheaptrick(x64, w_f0, w_timeaxis, sr)
-            w_ap = pw.d4c(x64, w_f0, w_timeaxis, sr)
             timings['world_analysis'] = round((time.perf_counter() - _wt) * 1000, 1)
             world_cache = {
                 'audio_hash': audio_hash,
                 'f0': w_f0,
                 'timeaxis': w_timeaxis,
-                'sp': w_sp,
-                'ap': w_ap,
                 'sr': sr,
             }
             state.world_cache = world_cache
@@ -162,11 +200,6 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
         lowcut_reference_f0,
     )
     from server.audio.time_stretch import STRETCHERS
-    from server.audio.harmonic_limiter import (
-        analyze_harmonics,
-        apply_harmonic_limiting,
-        harmonic_f0_from_settings,
-    )
 
     timings = {}
     pipeline_start = time.perf_counter()
@@ -248,7 +281,36 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     if not state.is_current_token(token):
         return result, {}, timings
 
-    # 7. Harmonic analysis (pre)
+    # 7-8. Harmonic analysis + limiting. Only the limiter and its pane (shown
+    #      only while the limiter is on) use the analysis, so skip both when off.
+    limiter_on = bool(settings.get("harmonic_limiter_enabled", False))
+    if not limiter_on:
+        timings['harmonic_analysis_pre'] = timings['harmonic_limiting'] = timings['harmonic_analysis_post'] = 0.0
+        harmonic_dict = None
+    else:
+        result, harmonic_dict = _harmonic_stage(result, sr, settings, timings, progress)
+
+    # 9. Normalize
+    _t = time.perf_counter()
+    if bool(settings.get("normalize", False)):
+        progress(0.92, "Normalizing...")
+        result = normalize_audio(result, target_db=-0.1)
+    timings['normalize'] = round((time.perf_counter() - _t) * 1000, 1)
+
+    timings['total_dsp'] = round((time.perf_counter() - pipeline_start) * 1000, 1)
+
+    progress(1.0, "Done.")
+    return result, harmonic_dict, timings
+
+
+def _harmonic_stage(result, sr, settings, timings, progress):
+    """Harmonic analysis (pre) -> limiting -> analysis (post), limiter on."""
+    from server.audio.harmonic_limiter import (
+        analyze_harmonics,
+        apply_harmonic_limiting,
+        harmonic_f0_from_settings,
+    )
+
     _t = time.perf_counter()
     f0_hz = float(harmonic_f0_from_settings(settings))
     pre_analysis = analyze_harmonics(result, int(sr), f0_hz)
@@ -274,7 +336,7 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
 
     # 8. Harmonic limiting
     _t = time.perf_counter()
-    if bool(settings.get("harmonic_limiter_enabled", False)) and ceilings_abs:
+    if ceilings_abs:
         progress(0.78, "Applying harmonic limiting...")
         result = apply_harmonic_limiting(
             result,
@@ -288,8 +350,7 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
     timings['harmonic_limiting'] = round((time.perf_counter() - _t) * 1000, 1)
 
     _t = time.perf_counter()
-    limiter_was_active = bool(settings.get("harmonic_limiter_enabled", False)) and bool(ceilings_abs)
-    if limiter_was_active:
+    if ceilings_abs:
         post_analysis = analyze_harmonics(result, int(sr), f0_hz)
     else:
         post_analysis = pre_analysis  # no change — skip redundant analysis
@@ -301,23 +362,7 @@ def _run_pipeline(audio: np.ndarray, sr: int, settings: dict, token: int,
         "ceilings_abs_db": {str(k): float(v) for k, v in ceilings_abs.items()},
         "offsets_db": {str(k): float(v) for k, v in offsets.items()},
     }
-
-    # 9. Normalize
-    _t = time.perf_counter()
-    if bool(settings.get("normalize", False)):
-        progress(0.92, "Normalizing...")
-        result = normalize_audio(result, target_db=-0.1)
-    timings['normalize'] = round((time.perf_counter() - _t) * 1000, 1)
-
-    timings['total_dsp'] = round((time.perf_counter() - pipeline_start) * 1000, 1)
-
-    progress(1.0, "Done.")
-    print(f"\n=== DSP PIPELINE TIMINGS ===")
-    for k, v in timings.items():
-        print(f"  {k:.<30s} {v:>8.1f} ms")
-    print()
-
-    return result, harmonic_dict, timings
+    return result, harmonic_dict
 
 
 
@@ -403,17 +448,6 @@ class ProcessRequest(BaseModel):
     def clean_range(cls, v: float) -> float:
         if not (0.0 <= v <= 100.0):
             raise ValueError("cleanliness_percent must be 0-100")
-        return v
-
-
-class GetAudioRequest(BaseModel):
-    which: str = "original"
-
-    @field_validator("which")
-    @classmethod
-    def valid_which(cls, v: str) -> str:
-        if v not in ("original", "processed"):
-            raise ValueError("which must be 'original' or 'processed'")
         return v
 
 
@@ -508,51 +542,11 @@ async def load_audio(req: LoadAudioRequest):
     pitch = await asyncio.to_thread(_detect_pitch_sync, audio, sr)
     load_timings['pitch_detection'] = round((time.perf_counter() - _t) * 1000, 1)
 
-    state.original_audio = audio
-    state.processed_audio = None
-    state.sample_rate = sr
-    state.detected_pitch = _detected_pitch_state(pitch)
-    state.harmonic_analysis = None
-    state.world_cache = {'audio_hash': None}
-    state.loop_start = None
-    state.loop_end = None
-    state.source_path = req.file_path
-
-    _t = time.perf_counter()
-    waveform_peaks = _compute_waveform_peaks(audio)
-    load_timings['waveform_peaks'] = round((time.perf_counter() - _t) * 1000, 1)
-
-    _t = time.perf_counter()
-    peak_db_val = round(_peak_db(audio), 2)
-    rms_db_val = round(_rms_db(audio), 2)
-    load_timings['peak_rms'] = round((time.perf_counter() - _t) * 1000, 1)
-
-    duration = float(len(audio)) / float(sr)
+    response = _finish_load(audio, sr, pitch, req.file_path)
+    load_timings.update(response["timings"])
     load_timings['total_load'] = round((time.perf_counter() - load_start) * 1000, 1)
-    load_timings['sample_count'] = len(audio)
-    load_timings['duration_seconds'] = round(duration, 4)
-
-    print(f"\n=== LOAD-AUDIO TIMINGS ({req.file_path}) ===")
-    for k, v in load_timings.items():
-        if isinstance(v, float) and k not in ('duration_seconds',):
-            print(f"  {k:.<30s} {v:>8.1f} ms")
-        elif k == 'duration_seconds':
-            print(f"  {k:.<30s} {v:>8.4f} s")
-        else:
-            print(f"  {k:.<30s} {v}")
-    print()
-
-    return {
-        "success": True,
-        "duration_seconds": round(duration, 4),
-        "sample_rate": sr,
-        "detected_pitch": state.detected_pitch,
-        "f0_contour": pitch["f0_contour"],
-        "waveform_peaks": waveform_peaks,
-        "peak_db": peak_db_val,
-        "rms_db": rms_db_val,
-        "timings": load_timings,
-    }
+    response["timings"] = load_timings
+    return response
 
 
 def _load_audio_sync(file_path: str):
@@ -629,30 +623,10 @@ async def load_audio_upload(file: UploadFile = FastAPIFile(...)):
 
     pitch = await asyncio.to_thread(_detect_pitch_sync, audio, sr)
 
-    state.original_audio = audio
-    state.processed_audio = None
-    state.sample_rate = sr
-    state.detected_pitch = _detected_pitch_state(pitch)
-    state.harmonic_analysis = None
-    state.world_cache = {'audio_hash': None}
-    state.loop_start = None
-    state.loop_end = None
-    state.source_path = tmp_path  # keep temp path for export reference
-
-    waveform_peaks = _compute_waveform_peaks(audio)
-    duration = float(len(audio)) / float(sr)
-
-    return {
-        "success": True,
-        "duration_seconds": round(duration, 4),
-        "sample_rate": sr,
-        "detected_pitch": state.detected_pitch,
-        "f0_contour": pitch["f0_contour"],
-        "waveform_peaks": waveform_peaks,
-        "peak_db": round(_peak_db(audio), 2),
-        "rms_db": round(_rms_db(audio), 2),
-        "uploaded_path": tmp_path,
-    }
+    # source_path keeps the temp upload for export reference
+    response = _finish_load(audio, sr, pitch, tmp_path)
+    response["uploaded_path"] = tmp_path
+    return response
 
 
 @router.post("/process")
@@ -692,7 +666,6 @@ async def process_audio(req: ProcessRequest):
 
     result_audio, harmonic_dict, dsp_timings = result
     state.processed_audio = result_audio
-    state.harmonic_analysis = harmonic_dict
     # New processing clears any previously-set loop points
     state.loop_start = None
     state.loop_end = None
@@ -726,14 +699,6 @@ async def process_audio(req: ProcessRequest):
     dsp_timings['dsp_wall_time'] = dsp_wall_time
     dsp_timings['total_endpoint'] = total_endpoint
 
-    print(f"\n=== PROCESS ENDPOINT TIMINGS ===")
-    print(f"  settings_parse........... {parse_time:>8.1f} ms")
-    print(f"  dsp_wall_time............ {dsp_wall_time:>8.1f} ms")
-    print(f"  waveform_peaks........... {peaks_time:>8.1f} ms")
-    print(f"  response_serialize....... {serialize_time:>8.1f} ms")
-    print(f"  total_endpoint........... {total_endpoint:>8.1f} ms")
-    print()
-
     return {
         "success": True,
         "token": token,
@@ -753,34 +718,12 @@ def _pipeline_wrapper(audio, sr, settings, token, loop):
     return _run_pipeline(audio, sr, settings, token, loop)
 
 
-@router.post("/get-audio")
-async def get_audio(req: GetAudioRequest):
-    if req.which == "original":
-        audio = state.original_audio
-    else:
-        audio = state.processed_audio
-
-    if audio is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No {req.which} audio available."
-        )
-
-    sr = state.sample_rate
-    encoded = await asyncio.to_thread(_audio_to_base64_wav, audio, sr)
-
-    return {
-        "success": True,
-        "audio_base64": encoded,
-        "sample_rate": sr,
-    }
-
-
 @router.get("/audio-file/{filename}")
 async def serve_audio_file(filename: str):
-    """Serve a temp WAV file directly (faster than base64 encoding)."""
-    # Security: only serve files from the temp directory with our prefix
-    if not filename.startswith("fe_processed_") and not filename.startswith("fe_upload_"):
+    """Serve one of our temp WAVs (original, processed or upload)."""
+    # Security: only our own files, by bare name, from the temp directory
+    if (os.path.basename(filename) != filename
+            or not filename.startswith(("fe_original_", "fe_processed_", "fe_upload_"))):
         raise HTTPException(status_code=403, detail="Access denied")
     filepath = os.path.join(tempfile.gettempdir(), filename)
     if not os.path.exists(filepath):
@@ -1040,21 +983,6 @@ async def render_multisample(req: RenderMultisampleRequest):
     )
 
 
-@router.get("/stretch-methods")
-async def stretch_methods():
-    return {
-        "methods": [
-            {"id": "audiotsm_wsola", "name": "WSOLA", "description": "Window Similarity Overlap-Add"},
-            {"id": "audiotsm_ola", "name": "OLA", "description": "Overlap-Add"},
-            {"id": "audiotsm_phasevocoder", "name": "Phase Vocoder", "description": "Phase Vocoder (audiotsm)"},
-            {"id": "rubberband_default_engine_faster", "name": "Rubber Band (Faster)", "description": "Rubber Band default engine, faster"},
-            {"id": "rubberband_default_engine_finer", "name": "Rubber Band (Finer)", "description": "Rubber Band default engine, finer"},
-            {"id": "rubberband_percussive_engine_finer", "name": "Rubber Band Percussive", "description": "Rubber Band percussive engine, finer"},
-            {"id": "tdpsola", "name": "TD-PSOLA", "description": "Time-Domain Pitch Synchronous Overlap-Add"},
-        ]
-    }
-
-
 @router.post("/warmup")
 async def warmup():
     t0 = time.monotonic()
@@ -1068,19 +996,19 @@ def _warmup_sync():
     t = np.linspace(0.0, 0.25, int(sr * 0.25), endpoint=False, dtype=np.float32)
     x = (0.15 * np.sin(2.0 * np.pi * 220.0 * t)).astype(np.float32)
 
-    # 1. librosa (pitch detection)
+    # 1. pitch detection (in-house pYIN, scipy.ndimage)
     try:
         from server.audio.pitch_detector import get_predominant_pitch
         get_predominant_pitch(x, sr, fast=True)
     except Exception as e:
         print(f"[warmup] pitch_detector: {e}")
 
-    # 2. pyworld (autotuner — heaviest cold-start)
+    # 2. pyworld (world_hard — heaviest cold-start)
     try:
-        from server.audio.autotuner import autotune_to_note
+        from server.audio.modes.world_hard import autotune_to_note
         autotune_to_note(x, sr, "C4", preserve_formants=True)
     except Exception as e:
-        print(f"[warmup] autotuner: {e}")
+        print(f"[warmup] world_hard: {e}")
 
     # 3. audiotsm (time stretching)
     try:

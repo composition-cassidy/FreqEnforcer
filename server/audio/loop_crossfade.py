@@ -240,7 +240,7 @@ def process_with_loop(audio, sr, f0_hz=None,
     period = find_pitch_period(audio, sr, f0_hint=f0_hz)
 
     # Step 2: Template matching — find where the waveform pattern repeats
-    lp_start, lp_end, match_corr = find_loop_by_template_matching(
+    lp_start, lp_end, _corr = find_loop_by_template_matching(
         audio, sr, period,
         template_periods=template_periods,
         min_loop_periods=min_loop_periods,

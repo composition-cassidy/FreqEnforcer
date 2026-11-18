@@ -41,12 +41,17 @@ export function parseNoteName(str) {
 /** Hz -> semitones relative to refHz (float). */
 export function hzToSemitones(hz, refHz) { return 12 * Math.log2(hz / refHz); }
 
+/** Typographic minus (U+2212) for displayed negative numbers. */
+export function minus(str) { return String(str).replace('-', '\u2212'); }
+/** Signed display: "+3", "0", "−3" (digits = decimals). */
+export function signed(v, digits = 0) { return minus(`${v > 0 ? '+' : ''}${v.toFixed(digits)}`); }
+
 export function formatHz(hz, digits = 2) {
-  return hz == null || !Number.isFinite(hz) ? '—' : hz.toFixed(digits);
+  return hz == null || !Number.isFinite(hz) ? '—' : minus(hz.toFixed(digits));
 }
 export function formatCents(cents) {
   if (cents == null || !Number.isFinite(cents)) return '—';
-  return `${cents > 0 ? '+' : ''}${cents.toFixed(1)}`;
+  return signed(cents, 1);
 }
 /** Seconds -> "m:ss.mmm" */
 export function formatTime(s) {

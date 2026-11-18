@@ -1,6 +1,13 @@
 /* FreqEnforcer design tokens.
-   One dark theme (default) and one light theme (html[data-theme="light"]).
-   Every component reads these; nothing hard-codes a colour, size or font. */
+   Three themes from one file: dark (default), light (html[data-theme="light"])
+   and high contrast (html[data-theme="contrast"]). Every component reads
+   these; nothing hard-codes a colour, size, font or duration.
+
+   Contrast floor, checked for every theme:
+     --fg-1/2/3 text        >= 4.5:1 on --bg-0, --bg-1 and --bg-2
+     --line-ctl, --grid-major >= 3:1 against the panel they sit on
+     --accent, --curve-orig  >= 3:1 on the waveform fills they are drawn over
+   --fg-off (disabled controls) is exempt and deliberately faint. */
 
 :root {
   /* type */
@@ -19,38 +26,72 @@
   /* layout */
   --h-title: 32px; --h-header: 56px; --h-footer: 48px; --h-viewbar: 28px;
   --w-side: 296px; --h-ctl: 24px; --h-track: 4px; --w-value: 64px;
+  --hit: 24px; /* minimum hit area */
+
+  /* motion. Nothing in the edit loop animates; these are for the few
+     mouse-opened, occasional things and for real progress bars. */
+  --dur-0: 0ms;
+  --dur-hover: 120ms;   /* colour/opacity only */
+  --dur-progress: 120ms; /* real-percentage bars, linear */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
   /* neutrals (dark) */
-  --bg-0: #131313;   /* app */
+  --bg-0: #131313;   /* app, plot */
   --bg-1: #1a1a1a;   /* panels */
   --bg-2: #212121;   /* controls, inputs */
-  --bg-3: #2a2a2a;   /* hover, track */
-  --line-1: #2b2b2b; /* structure */
-  --line-2: #3a3a3a; /* emphasis */
+  --bg-3: #2a2a2a;   /* hover */
+  --line-1: #2b2b2b; /* structure: panel separators */
+  --line-2: #3a3a3a; /* emphasis: splitters, loop bounds */
+  --line-ctl: #6e6e6e; /* control boundaries, slider tracks */
   --fg-1: #e4e4e4;
-  --fg-2: #9a9a9a;
-  --fg-3: #5c5c5c;
+  --fg-2: #a6a6a6;
+  --fg-3: #8b8b8b;
+  --fg-off: #5c5c5c; /* disabled */
 
   /* the one accent: selected / active state and the corrected pitch curve */
   --accent:    #3fb3ba;
   --accent-fg: #0b1617;
 
   /* data colours (never used as an accent) */
-  --wave:       #4a4a4a;
-  --wave-b:     #5a5a5a;
-  --curve-orig: #8a8a8a;
+  --wave:       #464646;
+  --wave-b:     #525252;
+  --curve-orig: #a6a6a6;
+  --value-fill: #5a5a5a; /* slider fill from its reference value */
+
+  /* pitch-view grid: octave (C) > natural notes and labelled time > subdivisions */
+  --grid-major: #636363;
+  --grid-minor: #2e2e2e;
+  --grid-sub:   #1d1d1d;
+  --row-black:  rgba(0, 0, 0, .17); /* accidental rows, drawn over the waveform */
 
   /* status only (toasts, warnings) */
   --ok: #6fbf73; --warn: #d9a441; --err: #d25c5c;
 
   --focus: 0 0 0 1px var(--bg-0), 0 0 0 3px var(--accent);
+  color-scheme: dark;
 }
 
 :root[data-theme="light"] {
   --bg-0: #e9e9e9; --bg-1: #f4f4f4; --bg-2: #ffffff; --bg-3: #e2e2e2;
-  --line-1: #d4d4d4; --line-2: #bdbdbd;
-  --fg-1: #1b1b1b; --fg-2: #5f5f5f; --fg-3: #a0a0a0;
+  --line-1: #d4d4d4; --line-2: #bdbdbd; --line-ctl: #8a8a8a;
+  --fg-1: #1b1b1b; --fg-2: #545454; --fg-3: #666666; --fg-off: #ababab;
   --accent: #157f86; --accent-fg: #ffffff;
-  --wave: #bdbdbd; --wave-b: #ababab; --curve-orig: #7a7a7a;
+  --wave: #d6d6d6; --wave-b: #cdcdcd; --curve-orig: #5e5e5e; --value-fill: #a8a8a8;
+  --grid-major: #858585; --grid-minor: #cbcbcb; --grid-sub: #dedede;
+  --row-black: rgba(0, 0, 0, .045);
   --focus: 0 0 0 1px var(--bg-2), 0 0 0 3px var(--accent);
+  color-scheme: light;
+}
+
+:root[data-theme="contrast"] {
+  --bg-0: #000000; --bg-1: #0b0b0b; --bg-2: #161616; --bg-3: #2c2c2c;
+  --line-1: #5a5a5a; --line-2: #9a9a9a; --line-ctl: #b4b4b4;
+  --fg-1: #ffffff; --fg-2: #e2e2e2; --fg-3: #c2c2c2; --fg-off: #7a7a7a;
+  --accent: #3fe0e8; --accent-fg: #000000;
+  --wave: #4c4c4c; --wave-b: #5a5a5a; --curve-orig: #d0d0d0; --value-fill: #8a8a8a;
+  --grid-major: #9a9a9a; --grid-minor: #4a4a4a; --grid-sub: #262626;
+  --row-black: rgba(0, 0, 0, .35);
+  --ok: #7fe08a; --warn: #ffc24a; --err: #ff6b6b;
+  --focus: 0 0 0 2px var(--bg-0), 0 0 0 4px var(--fg-1);
+  color-scheme: dark;
 }

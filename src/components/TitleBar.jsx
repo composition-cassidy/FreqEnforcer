@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Menu from './Menu';
-import { LANGUAGES } from '../config/settings';
+import { LANGUAGES, THEMES } from '../config/settings';
 
 const api = () => window.electronAPI;
 
@@ -9,7 +9,7 @@ const api = () => window.electronAPI;
  * Frameless title bar: brand, File / Export / Options menus, processing
  * status and window controls.
  */
-export default function TitleBar({ audioLoaded, processing, busy, prefs, onPrefs, onAction }) {
+export default function TitleBar({ audioLoaded, processing, busy, prefs, onPrefs, onAction, engine = 'ready', onRetryEngine }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(null); // { id, x, y }
   const [maximized, setMaximized] = useState(false);
@@ -42,8 +42,7 @@ export default function TitleBar({ audioLoaded, processing, busy, prefs, onPrefs
     options: [
       { id: 'prefs', label: t('menu.preferences'), shortcut: 'Ctrl+,', onSelect: act('preferences') },
       { sep: true },
-      { id: 'dark',  label: t('prefs.dark'),  checked: prefs.theme === 'dark',  onSelect: () => onPrefs({ theme: 'dark' }) },
-      { id: 'light', label: t('prefs.light'), checked: prefs.theme === 'light', onSelect: () => onPrefs({ theme: 'light' }) },
+      ...THEMES.map((th) => ({ id: th, label: t(`prefs.${th}`), checked: prefs.theme === th, onSelect: () => onPrefs({ theme: th }) })),
       { sep: true },
       ...LANGUAGES.map((l) => ({ id: `lang-${l}`, label: t(`language.${l}`), checked: prefs.language === l, onSelect: () => onPrefs({ language: l }) })),
     ],
@@ -61,6 +60,13 @@ export default function TitleBar({ audioLoaded, processing, busy, prefs, onPrefs
       </nav>
       <div className="title__spacer" />
       <div className="title__status" aria-live="polite">
+        {engine === 'starting' && <span className="title__engine">{t('backend.checking')}</span>}
+        {engine === 'error' && (
+          <span className="title__engine title__engine--err">
+            {t('backend.failed')}
+            <button type="button" className="btn" onClick={onRetryEngine}>{t('backend.retry')}</button>
+          </span>
+        )}
         {processing.active && (
           <span>
             {t('status.processing')} <span className="mono">{processing.pct}%</span>

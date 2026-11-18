@@ -2,7 +2,8 @@
 :: Change to project root (one level up from scripts\)
 cd /d "%~dp0.."
 
-echo === FreqEnforcer v2 Build ===
+for /f "delims=" %%v in ('node -p "require('./package.json').version"') do set VER=%%v
+echo === FreqEnforcer v%VER% Build ===
 echo.
 
 echo [1/6] Building React frontend...
@@ -30,12 +31,21 @@ if errorlevel 1 (
 )
 echo.
 
-echo [4/4] Zipping portable package...
-powershell -NoProfile -Command "Compress-Archive -Path 'dist-electron\win-unpacked\*' -DestinationPath 'dist-electron\FreqEnforcer-2.0.1-portable.zip' -Force"
+echo [4/4] Packing portable archive (7z, LZMA2 max)...
+:: 7z is ~35 %% smaller than zip here; Windows 11 Explorer and 7-Zip open it.
+:: Contents go in one FreqEnforcer-<version> folder.
+set SEVENZIP=node_modules\7zip-bin\win\x64\7za.exe
+if exist "dist-electron\FreqEnforcer-%VER%-portable.7z" del "dist-electron\FreqEnforcer-%VER%-portable.7z"
+"%SEVENZIP%" a -t7z -mx=9 -mmt=on "dist-electron\FreqEnforcer-%VER%-portable.7z" ".\dist-electron\win-unpacked" >nul
+if errorlevel 1 (
+    echo ERROR: 7z packing failed
+    exit /b 1
+)
+"%SEVENZIP%" rn "dist-electron\FreqEnforcer-%VER%-portable.7z" win-unpacked FreqEnforcer-%VER% >nul
 echo.
 
 echo === BUILD COMPLETE ===
 echo.
-echo Installer:  dist-electron\FreqEnforcer-2.0.1-Setup.exe
-echo Portable:   dist-electron\FreqEnforcer-2.0.1-portable.zip
+echo Installer:  dist-electron\FreqEnforcer-%VER%-Setup.exe
+echo Portable:   dist-electron\FreqEnforcer-%VER%-portable.7z
 echo Unpacked:   dist-electron\win-unpacked\FreqEnforcer.exe

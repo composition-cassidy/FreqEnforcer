@@ -1,7 +1,7 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fitCanvas, token, useRedrawTriggers } from '../utils/canvas';
-import { contourToSemitones, drawPitchView, geometry, HANDLE_HIT } from './pitchViewDraw';
+import { contourToSemitones, drawPitchView, drawPlayhead, geometry, HANDLE_HIT } from './pitchViewDraw';
 import { midiToNote, noteNameToPC, pcName, toMidi } from '../utils/note_utils';
 
 const SPANS = [3, 6, 12, 24];
@@ -12,13 +12,19 @@ const SPANS = [3, 6, 12, 24];
  * - drag the target line (or its handle) vertically to change the target note
  * - click elsewhere to seek
  * - +/- change the visible semitone span
+ * The playhead lives on its own overlay canvas, redrawn from the player's
+ * frame callback (`subscribe`), so playback never re-renders this component
+ * or repaints the waveform.
  */
 export default function PitchView({
-  audio, processed, abMode, target, notation, playhead, loop, trimFrac, busy,
+  audio, processed, abMode, target, notation, playing, subscribe, loop, trimFrac, busy,
   onTargetShift, onSeek,
 }) {
   const { t } = useTranslation();
   const canvasRef = useRef(null);
+  const overlayRef = useRef(null);
+  const headColor = useRef('#fff');
+  const playingRef = useRef(playing); playingRef.current = playing;
   const [span, setSpan] = useState(6);
   const drag = useRef(null);
 
@@ -28,7 +34,7 @@ export default function PitchView({
   const targetLabel = `${pcName(targetMidi % 12, notation)}${target.octave}`;
   const labelAt = useCallback((st) => {
     const n = midiToNote(targetMidi + st);
-    return Math.abs(st) <= 12 ? `${pcName(noteNameToPC(n.note), notation)}${n.octave}` : `${st > 0 ? '+' : ''}${st}`;
+    return `${pcName(noteNameToPC(n.note), notation)}${n.octave}`;
   }, [targetMidi, notation]);
 
   const curveA = useMemo(() => contourToSemitones(audio.contour, targetHz), [audio.contour, targetHz]);
@@ -39,7 +45,7 @@ export default function PitchView({
     peaks: isB ? processed.peaks : audio.peaks, isB,
     duration: isB ? processed.duration : audio.duration,
     curveA, durationA: audio.duration, curveB, durationB: processed.duration,
-    span, targetLabel, labelAt, loop, trimFrac, playhead,
+    span, targetMidi, targetLabel, labelAt, loop, trimFrac,
   };
 
   const draw = useCallback(() => {
@@ -53,11 +59,37 @@ export default function PitchView({
       fg1: token(el, '--fg-1'), fg2: token(el, '--fg-2'), fg3: token(el, '--fg-3'),
       wave: token(el, '--wave'), waveB: token(el, '--wave-b'),
       curveOrig: token(el, '--curve-orig'), accent: token(el, '--accent'),
+      gridMajor: token(el, '--grid-major'), gridMinor: token(el, '--grid-minor'),
+      gridSub: token(el, '--grid-sub'), rowBlack: token(el, '--row-black'),
     };
+    headColor.current = c.fg1;
     drawPitchView(ctx, w, h, state.current, c);
   }, []);
   useRedrawTriggers(canvasRef, draw);
   useLayoutEffect(draw); // repaint after every commit (cheap, ~1 ms)
+
+  // playhead overlay: one draw per animation frame while playing
+  const audioLoadedRef = useRef(audio.loaded); audioLoadedRef.current = audio.loaded;
+  const last = useRef({ pos: 0, dur: 0 });
+  const head = useRef(null); // { ctx, w, h }, refitted only on resize / commit
+  const drawHead = useCallback((refit = true) => {
+    const canvas = overlayRef.current;
+    if (!canvas) return;
+    // Per-frame calls reuse the cached size: reading clientWidth every frame
+    // would force a synchronous layout.
+    if (refit || !head.current) {
+      if (!canvas.clientWidth) return;
+      head.current = fitCanvas(canvas);
+    }
+    const { ctx, w, h } = head.current;
+    const { pos, dur } = last.current;
+    const show = audioLoadedRef.current && dur > 0 && (playingRef.current || pos > 0);
+    drawPlayhead(ctx, w, h, show ? pos / dur : null, headColor.current);
+  }, []);
+  useEffect(() => subscribe?.((pos, dur) => { last.current = { pos, dur }; drawHead(false); }), [subscribe, drawHead]);
+  const refitHead = useCallback(() => drawHead(true), [drawHead]);
+  useRedrawTriggers(overlayRef, refitHead);
+  useEffect(refitHead, [playing, audio.loaded, refitHead]);
 
   function geo() { const c = canvasRef.current; return geometry(c.clientWidth, c.clientHeight, span); }
   function onPointerDown(e) {
@@ -115,8 +147,9 @@ export default function PitchView({
         </span>
       </div>
       <div className={`wave${busy ? ' wave--busy' : ''}`}>
+        <canvas ref={canvasRef} aria-hidden="true" />
         <canvas
-          ref={canvasRef} role="img" aria-label={t('view.aria', { target: targetLabel })}
+          ref={overlayRef} className="wave__overlay" role="img" aria-label={t('view.aria', { target: targetLabel })}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => { drag.current = null; }}
           onWheel={(e) => { if (audio.loaded) zoom(e.deltaY > 0 ? 1 : -1); }}
         />

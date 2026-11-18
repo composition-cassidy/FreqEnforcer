@@ -120,7 +120,7 @@ def _repair_world_artifacts(
         return audio_in
 
     # --- STFT ---
-    f_ax, t_ax, Z = stft(audio_in, fs=sr,
+    f_ax, _, Z = stft(audio_in, fs=sr,
                           nperseg=fft_size, noverlap=fft_size - hop,
                           window="hann", boundary="zeros", padded=True)
     # Z shape: (n_bins, n_frames)
@@ -398,35 +398,6 @@ def _apply_micro_rms_envelope(
                                 left=gain_smooth[0], right=gain_smooth[-1])
 
     return synth * per_sample_gain
-
-
-def _apply_hf_rolloff(E: np.ndarray, sr: int, fft_size: int) -> np.ndarray:
-    """
-    Apply high-frequency rolloff to spectral envelope to match natural voice.
-
-    Below 4kHz: flat (0 dB)
-    4-8kHz: linear rolloff (-6 dB/octave)
-    Above 8kHz: steep rolloff (-12 dB/octave)
-
-    This prevents synthetic "sparkle" from harmonics extending to Nyquist.
-    """
-    n_bins = len(E)
-    freqs = np.arange(n_bins, dtype=np.float64) * sr / fft_size
-    rolloff = np.ones(n_bins, dtype=np.float64)
-
-    # 4-8 kHz: -6 dB/octave rolloff
-    mask_4_8 = (freqs >= 4000.0) & (freqs < 8000.0)
-    if np.any(mask_4_8):
-        octaves_from_4k = np.log2(freqs[mask_4_8] / 4000.0)
-        rolloff[mask_4_8] = 10.0 ** (-6.0 * octaves_from_4k / 20.0)
-
-    # Above 8 kHz: -12 dB/octave rolloff
-    mask_above_8 = freqs >= 8000.0
-    if np.any(mask_above_8):
-        octaves_from_8k = np.log2(freqs[mask_above_8] / 8000.0)
-        rolloff[mask_above_8] = 10.0 ** (-12.0 * octaves_from_8k / 20.0)
-
-    return E * rolloff
 
 
 def _zp_stft(audio: np.ndarray, window_size: int, fft_size: int,

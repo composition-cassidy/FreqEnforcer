@@ -44,6 +44,7 @@ export function useAudioLoader({ setAudio, onLoaded, showToast }) {
         detectedPitch: data.detected_pitch ?? null,
         peakDb: data.peak_db ?? null, rmsDb: data.rms_db ?? null,
         durationSeconds: data.duration_seconds ?? 0, sampleRate: data.sample_rate ?? null,
+        audioFile: data.audio_temp_filename ?? null,
       };
       setAudio(next);
       onLoaded(next);
