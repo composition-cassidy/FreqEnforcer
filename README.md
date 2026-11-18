@@ -1,4 +1,6 @@
-# FreqEnforcer — Electron Edition
+# FreqEnforcer v2.5
+
+<img width="2882" height="1863" alt="image" src="https://github.com/user-attachments/assets/27cff08b-bf79-4f26-a7e6-c827944c6cbb" />
 
 ## Development
 
